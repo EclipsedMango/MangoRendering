@@ -28,7 +28,6 @@ add_library(imgui STATIC
 )
 
 target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
-
 target_link_libraries(imgui PUBLIC SDL2::SDL2 glad_gl)
 
 add_executable(MangoRendering main.cpp
@@ -39,7 +38,16 @@ add_executable(MangoRendering main.cpp
         GpuBuffer.h
         GpuBuffer.cpp
         Mesh.h
-        Mesh.cpp)
+        Mesh.cpp
+        Shader.h
+        Shader.cpp)
 
 target_link_libraries(MangoRendering SDL2::SDL2 SDL2::SDL2main glad_gl imgui ${CMAKE_DL_LIBS})
 target_include_directories(MangoRendering PRIVATE include ${glm_SOURCE_DIR})
+
+add_custom_target(copy_shaders ALL
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/Shaders
+        ${CMAKE_BINARY_DIR}/Shaders
+)
+add_dependencies(MangoRendering copy_shaders)

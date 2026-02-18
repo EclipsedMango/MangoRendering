@@ -6,6 +6,7 @@
 
 #include "GpuBuffer.h"
 #include "Mesh.h"
+#include "Shader.h"
 #include "Window.h"
 #include "glm/vec2.hpp"
 #include "glm/vec4.hpp"
@@ -20,7 +21,7 @@ public:
     static void HandleResizeEvent(const SDL_Event& event);
 
     static GpuBuffer* CreateBuffer(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
-    static void DrawMesh(const Mesh& mesh);
+    static void DrawMesh(const Mesh& mesh, const Shader& shader);
 
 protected:
     RenderApi() = default;

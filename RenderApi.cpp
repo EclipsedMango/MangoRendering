@@ -36,7 +36,7 @@ Window* RenderApi::CreateWindow(const char* title, const glm::vec2 pos, const gl
 
 void RenderApi::ClearColour(const glm::vec4 &colour) {
     glClearColor(colour.r, colour.g, colour.b, colour.a);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
 void RenderApi::HandleResizeEvent(const SDL_Event &event) {
@@ -49,11 +49,12 @@ GpuBuffer* RenderApi::CreateBuffer(const std::vector<Vertex> &vertices, const st
     return new GpuBuffer(vertices, indices);
 }
 
-void RenderApi::DrawMesh(const Mesh &mesh) {
+void RenderApi::DrawMesh(const Mesh &mesh, const Shader& shader) {
     if (!mesh.IsUploaded()) {
         throw std::runtime_error("Mesh has not been uploaded to the GPU");
     }
 
+    shader.Bind();
     mesh.GetBuffer()->Bind();
     glDrawElements(GL_TRIANGLES, mesh.GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, nullptr);
 }

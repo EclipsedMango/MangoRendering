@@ -11,21 +11,17 @@ int main() {
     SDL_GL_SetSwapInterval(1);
 
     SDL_Event event;
-
     while (window->IsOpen()) {
         while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT) {
+            if (event.type == SDL_QUIT || event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE) {
                 window->Close();
             }
 
-            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE) {
-                window->Close();
-            }
+            RenderApi::HandleResizeEvent(event);
         }
 
         window->MakeCurrent();
-        glClearColor(0.12f, 0.12f, 0.12f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        RenderApi::ClearColour({0.12f, 0.12f, 0.12f, 1.0f});
         window->SwapBuffers();
     }
 

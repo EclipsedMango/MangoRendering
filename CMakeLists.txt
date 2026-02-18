@@ -35,7 +35,11 @@ add_executable(MangoRendering main.cpp
         RenderApi.h
         RenderApi.cpp
         Window.h
-        Window.cpp)
+        Window.cpp
+        GpuBuffer.h
+        GpuBuffer.cpp
+        Mesh.h
+        Mesh.cpp)
 
 target_link_libraries(MangoRendering SDL2::SDL2 SDL2::SDL2main glad_gl imgui ${CMAKE_DL_LIBS})
 target_include_directories(MangoRendering PRIVATE include ${glm_SOURCE_DIR})

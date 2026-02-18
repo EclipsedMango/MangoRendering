@@ -1,5 +1,6 @@
 #include "RenderApi.h"
 
+#include <iostream>
 #include <SDL_video.h>
 #include <stdexcept>
 #include "glad/gl.h"
@@ -12,6 +13,8 @@ void RenderApi::Init() {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+
+
 }
 
 Window* RenderApi::CreateWindow(const char* title, const glm::vec2 pos, const glm::vec2 size, const Uint32 flags) {
@@ -29,4 +32,28 @@ Window* RenderApi::CreateWindow(const char* title, const glm::vec2 pos, const gl
     glEnable(GL_DEPTH_TEST);
     m_windows.push_back(window);
     return window;
+}
+
+void RenderApi::ClearColour(const glm::vec4 &colour) {
+    glClearColor(colour.r, colour.g, colour.b, colour.a);
+    glClear(GL_COLOR_BUFFER_BIT);
+}
+
+void RenderApi::HandleResizeEvent(const SDL_Event &event) {
+    if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_RESIZED) {
+        glViewport(0, 0, event.window.data1, event.window.data2);
+    }
+}
+
+GpuBuffer* RenderApi::CreateBuffer(const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices) {
+    return new GpuBuffer(vertices, indices);
+}
+
+void RenderApi::DrawMesh(const Mesh &mesh) {
+    if (!mesh.IsUploaded()) {
+        throw std::runtime_error("Mesh has not been uploaded to the GPU");
+    }
+
+    mesh.GetBuffer()->Bind();
+    glDrawElements(GL_TRIANGLES, mesh.GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, nullptr);
 }

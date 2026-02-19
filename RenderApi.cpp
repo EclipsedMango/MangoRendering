@@ -9,12 +9,14 @@ bool RenderApi::m_gladInitialized = false;
 std::vector<Window*> RenderApi::m_windows {};
 
 void RenderApi::Init() {
-    SDL_Init(SDL_INIT_VIDEO);
+    SDL_SetHint(SDL_HINT_VIDEODRIVER, "x11");
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        throw std::runtime_error(std::string("SDL_Init failed: ") + SDL_GetError());
+    }
+
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-
-
 }
 
 Window* RenderApi::CreateWindow(const char* title, const glm::vec2 pos, const glm::vec2 size, const Uint32 flags) {

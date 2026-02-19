@@ -40,7 +40,9 @@ add_executable(MangoRendering main.cpp
         Mesh.h
         Mesh.cpp
         Shader.h
-        Shader.cpp)
+        Shader.cpp
+        Camera.cpp
+        Camera.h)
 
 target_link_libraries(MangoRendering SDL2::SDL2 SDL2::SDL2main glad_gl imgui ${CMAKE_DL_LIBS})
 target_include_directories(MangoRendering PRIVATE include ${glm_SOURCE_DIR})

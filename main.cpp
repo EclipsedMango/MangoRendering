@@ -1,9 +1,10 @@
 #include <iostream>
 
 #include "RenderApi.h"
-#include "glad/gl.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+
+#include "Camera.h"
 #include "SDL2/SDL.h"
 
 int main() {
@@ -11,6 +12,9 @@ int main() {
     Window* window = RenderApi::CreateWindow("Mango", {SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED}, {500, 500}, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
 
     SDL_GL_SetSwapInterval(1);
+
+    bool mouseCaptured = true;
+    SDL_SetRelativeMouseMode(static_cast<SDL_bool>(mouseCaptured));
 
     Mesh* mesh = new Mesh(
         {
@@ -65,29 +69,16 @@ int main() {
             20, 21, 22, 22, 23, 20
         }
     );
-
     const Shader* shader = new Shader("Shaders/test.vert", "Shaders/test.frag");
+    Camera* camera = new Camera({0, 0, 3}, 45.0f, 500.0f / 500.0f, 0.1f, 100.0f);
 
     mesh->Upload();
-
     shader->Bind();
 
     glm::mat4 model = glm::mat4(1.0f);
     model = glm::rotate(model, glm::radians(45.0f), glm::vec3(1.0f, 1.0f, 0.0f));
 
-    const glm::mat4 view = glm::lookAt(
-        glm::vec3(0.0f, 0.0f, 3.0f),  // camera position
-        glm::vec3(0.0f, 0.0f, 0.0f),  // looking at origin
-        glm::vec3(0.0f, 1.0f, 0.0f)   // up vector
-    );
-
-    glm::mat4 projection = glm::perspective(
-        glm::radians(45.0f),  // fov
-        500.0f / 500.0f,      // aspect ratio
-        0.1f,                 // near plane
-        100.0f                // far plane
-    );
-
+    uint32_t lastTime = SDL_GetTicks();
     SDL_Event event;
     while (window->IsOpen()) {
         while (SDL_PollEvent(&event)) {
@@ -95,16 +86,36 @@ int main() {
                 window->Close();
             }
 
+            if (event.type == SDL_MOUSEMOTION) {
+                camera->Rotate(event.motion.xrel * 0.05f, -event.motion.yrel * 0.05f);
+            }
+
+            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_TAB) {
+                mouseCaptured = !mouseCaptured;
+                SDL_SetRelativeMouseMode(static_cast<SDL_bool>(mouseCaptured));
+            }
+
             RenderApi::HandleResizeEvent(event);
         }
+
+        const uint32_t currentTime = SDL_GetTicks();
+        const float deltaTime = (currentTime - lastTime) / 1000.0f;
+        lastTime = currentTime;
+
+        const uint8_t* keys = SDL_GetKeyboardState(nullptr);
+        constexpr float speed = 5.0f;
+        if (keys[SDL_SCANCODE_W]) camera->Move(camera->GetFront() * speed * deltaTime);
+        if (keys[SDL_SCANCODE_S]) camera->Move(-camera->GetFront() * speed * deltaTime);
+        if (keys[SDL_SCANCODE_A]) camera->Move(-camera->GetRight() * speed * deltaTime);
+        if (keys[SDL_SCANCODE_D]) camera->Move(camera->GetRight() * speed * deltaTime);
 
         window->MakeCurrent();
         RenderApi::ClearColour({0.12f, 0.12f, 0.12f, 1.0f});
 
         shader->Bind();
         shader->SetMatrix4("u_Model", model);
-        shader->SetMatrix4("u_View", view);
-        shader->SetMatrix4("u_Projection", projection);
+        shader->SetMatrix4("u_View", camera->GetViewMatrix());
+        shader->SetMatrix4("u_Projection", camera->GetProjectionMatrix());
         RenderApi::DrawMesh(*mesh, *shader);
         window->SwapBuffers();
     }

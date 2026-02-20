@@ -1,11 +1,13 @@
 #include "RenderApi.h"
 
-#include <iostream>
 #include <SDL_video.h>
 #include <stdexcept>
 #include "glad/gl.h"
+#include "glm/gtc/type_ptr.hpp"
 
 bool RenderApi::m_gladInitialized = false;
+Camera* RenderApi::m_activeCamera {};
+unsigned int RenderApi::m_cameraUbo {};
 std::vector<Window*> RenderApi::m_windows {};
 
 void RenderApi::Init() {
@@ -45,6 +47,28 @@ void RenderApi::HandleResizeEvent(const SDL_Event &event) {
     if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_RESIZED) {
         glViewport(0, 0, event.window.data1, event.window.data2);
     }
+}
+
+void RenderApi::SetActiveCamera(Camera *camera) {
+    m_activeCamera = camera;
+
+    unsigned int ubo;
+    glGenBuffers(1, &ubo);
+    glBindBuffer(GL_UNIFORM_BUFFER, ubo);
+    glBufferData(GL_UNIFORM_BUFFER, 2 * sizeof(glm::mat4), nullptr, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo);
+
+    m_cameraUbo = ubo;
+}
+
+void RenderApi::UploadCameraData() {
+    if (!m_activeCamera) {
+        throw std::runtime_error("No active camera");
+    }
+
+    glBindBuffer(GL_UNIFORM_BUFFER, m_cameraUbo);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(m_activeCamera->GetViewMatrix()));
+    glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(m_activeCamera->GetProjectionMatrix()));
 }
 
 GpuBuffer* RenderApi::CreateBuffer(const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices) {

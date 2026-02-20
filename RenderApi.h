@@ -4,6 +4,7 @@
 #include <SDL.h>
 #include <vector>
 
+#include "Camera.h"
 #include "GpuBuffer.h"
 #include "Mesh.h"
 #include "Shader.h"
@@ -20,6 +21,9 @@ public:
 
     static void HandleResizeEvent(const SDL_Event& event);
 
+    static void SetActiveCamera(Camera* camera);
+    static void UploadCameraData();
+
     static GpuBuffer* CreateBuffer(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
     static void DrawMesh(const Mesh& mesh, const Shader& shader);
 
@@ -28,6 +32,10 @@ protected:
 
 private:
     static bool m_gladInitialized;
+
+    static Camera* m_activeCamera;
+    static unsigned int m_cameraUbo;
+
     static std::vector<Window*> m_windows;
 };
 

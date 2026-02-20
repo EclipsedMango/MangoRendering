@@ -5,13 +5,23 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "Camera.h"
+#include "imgui.h"
+#include "imgui_impl_opengl3.h"
+#include "imgui_impl_sdl2.h"
+#include "glad/gl.h"
+#include "glm/gtc/type_ptr.hpp"
 #include "SDL2/SDL.h"
 
 int main() {
     RenderApi::Init();
     Window* window = RenderApi::CreateWindow("Mango", {SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED}, {500, 500}, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
 
-    SDL_GL_SetSwapInterval(1);
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui_ImplSDL2_InitForOpenGL(window->GetSDLWindow(), window->GetContext());
+    ImGui_ImplOpenGL3_Init("#version 460");
+
+    SDL_GL_SetSwapInterval(0);
 
     bool mouseCaptured = true;
     SDL_SetRelativeMouseMode(static_cast<SDL_bool>(mouseCaptured));
@@ -70,10 +80,12 @@ int main() {
         }
     );
     const Shader* shader = new Shader("Shaders/test.vert", "Shaders/test.frag");
-    Camera* camera = new Camera({0, 0, 3}, 45.0f, 500.0f / 500.0f, 0.1f, 100.0f);
+    Camera* camera = new Camera({0, 0, 3}, 75.0f, 500.0f / 500.0f, 0.1f, 100.0f);
 
     mesh->Upload();
     shader->Bind();
+
+    RenderApi::SetActiveCamera(camera);
 
     glm::mat4 model = glm::mat4(1.0f);
     model = glm::rotate(model, glm::radians(45.0f), glm::vec3(1.0f, 1.0f, 0.0f));
@@ -81,12 +93,22 @@ int main() {
     uint32_t lastTime = SDL_GetTicks();
     SDL_Event event;
     while (window->IsOpen()) {
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplSDL2_NewFrame();
+        ImGui::NewFrame();
+
+        ImGui::Begin("Info");
+        ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+        ImGui::End();
+
         while (SDL_PollEvent(&event)) {
+            ImGui_ImplSDL2_ProcessEvent(&event);
+
             if (event.type == SDL_QUIT || event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE) {
                 window->Close();
             }
 
-            if (event.type == SDL_MOUSEMOTION) {
+            if (event.type == SDL_MOUSEMOTION && mouseCaptured) {
                 camera->Rotate(event.motion.xrel * 0.05f, -event.motion.yrel * 0.05f);
             }
 
@@ -109,19 +131,26 @@ int main() {
         if (keys[SDL_SCANCODE_A]) camera->Move(-camera->GetRight() * speed * deltaTime);
         if (keys[SDL_SCANCODE_D]) camera->Move(camera->GetRight() * speed * deltaTime);
 
+        RenderApi::UploadCameraData();
+
         window->MakeCurrent();
         RenderApi::ClearColour({0.12f, 0.12f, 0.12f, 1.0f});
 
         shader->Bind();
         shader->SetMatrix4("u_Model", model);
-        shader->SetMatrix4("u_View", camera->GetViewMatrix());
-        shader->SetMatrix4("u_Projection", camera->GetProjectionMatrix());
         RenderApi::DrawMesh(*mesh, *shader);
+
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
         window->SwapBuffers();
     }
 
     // SDL_GL_DeleteContext(glContext);
     delete mesh;
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImGui::DestroyContext();
     SDL_Quit();
     return 0;
 }

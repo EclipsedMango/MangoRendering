@@ -2,12 +2,14 @@
 
 #include <SDL_video.h>
 #include <stdexcept>
+
+#include "UniformBuffer.h"
 #include "glad/gl.h"
 #include "glm/gtc/type_ptr.hpp"
 
 bool RenderApi::m_gladInitialized = false;
 Camera* RenderApi::m_activeCamera {};
-unsigned int RenderApi::m_cameraUbo {};
+UniformBuffer* RenderApi::m_cameraUbo {};
 std::vector<Window*> RenderApi::m_windows {};
 
 void RenderApi::Init() {
@@ -51,28 +53,23 @@ void RenderApi::HandleResizeEvent(const SDL_Event &event) {
 
 void RenderApi::SetActiveCamera(Camera *camera) {
     m_activeCamera = camera;
-
-    unsigned int ubo;
-    glGenBuffers(1, &ubo);
-    glBindBuffer(GL_UNIFORM_BUFFER, ubo);
-    glBufferData(GL_UNIFORM_BUFFER, 2 * sizeof(glm::mat4), nullptr, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo);
-
-    m_cameraUbo = ubo;
+    if (!m_cameraUbo) {
+        m_cameraUbo = new UniformBuffer(2 * sizeof(glm::mat4), 0);
+    }
 }
 
 void RenderApi::UploadCameraData() {
-    if (!m_activeCamera) {
-        throw std::runtime_error("No active camera");
-    }
+    if (!m_activeCamera || !m_cameraUbo) return;
 
-    glBindBuffer(GL_UNIFORM_BUFFER, m_cameraUbo);
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(m_activeCamera->GetViewMatrix()));
-    glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(m_activeCamera->GetProjectionMatrix()));
+    const glm::mat4 view = m_activeCamera->GetViewMatrix();
+    const glm::mat4 proj = m_activeCamera->GetProjectionMatrix();
+
+    m_cameraUbo->SetData(&view, sizeof(glm::mat4), 0);
+    m_cameraUbo->SetData(&proj, sizeof(glm::mat4), sizeof(glm::mat4));
 }
 
-GpuBuffer* RenderApi::CreateBuffer(const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices) {
-    return new GpuBuffer(vertices, indices);
+VertexArray* RenderApi::CreateBuffer(const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices) {
+    return new VertexArray(vertices, indices);
 }
 
 void RenderApi::DrawMesh(const Mesh &mesh, const Shader& shader) {

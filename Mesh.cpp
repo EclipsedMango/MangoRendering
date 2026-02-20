@@ -8,5 +8,5 @@ void Mesh::Upload() {
         return;
     }
 
-    m_buffer = std::make_unique<GpuBuffer>(m_vertices, m_indices);
+    m_buffer = std::make_unique<VertexArray>(m_vertices, m_indices);
 }

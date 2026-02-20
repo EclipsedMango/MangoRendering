@@ -11,13 +11,13 @@ struct Vertex {
     glm::vec2 texCoord;
 };
 
-class GpuBuffer {
+class VertexArray {
 public:
-    GpuBuffer(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
-    ~GpuBuffer();
+    VertexArray(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
+    ~VertexArray();
 
-    GpuBuffer(const GpuBuffer&) = delete;
-    GpuBuffer& operator=(const GpuBuffer&) = delete;
+    VertexArray(const VertexArray&) = delete;
+    VertexArray& operator=(const VertexArray&) = delete;
 
     void Bind() const;
     static void Unbind() ;

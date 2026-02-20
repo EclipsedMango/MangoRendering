@@ -38,8 +38,8 @@ add_executable(MangoRendering main.cpp
         RenderApi.cpp
         Window.h
         Window.cpp
-        GpuBuffer.h
-        GpuBuffer.cpp
+        VertexArray.h
+        VertexArray.cpp
         Mesh.h
         Mesh.cpp
         Shader.h
@@ -48,7 +48,9 @@ add_executable(MangoRendering main.cpp
         Camera.h
         stb.cpp
         Texture.cpp
-        Texture.h)
+        Texture.h
+        UniformBuffer.cpp
+        UniformBuffer.h)
 
 target_link_libraries(MangoRendering SDL2::SDL2 SDL2::SDL2main glad_gl imgui ${CMAKE_DL_LIBS})
 target_include_directories(MangoRendering PRIVATE include ${glm_SOURCE_DIR} ${stb_SOURCE_DIR})

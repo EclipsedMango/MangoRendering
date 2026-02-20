@@ -1,10 +1,10 @@
 
-#include "GpuBuffer.h"
+#include "VertexArray.h"
 
 #include <stdexcept>
 #include "glad/gl.h"
 
-GpuBuffer::GpuBuffer(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices) {
+VertexArray::VertexArray(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices) {
     if (vertices.empty() || indices.empty()) {
         throw std::invalid_argument("Cannot create GpuBuffer with empty vertex or index data");
     }
@@ -13,21 +13,21 @@ GpuBuffer::GpuBuffer(const std::vector<Vertex>& vertices, const std::vector<uint
     Setup(vertices, indices);
 }
 
-GpuBuffer::~GpuBuffer() {
+VertexArray::~VertexArray() {
     glDeleteVertexArrays(1, &m_VAO);
     glDeleteBuffers(1, &m_VBO);
     glDeleteBuffers(1, &m_EBO);
 }
 
-void GpuBuffer::Bind() const {
+void VertexArray::Bind() const {
     glBindVertexArray(m_VAO);
 }
 
-void GpuBuffer::Unbind() {
+void VertexArray::Unbind() {
     glBindVertexArray(0);
 }
 
-void GpuBuffer::Setup(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices) {
+void VertexArray::Setup(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices) {
     glGenVertexArrays(1, &m_VAO);
     glGenBuffers(1, &m_VBO);
     glGenBuffers(1, &m_EBO);

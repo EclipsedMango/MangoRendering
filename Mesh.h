@@ -3,7 +3,7 @@
 
 #include <memory>
 #include <vector>
-#include "GpuBuffer.h"
+#include "VertexArray.h"
 
 class Mesh {
 public:
@@ -17,12 +17,12 @@ public:
 
     [[nodiscard]] const std::vector<Vertex>& GetVertices() const { return m_vertices; }
     [[nodiscard]] const std::vector<uint32_t>& GetIndices() const { return m_indices; }
-    [[nodiscard]] GpuBuffer* GetBuffer() const { return m_buffer.get(); }
+    [[nodiscard]] VertexArray* GetBuffer() const { return m_buffer.get(); }
 
 private:
     std::vector<Vertex> m_vertices;
     std::vector<uint32_t> m_indices;
-    std::unique_ptr<GpuBuffer> m_buffer;
+    std::unique_ptr<VertexArray> m_buffer;
 };
 
 

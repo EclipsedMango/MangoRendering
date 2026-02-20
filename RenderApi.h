@@ -5,12 +5,11 @@
 #include <vector>
 
 #include "Camera.h"
-#include "GpuBuffer.h"
+#include "VertexArray.h"
 #include "Mesh.h"
 #include "Shader.h"
+#include "UniformBuffer.h"
 #include "Window.h"
-#include "glm/vec2.hpp"
-#include "glm/vec4.hpp"
 
 class RenderApi {
 public:
@@ -24,7 +23,7 @@ public:
     static void SetActiveCamera(Camera* camera);
     static void UploadCameraData();
 
-    static GpuBuffer* CreateBuffer(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
+    static VertexArray* CreateBuffer(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
     static void DrawMesh(const Mesh& mesh, const Shader& shader);
 
 protected:
@@ -34,7 +33,7 @@ private:
     static bool m_gladInitialized;
 
     static Camera* m_activeCamera;
-    static unsigned int m_cameraUbo;
+    static UniformBuffer* m_cameraUbo;
 
     static std::vector<Window*> m_windows;
 };

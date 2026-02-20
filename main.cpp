@@ -16,6 +16,10 @@ int main() {
     RenderApi::Init();
     Window* window = RenderApi::CreateWindow("Mango", {SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED}, {500, 500}, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
 
+    std::cout << "Vendor: "   << glGetString(GL_VENDOR)   << std::endl;
+    std::cout << "Renderer: " << glGetString(GL_RENDERER)  << std::endl;
+    std::cout << "Version: "  << glGetString(GL_VERSION)   << std::endl;
+
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui_ImplSDL2_InitForOpenGL(window->GetSDLWindow(), window->GetContext());

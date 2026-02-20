@@ -18,6 +18,9 @@ glad_add_library(glad_gl REPRODUCIBLE LOADER API gl:core=4.6)
 FetchContent_Declare(imgui GIT_REPOSITORY https://github.com/ocornut/imgui.git GIT_TAG v1.91.1)
 FetchContent_MakeAvailable(imgui)
 
+FetchContent_Declare(stb GIT_REPOSITORY https://github.com/nothings/stb.git GIT_TAG master)
+FetchContent_MakeAvailable(stb)
+
 add_library(imgui STATIC
         ${imgui_SOURCE_DIR}/imgui.cpp
         ${imgui_SOURCE_DIR}/imgui_draw.cpp
@@ -42,10 +45,13 @@ add_executable(MangoRendering main.cpp
         Shader.h
         Shader.cpp
         Camera.cpp
-        Camera.h)
+        Camera.h
+        stb.cpp
+        Texture.cpp
+        Texture.h)
 
 target_link_libraries(MangoRendering SDL2::SDL2 SDL2::SDL2main glad_gl imgui ${CMAKE_DL_LIBS})
-target_include_directories(MangoRendering PRIVATE include ${glm_SOURCE_DIR})
+target_include_directories(MangoRendering PRIVATE include ${glm_SOURCE_DIR} ${stb_SOURCE_DIR})
 
 add_custom_target(copy_shaders ALL
         COMMAND ${CMAKE_COMMAND} -E copy_directory

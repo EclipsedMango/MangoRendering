@@ -83,16 +83,11 @@ int main() {
             20, 21, 22, 22, 23, 20
         }
     );
-    const Shader* shader = new Shader("Shaders/test.vert", "Shaders/test.frag");
-    Camera* camera = new Camera({0, 0, 3}, 75.0f, 500.0f / 500.0f, 0.1f, 100.0f);
+    Shader* shader = new Shader("Shaders/test.vert", "Shaders/test.frag");
+    const Object* object = new Object(mesh, shader);
 
-    mesh->Upload();
-    shader->Bind();
-
+    Camera* camera = new Camera({0, 0, 3}, 75.0f, static_cast<float>(window->GetSize().x) / static_cast<float>(window->GetSize().y), 0.1f, 100.0f);
     RenderApi::SetActiveCamera(camera);
-
-    glm::mat4 model = glm::mat4(1.0f);
-    model = glm::rotate(model, glm::radians(45.0f), glm::vec3(1.0f, 1.0f, 0.0f));
 
     uint32_t lastTime = SDL_GetTicks();
     SDL_Event event;
@@ -139,10 +134,7 @@ int main() {
 
         window->MakeCurrent();
         RenderApi::ClearColour({0.12f, 0.12f, 0.12f, 1.0f});
-
-        shader->Bind();
-        shader->SetMatrix4("u_Model", model);
-        RenderApi::DrawMesh(*mesh, *shader);
+        RenderApi::DrawObject(object);
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -152,6 +144,8 @@ int main() {
 
     // SDL_GL_DeleteContext(glContext);
     delete mesh;
+    delete shader;
+    delete object;
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();

@@ -7,6 +7,7 @@
 #include "Camera.h"
 #include "VertexArray.h"
 #include "Mesh.h"
+#include "Object.h"
 #include "Shader.h"
 #include "UniformBuffer.h"
 #include "Window.h"
@@ -24,7 +25,9 @@ public:
     static void UploadCameraData();
 
     static VertexArray* CreateBuffer(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
+
     static void DrawMesh(const Mesh& mesh, const Shader& shader);
+    static void DrawObject(const Object* object);
 
 protected:
     RenderApi() = default;

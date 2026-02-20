@@ -47,7 +47,12 @@ void RenderApi::ClearColour(const glm::vec4 &colour) {
 
 void RenderApi::HandleResizeEvent(const SDL_Event &event) {
     if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_RESIZED) {
-        glViewport(0, 0, event.window.data1, event.window.data2);
+        const int width = event.window.data1;
+        const int height = event.window.data2;
+        glViewport(0, 0, width, height);
+        if (m_activeCamera) {
+            m_activeCamera->SetAspectRatio(static_cast<float>(width) / static_cast<float>(height));
+        }
     }
 }
 
@@ -80,4 +85,24 @@ void RenderApi::DrawMesh(const Mesh &mesh, const Shader& shader) {
     shader.Bind();
     mesh.GetBuffer()->Bind();
     glDrawElements(GL_TRIANGLES, mesh.GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, nullptr);
+}
+
+void RenderApi::DrawObject(const Object* object) {
+    if (object == nullptr) {
+        throw std::runtime_error("DrawObject called with null Object");
+    }
+
+    if (!object->GetMesh()->IsUploaded()) {
+        throw std::runtime_error("Objects mesh has not been uploaded to the GPU");
+    }
+
+    object->GetShader()->Bind();
+    object->GetShader()->SetMatrix4("u_Model", object->transform.GetModelMatrix());
+
+    for (uint32_t i = 0; i < object->GetTextures().size(); i++) {
+        object->GetTextures()[i]->Bind(i);
+    }
+
+    object->GetMesh()->GetBuffer()->Bind();
+    glDrawElements(GL_TRIANGLES, object->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
 }

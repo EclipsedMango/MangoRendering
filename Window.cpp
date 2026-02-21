@@ -27,6 +27,7 @@ Window::~Window() {
     }
 }
 
+// set up an OpenGL context for rendering into an OpenGL window
 void Window::MakeCurrent() const {
     SDL_GL_MakeCurrent(m_Window, m_Context);
 }

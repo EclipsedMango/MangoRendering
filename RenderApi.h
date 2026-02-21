@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "Camera.h"
+#include "DirectionalLight.h"
 #include "VertexArray.h"
 #include "Mesh.h"
 #include "Object.h"
@@ -26,6 +27,10 @@ public:
 
     static VertexArray* CreateBuffer(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
 
+    static void AddDirectionalLight(DirectionalLight* light);
+    static void RemoveDirectionalLight(DirectionalLight* light);
+    static void UploadLightData();
+
     static void DrawMesh(const Mesh& mesh, const Shader& shader);
     static void DrawObject(const Object* object);
 
@@ -39,6 +44,9 @@ private:
     static UniformBuffer* m_cameraUbo;
 
     static std::vector<Window*> m_windows;
+
+    static std::vector<DirectionalLight*> m_directionalLights;
+    static UniformBuffer* m_lightUbo;
 };
 
 

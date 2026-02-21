@@ -7,14 +7,16 @@ layout (location = 2) in vec2 a_TexCoord;
 layout (std140, binding = 0) uniform CameraData {
     mat4 u_View;
     mat4 u_Projection;
-    vec3 u_CameraPosition;
 };
 
+uniform mat4 u_NormalMatrix;
 uniform mat4 u_Model;
 
+out vec3 v_Normal;
 out vec2 v_TexCoord;
 
 void main() {
     gl_Position = u_Projection * u_View * u_Model * vec4(a_Position, 1.0);
+    v_Normal = mat3(u_NormalMatrix) * a_Normal;
     v_TexCoord = a_TexCoord;
 }

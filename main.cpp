@@ -32,41 +32,41 @@ int main() {
 
     Mesh* mesh = new Mesh(
         {
-            // Back face
-            {{-0.5f, -0.5f, -0.5f}, {}, {0.0f, 0.0f}},
-            {{ 0.5f, -0.5f, -0.5f}, {}, {1.0f, 0.0f}},
-            {{ 0.5f,  0.5f, -0.5f}, {}, {1.0f, 1.0f}},
-            {{-0.5f,  0.5f, -0.5f}, {}, {0.0f, 1.0f}},
+            // Back face (normal points -Z)
+            {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}},
+            {{ 0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f}},
+            {{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}},
+            {{-0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}},
 
-            // Front face
-            {{-0.5f, -0.5f,  0.5f}, {}, {0.0f, 0.0f}},
-            {{ 0.5f, -0.5f,  0.5f}, {}, {1.0f, 0.0f}},
-            {{ 0.5f,  0.5f,  0.5f}, {}, {1.0f, 1.0f}},
-            {{-0.5f,  0.5f,  0.5f}, {}, {0.0f, 1.0f}},
+            // Front face (normal points +Z)
+            {{-0.5f, -0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}},
+            {{ 0.5f, -0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}},
+            {{ 0.5f,  0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+            {{-0.5f,  0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
 
-            // Left face
-            {{-0.5f, -0.5f, -0.5f}, {}, {1.0f, 0.0f}},
-            {{-0.5f, -0.5f,  0.5f}, {}, {0.0f, 0.0f}},
-            {{-0.5f,  0.5f,  0.5f}, {}, {0.0f, 1.0f}},
-            {{-0.5f,  0.5f, -0.5f}, {}, {1.0f, 1.0f}},
+            // Left face (normal points -X)
+            {{-0.5f, -0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+            {{-0.5f, -0.5f,  0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+            {{-0.5f,  0.5f,  0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+            {{-0.5f,  0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
 
-            // Right face
-            {{ 0.5f, -0.5f, -0.5f}, {}, {0.0f, 0.0f}},
-            {{ 0.5f, -0.5f,  0.5f}, {}, {1.0f, 0.0f}},
-            {{ 0.5f,  0.5f,  0.5f}, {}, {1.0f, 1.0f}},
-            {{ 0.5f,  0.5f, -0.5f}, {}, {0.0f, 1.0f}},
+            // Right face (normal points +X)
+            {{ 0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+            {{ 0.5f, -0.5f,  0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+            {{ 0.5f,  0.5f,  0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
+            {{ 0.5f,  0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
 
-            // Bottom face
-            {{-0.5f, -0.5f, -0.5f}, {}, {0.0f, 1.0f}},
-            {{ 0.5f, -0.5f, -0.5f}, {}, {1.0f, 1.0f}},
-            {{ 0.5f, -0.5f,  0.5f}, {}, {1.0f, 0.0f}},
-            {{-0.5f, -0.5f,  0.5f}, {}, {0.0f, 0.0f}},
+            // Bottom face (normal points -Y)
+            {{-0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
+            {{ 0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
+            {{ 0.5f, -0.5f,  0.5f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},
+            {{-0.5f, -0.5f,  0.5f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
 
-            // Top face
-            {{-0.5f,  0.5f, -0.5f}, {}, {0.0f, 1.0f}},
-            {{ 0.5f,  0.5f, -0.5f}, {}, {1.0f, 1.0f}},
-            {{ 0.5f,  0.5f,  0.5f}, {}, {1.0f, 0.0f}},
-            {{-0.5f,  0.5f,  0.5f}, {}, {0.0f, 0.0f}},
+            // Top face (normal points +Y)
+            {{-0.5f,  0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
+            {{ 0.5f,  0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}},
+            {{ 0.5f,  0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+            {{-0.5f,  0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
         },
         {
             // Back face
@@ -83,11 +83,16 @@ int main() {
             20, 21, 22, 22, 23, 20
         }
     );
+    Texture* texture = new Texture("Assets/Textures/face.png");
     Shader* shader = new Shader("Shaders/test.vert", "Shaders/test.frag");
-    const Object* object = new Object(mesh, shader);
+    Object* object = new Object(mesh, shader);
+    object->AddTexture(texture);
 
     Camera* camera = new Camera({0, 0, 3}, 75.0f, static_cast<float>(window->GetSize().x) / static_cast<float>(window->GetSize().y), 0.1f, 100.0f);
     RenderApi::SetActiveCamera(camera);
+
+    DirectionalLight* directional_light = new DirectionalLight({0.5f, -1.0f, 0.5f}, {1.0f, 1.0f, 1.0f}, 1.0f);
+    RenderApi::AddDirectionalLight(directional_light);
 
     uint32_t lastTime = SDL_GetTicks();
     SDL_Event event;
@@ -130,10 +135,11 @@ int main() {
         if (keys[SDL_SCANCODE_A]) camera->Move(-camera->GetRight() * speed * deltaTime);
         if (keys[SDL_SCANCODE_D]) camera->Move(camera->GetRight() * speed * deltaTime);
 
-        RenderApi::UploadCameraData();
-
         window->MakeCurrent();
         RenderApi::ClearColour({0.12f, 0.12f, 0.12f, 1.0f});
+        RenderApi::UploadCameraData();
+        RenderApi::UploadLightData();
+
         RenderApi::DrawObject(object);
 
         ImGui::Render();

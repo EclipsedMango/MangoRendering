@@ -54,7 +54,9 @@ add_executable(MangoRendering main.cpp
         Object.cpp
         Object.h
         Transform.cpp
-        Transform.h)
+        Transform.h
+        DirectionalLight.cpp
+        DirectionalLight.h)
 
 target_link_libraries(MangoRendering SDL2::SDL2 SDL2::SDL2main glad_gl imgui ${CMAKE_DL_LIBS})
 target_include_directories(MangoRendering PRIVATE include ${glm_SOURCE_DIR} ${stb_SOURCE_DIR})
@@ -64,4 +66,11 @@ add_custom_target(copy_shaders ALL
         ${CMAKE_SOURCE_DIR}/Shaders
         ${CMAKE_BINARY_DIR}/Shaders
 )
-add_dependencies(MangoRendering copy_shaders)
+
+add_custom_target(copy_assets ALL
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/Assets
+        ${CMAKE_BINARY_DIR}/Assets
+)
+
+add_dependencies(MangoRendering copy_shaders copy_assets)

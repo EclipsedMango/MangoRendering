@@ -83,16 +83,34 @@ int main() {
             20, 21, 22, 22, 23, 20
         }
     );
+
     Texture* texture = new Texture("Assets/Textures/face.png");
     Shader* shader = new Shader("Shaders/test.vert", "Shaders/test.frag");
+
     Object* object = new Object(mesh, shader);
+
+    Object* object1 = new Object(mesh, shader);
+    object1->transform.Position = {0, 3, -3};
+
+    Object* object2 = new Object(mesh, shader);
+    object2->transform.Position = {-1, 2, 2};
+
+    Object* object3 = new Object(mesh, shader);
+    object3->transform.Position = {3, 1, 1};
+
     object->AddTexture(texture);
+    object1->AddTexture(texture);
+    object2->AddTexture(texture);
+    object3->AddTexture(texture);
 
     Camera* camera = new Camera({0, 0, 3}, 75.0f, static_cast<float>(window->GetSize().x) / static_cast<float>(window->GetSize().y), 0.1f, 100.0f);
     RenderApi::SetActiveCamera(camera);
 
-    DirectionalLight* directional_light = new DirectionalLight({0.5f, -1.0f, 0.5f}, {1.0f, 1.0f, 1.0f}, 1.0f);
-    RenderApi::AddDirectionalLight(directional_light);
+    // DirectionalLight* directionalLight = new DirectionalLight({0.5f, -1.0f, 0.5f}, {1.0f, 1.0f, 1.0f}, 1.0f);
+    // RenderApi::AddDirectionalLight(directionalLight);
+
+    PointLight* pointLight = new PointLight({0, 3, -3}, {1.0, 0.2, 0.1}, 2.5f);
+    RenderApi::AddPointLight(pointLight);
 
     uint32_t lastTime = SDL_GetTicks();
     SDL_Event event;
@@ -141,6 +159,9 @@ int main() {
         RenderApi::UploadLightData();
 
         RenderApi::DrawObject(object);
+        RenderApi::DrawObject(object1);
+        RenderApi::DrawObject(object2);
+        RenderApi::DrawObject(object3);
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

@@ -4,6 +4,7 @@
 #include <SDL_video.h>
 #include <stdexcept>
 
+#include "GpuLights.h"
 #include "UniformBuffer.h"
 #include "glad/gl.h"
 #include "glm/gtc/type_ptr.hpp"
@@ -12,11 +13,17 @@ bool RenderApi::m_gladInitialized = false;
 Camera* RenderApi::m_activeCamera {};
 UniformBuffer* RenderApi::m_cameraUbo {};
 std::vector<Window*> RenderApi::m_windows {};
+
 std::vector<DirectionalLight*> RenderApi::m_directionalLights;
-UniformBuffer* RenderApi::m_lightUbo;
+std::vector<PointLight*> RenderApi::m_pointLights;
+std::vector<SpotLight*> RenderApi::m_spotLights;
+
+UniformBuffer* RenderApi::m_globalLightUbo = nullptr;
+ShaderStorageBuffer* RenderApi::m_pointLightSsbo = nullptr;
+ShaderStorageBuffer* RenderApi::m_spotLightSsbo = nullptr;
 
 constexpr uint32_t MAX_TEXTURE_SLOTS = 16;
-constexpr uint32_t MAX_DIRECTIONAL_LIGHTS = 4;
+constexpr uint32_t MAX_DIR_LIGHTS = 4;
 
 void RenderApi::Init() {
     SDL_SetHint(SDL_HINT_VIDEODRIVER, "x11");
@@ -86,46 +93,120 @@ VertexArray* RenderApi::CreateBuffer(const std::vector<Vertex> &vertices, const 
 
 void RenderApi::AddDirectionalLight(DirectionalLight *light) {
     if (!light) {
-        throw std::runtime_error("AddDirectionalLight called with null light");
+        throw std::runtime_error("Null Directional light");
     }
 
-    if (m_directionalLights.size() >= MAX_DIRECTIONAL_LIGHTS) {
-        throw std::runtime_error("Exceeded maximum directional lights (" + std::to_string(MAX_DIRECTIONAL_LIGHTS) + ")");
-    }
-
-    if (!m_lightUbo) {
-        // array of lights + int for count, padded to 16 bytes
-        const size_t size = sizeof(glm::vec4) + MAX_DIRECTIONAL_LIGHTS * sizeof(glm::vec4) * 2;
-        m_lightUbo = new UniformBuffer(size, 1);
+    if (m_directionalLights.size() >= MAX_DIR_LIGHTS) {
+        throw std::runtime_error("Max Directional Lights reached");
     }
 
     m_directionalLights.push_back(light);
 }
 
 void RenderApi::RemoveDirectionalLight(DirectionalLight *light) {
-    const auto it = std::ranges::find(m_directionalLights, light);
-    if (it != m_directionalLights.end()) {
-        m_directionalLights.erase(it);
+    std::erase(m_directionalLights, light);
+}
+
+void RenderApi::AddPointLight(PointLight *light) {
+    if (light) {
+        m_pointLights.push_back(light);
     }
 }
 
+void RenderApi::RemovePointLight(PointLight *light) {
+    std::erase(m_pointLights, light);
+}
+
+void RenderApi::AddSpotLight(SpotLight *light) {
+    if (light) {
+        m_spotLights.push_back(light);
+    }
+}
+
+void RenderApi::RemoveSpotLight(SpotLight *light) {
+    std::erase(m_spotLights, light);
+}
+
 void RenderApi::UploadLightData() {
-    if (!m_lightUbo || m_directionalLights.empty()) {
-        return;
+    // layout (counts + directional lights) - binding 1
+    // 16 bytes: ivec4 counts (x=dir, y=point, z=spot, w=pad)
+    // 32 bytes * MAX_DIR_LIGHTS: directional light array
+    constexpr size_t uboSize = sizeof(glm::ivec4) + (MAX_DIR_LIGHTS * 2 * sizeof(glm::vec4));
+    if (!m_globalLightUbo) {
+        m_globalLightUbo = new UniformBuffer(uboSize, 1);
     }
 
-    const glm::ivec4 lightInfo(static_cast<int>(m_directionalLights.size()), 0, 0, 0);
-    m_lightUbo->SetData(&lightInfo, sizeof(glm::ivec4), 0);
+    const glm::ivec4 counts(
+        static_cast<int>(m_directionalLights.size()),
+        static_cast<int>(m_pointLights.size()),
+        static_cast<int>(m_spotLights.size()),
+        0
+    );
+    m_globalLightUbo->SetData(&counts, sizeof(glm::ivec4), 0);
 
-    size_t offset = sizeof(glm::vec4);
-    for (uint32_t i = 0; i < m_directionalLights.size() && i < MAX_DIRECTIONAL_LIGHTS; i++) {
-        glm::vec4 direction = glm::vec4(m_directionalLights[i]->GetDirection(), 0.0f);
-        glm::vec4 colorIntensity = glm::vec4(m_directionalLights[i]->GetColor(), m_directionalLights[i]->GetIntensity());
+    size_t offset = sizeof(glm::ivec4);
+    for (size_t i = 0; i < MAX_DIR_LIGHTS; i++) {
+        GPUDirectionalLight gpuLight{};
 
-        m_lightUbo->SetData(&direction, sizeof(glm::vec4), offset);
-        offset += sizeof(glm::vec4);
-        m_lightUbo->SetData(&colorIntensity, sizeof(glm::vec4), offset);
-        offset += sizeof(glm::vec4);
+        if (i < m_directionalLights.size()) {
+            const DirectionalLight* l = m_directionalLights[i];
+            gpuLight.direction = glm::vec4(l->GetDirection(), 0.0f);
+            gpuLight.color = glm::vec4(l->GetColor(), l->GetIntensity());
+        } else {
+            // unused slots
+            gpuLight.direction = glm::vec4(0.0f);
+            gpuLight.color = glm::vec4(0.0f);
+        }
+
+        m_globalLightUbo->SetData(&gpuLight, sizeof(GPUDirectionalLight), offset);
+        offset += sizeof(GPUDirectionalLight);
+    }
+
+    // point lights - binding 2
+    if (!m_pointLights.empty()) {
+        std::vector<GPUPointLight> pointData;
+        pointData.reserve(m_pointLights.size());
+
+        for (auto* l : m_pointLights) {
+            GPUPointLight gl {};
+            gl.position = glm::vec4(l->GetPosition(), 1.0f);
+            gl.color = glm::vec4(l->GetColor(), l->GetIntensity());
+            gl.attenuation = glm::vec4(l->GetConstant(), l->GetLinear(), l->GetQuadratic(), 0.0f);
+            pointData.push_back(gl);
+        }
+
+        size_t size = pointData.size() * sizeof(GPUPointLight);
+        // reallocate if null or too small
+        if (!m_pointLightSsbo || m_pointLightSsbo->GetSize() < size) {
+            delete m_pointLightSsbo;
+            m_pointLightSsbo = new ShaderStorageBuffer(size, 2);
+        }
+
+        m_pointLightSsbo->SetData(pointData.data(), size);
+    }
+
+    // spot lights - binding 3
+    if (!m_spotLights.empty()) {
+        std::vector<GPUSpotLight> spotData;
+        spotData.reserve(m_spotLights.size());
+
+        for (auto* l : m_spotLights) {
+            GPUSpotLight gl {};
+            gl.position = glm::vec4(l->GetPosition(), 1.0f);
+            gl.direction = glm::vec4(l->GetDirection(), 0.0f);
+            gl.color = glm::vec4(l->GetColor(), l->GetIntensity());
+            gl.params = glm::vec4(l->GetCutOff(), l->GetOuterCutOff(), l->GetLinear(), l->GetQuadratic());
+            spotData.push_back(gl);
+        }
+
+        size_t size = spotData.size() * sizeof(GPUSpotLight);
+        // reallocate if null or too small
+        if (!m_spotLightSsbo || m_spotLightSsbo->GetSize() < size) {
+            delete m_spotLightSsbo;
+            m_spotLightSsbo = new ShaderStorageBuffer(size, 3);
+        }
+
+        m_spotLightSsbo->SetData(spotData.data(), size);
     }
 }
 

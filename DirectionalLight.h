@@ -17,10 +17,9 @@ public:
     [[nodiscard]] float GetIntensity() const { return m_intensity; }
 
 private:
-    alignas(16) glm::vec3 m_direction {};
-    alignas(16) glm::vec3 m_color {};
+    glm::vec3 m_direction{};
+    glm::vec3 m_color{};
     float m_intensity;
 };
-
 
 #endif //MANGORENDERING_DIRECTIONALLIGHT_H

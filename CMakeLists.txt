@@ -56,7 +56,14 @@ add_executable(MangoRendering main.cpp
         Transform.cpp
         Transform.h
         DirectionalLight.cpp
-        DirectionalLight.h)
+        DirectionalLight.h
+        PointLight.cpp
+        PointLight.h
+        SpotLight.cpp
+        SpotLight.h
+        ShaderStorageBuffer.cpp
+        ShaderStorageBuffer.h
+        GpuLights.h)
 
 target_link_libraries(MangoRendering SDL2::SDL2 SDL2::SDL2main glad_gl imgui ${CMAKE_DL_LIBS})
 target_include_directories(MangoRendering PRIVATE include ${glm_SOURCE_DIR} ${stb_SOURCE_DIR})

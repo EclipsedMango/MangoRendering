@@ -88,6 +88,7 @@ int main() {
     Shader* shader = new Shader("Shaders/test.vert", "Shaders/test.frag");
 
     Object* object = new Object(mesh, shader);
+    object->transform.Scale = {10, 0.5, 10};
 
     Object* object1 = new Object(mesh, shader);
     object1->transform.Position = {0, 3, -3};
@@ -106,10 +107,10 @@ int main() {
     Camera* camera = new Camera({0, 0, 3}, 75.0f, static_cast<float>(window->GetSize().x) / static_cast<float>(window->GetSize().y), 0.1f, 100.0f);
     RenderApi::SetActiveCamera(camera);
 
-    // DirectionalLight* directionalLight = new DirectionalLight({0.5f, -1.0f, 0.5f}, {1.0f, 1.0f, 1.0f}, 1.0f);
-    // RenderApi::AddDirectionalLight(directionalLight);
+    DirectionalLight* directionalLight = new DirectionalLight({0.5f, -1.0f, 0.5f}, {1.0f, 1.0f, 1.0f}, 1.0f);
+    RenderApi::AddDirectionalLight(directionalLight);
 
-    PointLight* pointLight = new PointLight({0, 3, -3}, {1.0, 0.2, 0.1}, 2.5f);
+    PointLight* pointLight = new PointLight({0, 1, 0}, {1.0, 0.2, 0.1}, 1.5f);
     RenderApi::AddPointLight(pointLight);
 
     uint32_t lastTime = SDL_GetTicks();

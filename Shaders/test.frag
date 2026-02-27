@@ -105,7 +105,7 @@ void main() {
         totalLighting += diff * color * intensity * attenuation * intensityFactor;
     }
 
-    vec3 ambient = vec3(0.2);
+    vec3 ambient = vec3(0.05);
     totalLighting += ambient;
 
     // simple tone mapping prevents burning out to white too fast

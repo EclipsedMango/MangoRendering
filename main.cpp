@@ -1,4 +1,5 @@
 #include <iostream>
+#include <random>
 
 #include "RenderApi.h"
 #include <glm/glm.hpp>
@@ -104,14 +105,46 @@ int main() {
     object2->AddTexture(texture);
     object3->AddTexture(texture);
 
-    Camera* camera = new Camera({0, 0, 3}, 75.0f, static_cast<float>(window->GetSize().x) / static_cast<float>(window->GetSize().y), 0.1f, 100.0f);
-    RenderApi::SetActiveCamera(camera);
-
-    DirectionalLight* directionalLight = new DirectionalLight({0.5f, -1.0f, 0.5f}, {1.0f, 1.0f, 1.0f}, 1.0f);
+    DirectionalLight* directionalLight = new DirectionalLight({0.5f, -1.0f, 0.5f}, {1.0f, 1.0f, 1.0f}, 0.75f);
     RenderApi::AddDirectionalLight(directionalLight);
 
     PointLight* pointLight = new PointLight({0, 1, 0}, {1.0, 0.2, 0.1}, 1.5f);
     RenderApi::AddPointLight(pointLight);
+
+    // stress test
+    std::mt19937 rng(42);
+    auto randFloat = [&](float min, float max) {
+        return std::uniform_real_distribution<float>(min, max)(rng);
+    };
+
+    constexpr int NUM_OBJECTS = 2000;
+    constexpr int NUM_LIGHTS  = 1800;
+
+    std::vector<Object*> stressObjects;
+    std::vector<PointLight*> stressLights;
+
+    for (int i = 0; i < NUM_OBJECTS; i++) {
+        Object* obj = new Object(mesh, shader);
+        obj->transform.Position = { randFloat(-30, 30), randFloat(-5, 10), randFloat(-30, 30) };
+        obj->transform.Scale    = { randFloat(0.3f, 2.0f), randFloat(0.3f, 2.0f), randFloat(0.3f, 2.0f) };
+        obj->AddTexture(texture);
+        stressObjects.push_back(obj);
+    }
+
+    for (int i = 0; i < NUM_LIGHTS; i++) {
+        PointLight* light = new PointLight(
+            { randFloat(-30, 30), randFloat(0, 8), randFloat(-30, 30) },
+            { randFloat(0.5f, 1.0f), randFloat(0.5f, 1.0f), randFloat(0.5, 1.0f) },
+            randFloat(0.5f, 1.0f)
+        );
+        RenderApi::AddPointLight(light);
+        stressLights.push_back(light);
+    }
+
+    Camera* camera = new Camera({0, 0, 3}, 75.0f, static_cast<float>(window->GetSize().x) / static_cast<float>(window->GetSize().y), 0.1f, 100.0f);
+    RenderApi::SetActiveCamera(camera);
+
+    RenderApi::RebuildClusters();
 
     uint32_t lastTime = SDL_GetTicks();
     SDL_Event event;
@@ -122,6 +155,9 @@ int main() {
 
         ImGui::Begin("Info");
         ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+        ImGui::Text("Objects: %d", NUM_OBJECTS + 4);
+        ImGui::Text("Point Lights: %d", NUM_LIGHTS + 1);
+        ImGui::Text("MS/frame: %.3f", 1000.0f / ImGui::GetIO().Framerate);
         ImGui::End();
 
         while (SDL_PollEvent(&event)) {
@@ -156,13 +192,21 @@ int main() {
 
         window->MakeCurrent();
         RenderApi::ClearColour({0.12f, 0.12f, 0.12f, 1.0f});
+
         RenderApi::UploadCameraData();
         RenderApi::UploadLightData();
+
+        RenderApi::RebuildClusters();
+        RenderApi::RunLightCulling();
 
         RenderApi::DrawObject(object);
         RenderApi::DrawObject(object1);
         RenderApi::DrawObject(object2);
         RenderApi::DrawObject(object3);
+
+        for (auto* obj : stressObjects) {
+            RenderApi::DrawObject(obj);
+        }
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -174,6 +218,19 @@ int main() {
     delete mesh;
     delete shader;
     delete object;
+    delete object1;
+    delete object2;
+    delete object3;
+    delete texture;
+    delete directionalLight;
+    delete pointLight;
+
+    for (auto* obj : stressObjects) delete obj;
+    for (auto* light : stressLights) {
+        RenderApi::RemovePointLight(light);
+        delete light;
+    }
+
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();

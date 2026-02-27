@@ -38,7 +38,13 @@ public:
     static void AddSpotLight(SpotLight* light);
     static void RemoveSpotLight(SpotLight* light);
 
+    static ShaderStorageBuffer* GetLightGridSsbo() { return m_lightGridSsbo; }
+    static ShaderStorageBuffer* GetGlobalCountSsbo() { return m_globalCountSsbo; }
+
     static void UploadLightData();
+    static void RebuildClusters();
+    static void RunLightCulling();
+    static float CalculateLightRadius(const glm::vec3& color, float intensity, float constant, float linear, float quadratic);
 
     static void DrawMesh(const Mesh& mesh, const Shader& shader);
     static void DrawObject(const Object* object);
@@ -53,9 +59,22 @@ private:
     static std::vector<PointLight*> m_pointLights;
     static std::vector<SpotLight*> m_spotLights;
 
+    static constexpr uint32_t CLUSTER_DIM_X = 16;
+    static constexpr uint32_t CLUSTER_DIM_Y = 9;
+    static constexpr uint32_t CLUSTER_DIM_Z = 24;
+    static constexpr uint32_t NUM_CLUSTERS = CLUSTER_DIM_X * CLUSTER_DIM_Y * CLUSTER_DIM_Z;
+    static constexpr uint32_t MAX_LIGHTS_PER_CLUSTER = 100;
+
     static UniformBuffer* m_globalLightUbo;        // directional and light info in UBO: binding 1
     static ShaderStorageBuffer* m_pointLightSsbo;  // point lights in SSBO: binding 2
     static ShaderStorageBuffer* m_spotLightSsbo;   // spot lights in SSBO: binding 3
+    static ShaderStorageBuffer* m_clusterAabbSsbo; // cluster AABBs dimensions in SSBO: binding 4
+    static ShaderStorageBuffer* m_lightIndexSsbo;  // light index list in SSBO: binding 5
+    static ShaderStorageBuffer* m_lightGridSsbo;   // light grid in SSBO: binding 6
+    static ShaderStorageBuffer* m_globalCountSsbo; // global index counter in SSBO: binding 7
+
+    static Shader* m_clusterShader;
+    static Shader* m_cullShader;
 };
 
 

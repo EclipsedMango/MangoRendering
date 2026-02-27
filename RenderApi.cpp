@@ -1,6 +1,8 @@
 #include "RenderApi.h"
 
 #include <algorithm>
+#include <iostream>
+#include <ostream>
 #include <SDL_video.h>
 #include <stdexcept>
 
@@ -21,6 +23,14 @@ std::vector<SpotLight*> RenderApi::m_spotLights;
 UniformBuffer* RenderApi::m_globalLightUbo = nullptr;
 ShaderStorageBuffer* RenderApi::m_pointLightSsbo = nullptr;
 ShaderStorageBuffer* RenderApi::m_spotLightSsbo = nullptr;
+
+ShaderStorageBuffer* RenderApi::m_clusterAabbSsbo = nullptr;
+ShaderStorageBuffer* RenderApi::m_lightIndexSsbo = nullptr;
+ShaderStorageBuffer* RenderApi::m_lightGridSsbo = nullptr;
+ShaderStorageBuffer* RenderApi::m_globalCountSsbo = nullptr;
+
+Shader* RenderApi::m_clusterShader = nullptr;
+Shader* RenderApi::m_cullShader = nullptr;
 
 constexpr uint32_t MAX_TEXTURE_SLOTS = 16;
 constexpr uint32_t MAX_DIR_LIGHTS = 4;
@@ -46,6 +56,18 @@ Window* RenderApi::CreateWindow(const char* title, const glm::vec2 pos, const gl
         }
 
         m_gladInitialized = true;
+
+        m_clusterShader = new Shader("Shaders/cluster_build.comp");
+        m_cullShader    = new Shader("Shaders/light_cull.comp");
+
+        constexpr size_t aabbSize  = NUM_CLUSTERS * 2 * sizeof(glm::vec4);
+        constexpr size_t indexSize = NUM_CLUSTERS * MAX_LIGHTS_PER_CLUSTER * sizeof(uint32_t);
+        constexpr size_t gridSize  = NUM_CLUSTERS * sizeof(glm::uvec4);
+
+        m_clusterAabbSsbo  = new ShaderStorageBuffer(aabbSize, 4);
+        m_lightIndexSsbo   = new ShaderStorageBuffer(indexSize, 5);
+        m_lightGridSsbo    = new ShaderStorageBuffer(gridSize, 6);
+        m_globalCountSsbo  = new ShaderStorageBuffer(sizeof(uint32_t),7);
     }
 
     glEnable(GL_DEPTH_TEST);
@@ -65,6 +87,7 @@ void RenderApi::HandleResizeEvent(const SDL_Event &event) {
         glViewport(0, 0, width, height);
         if (m_activeCamera) {
             m_activeCamera->SetAspectRatio(static_cast<float>(width) / static_cast<float>(height));
+            RebuildClusters();
         }
     }
 }
@@ -169,14 +192,22 @@ void RenderApi::UploadLightData() {
 
         for (auto* l : m_pointLights) {
             GPUPointLight gl {};
-            gl.position = glm::vec4(l->GetPosition(), 1.0f);
+
+            float radius = CalculateLightRadius(
+                l->GetColor(),
+                l->GetIntensity(),
+                l->GetConstant(),
+                l->GetLinear(),
+                l->GetQuadratic()
+            );
+
+            gl.position = glm::vec4(l->GetPosition(), radius);
             gl.color = glm::vec4(l->GetColor(), l->GetIntensity());
             gl.attenuation = glm::vec4(l->GetConstant(), l->GetLinear(), l->GetQuadratic(), 0.0f);
             pointData.push_back(gl);
         }
 
         size_t size = pointData.size() * sizeof(GPUPointLight);
-        // reallocate if null or too small
         if (!m_pointLightSsbo || m_pointLightSsbo->GetSize() < size) {
             delete m_pointLightSsbo;
             m_pointLightSsbo = new ShaderStorageBuffer(size, 2);
@@ -192,7 +223,16 @@ void RenderApi::UploadLightData() {
 
         for (auto* l : m_spotLights) {
             GPUSpotLight gl {};
-            gl.position = glm::vec4(l->GetPosition(), 1.0f);
+
+            float radius = CalculateLightRadius(
+                l->GetColor(),
+                l->GetIntensity(),
+                1.0f,
+                l->GetLinear(),
+                l->GetQuadratic()
+            );
+
+            gl.position = glm::vec4(l->GetPosition(), radius);
             gl.direction = glm::vec4(l->GetDirection(), 0.0f);
             gl.color = glm::vec4(l->GetColor(), l->GetIntensity());
             gl.params = glm::vec4(l->GetCutOff(), l->GetOuterCutOff(), l->GetLinear(), l->GetQuadratic());
@@ -200,7 +240,6 @@ void RenderApi::UploadLightData() {
         }
 
         size_t size = spotData.size() * sizeof(GPUSpotLight);
-        // reallocate if null or too small
         if (!m_spotLightSsbo || m_spotLightSsbo->GetSize() < size) {
             delete m_spotLightSsbo;
             m_spotLightSsbo = new ShaderStorageBuffer(size, 3);
@@ -208,6 +247,74 @@ void RenderApi::UploadLightData() {
 
         m_spotLightSsbo->SetData(spotData.data(), size);
     }
+}
+
+void RenderApi::RebuildClusters() {
+    if (!m_clusterShader || !m_activeCamera) {
+        std::cerr << "No cluster shader or active camera" << std::endl;
+        return;
+    }
+
+    m_clusterShader->Bind();
+
+    m_clusterShader->SetMatrix4("u_InverseProjection", glm::inverse(m_activeCamera->GetProjectionMatrix()));
+
+    // replace with RenderApi::GetActiveWindowSize()
+    const glm::vec2 winSize = m_windows[0]->GetSize();
+    m_clusterShader->SetVector2("u_ScreenDimensions", winSize);
+
+    m_clusterShader->SetFloat("u_ZNear", m_activeCamera->GetNearPlane());
+    m_clusterShader->SetFloat("u_ZFar", m_activeCamera->GetFarPlane());
+
+
+    m_clusterShader->Dispatch(CLUSTER_DIM_X, CLUSTER_DIM_Y, CLUSTER_DIM_Z);
+}
+
+void RenderApi::RunLightCulling() {
+    if (!m_cullShader || !m_activeCamera) {
+        std::cerr << "No cull shader or active camera" << std::endl;
+        return;
+    }
+
+    m_cullShader->Bind();
+
+    // reset counter
+    constexpr uint32_t zero = 0;
+    m_globalCountSsbo->Bind();
+    glClearBufferData(GL_SHADER_STORAGE_BUFFER, GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, &zero);
+
+    // reset light grid counts
+    m_lightGridSsbo->Bind();
+    glClearBufferData(GL_SHADER_STORAGE_BUFFER, GL_RGBA32UI, GL_RGBA_INTEGER, GL_UNSIGNED_INT, nullptr);
+
+    m_cullShader->Dispatch(CLUSTER_DIM_X, CLUSTER_DIM_Y, CLUSTER_DIM_Z);
+
+    // SUPER IMPORTANT: wait for writes to finish before the frag reads them
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+}
+
+float RenderApi::CalculateLightRadius(const glm::vec3 &color, const float intensity, const float constant, float linear, float quadratic) {
+    constexpr float threshold = 0.005f;
+
+    const float maxChannel = std::max(std::max(color.r, color.g), color.b);
+    const float maxBrightness = maxChannel * intensity;
+
+    if (maxBrightness <= 0.0f) {
+        return 0.0f;
+    }
+
+    // if quadratic is pretty much zero, solve linear: I / (C + L*d) = T
+    if (quadratic < 0.0001f) {
+        if (linear < 0.0001f) {
+            return 1000.0f;
+        }
+
+        return (maxBrightness / threshold - constant) / linear;
+    }
+
+    // solve quadratic: I / (C + L*d + Q*d^2) = T
+    const float val = (maxBrightness / threshold - constant) / quadratic;
+    return val > 0.0f ? std::sqrt(val) : 0.0f;
 }
 
 void RenderApi::DrawMesh(const Mesh &mesh, const Shader& shader) {
@@ -232,6 +339,16 @@ void RenderApi::DrawObject(const Object* object) {
     object->GetShader()->Bind();
     object->GetShader()->SetMatrix4("u_Model", object->transform.GetModelMatrix());
     object->GetShader()->SetMatrix4("u_NormalMatrix", glm::transpose(glm::inverse(object->transform.GetModelMatrix())));
+
+    if (m_activeCamera) {
+        object->GetShader()->SetFloat("u_ZNear", m_activeCamera->GetNearPlane());
+        object->GetShader()->SetFloat("u_ZFar", m_activeCamera->GetFarPlane());
+    }
+
+    if (!m_windows.empty()) {
+        const glm::vec2 size = m_windows[0]->GetSize();
+        object->GetShader()->SetVector2("u_ScreenSize", size);
+    }
 
     const std::vector<Texture*>& textures = object->GetTextures();
     if (textures.size() > MAX_TEXTURE_SLOTS) {

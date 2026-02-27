@@ -1,0 +1,63 @@
+#version 460 core
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+struct Cluster {
+    vec4 minPoint;
+    vec4 maxPoint;
+};
+
+layout(std430, binding = 4) writeonly buffer ClusterSSBO {
+    Cluster clusters[];
+};
+
+uniform mat4 u_InverseProjection;
+uniform vec2 u_ScreenDimensions;
+uniform float u_ZNear;
+uniform float u_ZFar;
+
+// must match c++
+const uint GRID_SIZE_X = 16;
+const uint GRID_SIZE_Y = 9;
+const uint GRID_SIZE_Z = 24;
+
+vec3 ScreenToView(vec2 screen) {
+    // convert to ndc
+    vec2 texCoord = screen.xy / u_ScreenDimensions;
+
+    vec4 clip = vec4(texCoord * 2.0 - 1.0, 1.0, 1.0);
+    vec4 view = u_InverseProjection * clip;
+
+    return view.xyz / view.w;
+}
+
+vec3 LineIntersectionToZPlane(vec3 rayDir, float z) {
+    return rayDir * (z / rayDir.z);
+}
+
+void main() {
+    uint tileIndex = gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * GRID_SIZE_X + gl_GlobalInvocationID.z * GRID_SIZE_X * GRID_SIZE_Y;
+    vec2 tileSize = u_ScreenDimensions / vec2(GRID_SIZE_X, GRID_SIZE_Y);
+
+    vec2 minScreen = vec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y) * tileSize;
+    vec2 maxScreen = vec2(gl_GlobalInvocationID.x + 1, gl_GlobalInvocationID.y + 1) * tileSize;
+
+    vec3 viewRayMin = ScreenToView(minScreen);
+    vec3 viewRayMax = ScreenToView(maxScreen);
+
+    float k = float(gl_GlobalInvocationID.z) / float(GRID_SIZE_Z);
+    float kNext = float(gl_GlobalInvocationID.z + 1) / float(GRID_SIZE_Z);
+
+    float zNear = -u_ZNear * pow(u_ZFar / u_ZNear, k);
+    float zFar  = -u_ZNear * pow(u_ZFar / u_ZNear, kNext);
+
+    vec3 minPointNear = LineIntersectionToZPlane(viewRayMin, zNear);
+    vec3 minPointFar  = LineIntersectionToZPlane(viewRayMin, zFar);
+    vec3 maxPointNear = LineIntersectionToZPlane(viewRayMax, zNear);
+    vec3 maxPointFar  = LineIntersectionToZPlane(viewRayMax, zFar);
+
+    vec3 minPoint = min(min(minPointNear, minPointFar), min(maxPointNear, maxPointFar));
+    vec3 maxPoint = max(max(minPointNear, minPointFar), max(maxPointNear, maxPointFar));
+
+    clusters[tileIndex].minPoint = vec4(minPoint, 0.0);
+    clusters[tileIndex].maxPoint = vec4(maxPoint, 0.0);
+}

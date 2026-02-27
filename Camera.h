@@ -19,6 +19,8 @@ public:
     [[nodiscard]] glm::vec3 GetRight() const { return m_right; }
     [[nodiscard]] glm::vec3 GetUp() const { return m_up; }
     [[nodiscard]] float GetFov() const { return m_fov; }
+    [[nodiscard]] float GetNearPlane() const { return m_nearPlane; }
+    [[nodiscard]] float GetFarPlane() const { return m_farPlane; }
 
     void SetYaw(const float yaw) { m_yaw = yaw; UpdateVectors(); }
     void SetPitch(const float pitch) { m_pitch = pitch; UpdateVectors(); }

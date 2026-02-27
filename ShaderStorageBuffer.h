@@ -18,6 +18,7 @@ public:
     void Bind() const;
 
     [[nodiscard]] size_t GetSize() const { return m_Size; }
+    [[nodiscard]] uint32_t GetId() const { return m_ID; }
 
 private:
     unsigned int m_ID = 0;

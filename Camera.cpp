@@ -20,7 +20,7 @@ void Camera::Rotate(const float yawDelta, const float pitchDelta) {
     UpdateVectors();
 }
 
-void Camera::Move(glm::vec3 delta) {
+void Camera::Move(const glm::vec3 delta) {
     m_position += delta;
 }
 

@@ -1,0 +1,159 @@
+#version 460 core
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+struct PointLight {
+    vec4 position;    // w = radius
+    vec4 color;       // w = intensity
+    vec4 attenuation; // x = constant, y = linear, z = quadratic
+};
+
+struct SpotLight {
+    vec4 position;    // w = radius
+    vec4 direction;   // w = unused
+    vec4 color;       // w = intensity
+    vec4 params;      // x = cutOff, y = outerCutOff, z = linear, w = quadratic
+};
+
+struct LightGrid {
+    uint offset;
+    uint pointCount;
+    uint spotCount;
+    uint pad;
+};
+
+struct Cluster {
+    vec4 minPoint;
+    vec4 maxPoint;
+};
+
+// ----- bindings -----
+
+layout(std140, binding = 0) uniform CameraData {
+    mat4 u_View;
+    mat4 u_Projection;
+};
+
+// we define the DirectionalLight struct just to match the UBO layout, even if unused here.
+struct DirectionalLight {
+    vec4 direction;
+    vec4 color;
+};
+
+layout(std140, binding = 1) uniform GlobalLightData {
+    ivec4 u_LightCounts; // x = dir, y = point, z = spot
+    DirectionalLight u_DirLights[4];
+};
+
+layout(std430, binding = 2) readonly buffer PointLightBuffer {
+    PointLight pointLights[];
+};
+
+layout(std430, binding = 3) readonly buffer SpotLightBuffer {
+    SpotLight spotLights[];
+};
+
+layout(std430, binding = 4) readonly buffer ClusterBuffer {
+    Cluster clusters[];
+};
+
+layout(std430, binding = 5) writeonly buffer LightIndexBuffer {
+    uint globalLightIndexList[];
+};
+
+layout(std430, binding = 6) writeonly buffer LightGridBuffer {
+    LightGrid lightGrid[];
+};
+
+layout(std430, binding = 7) buffer GlobalCountBuffer {
+    uint globalIndexCounter;
+};
+
+const uint MAX_LIGHTS_PER_CLUSTER = 100;
+const uint GRID_SIZE_X = 16;
+const uint GRID_SIZE_Y = 9;
+const uint GRID_SIZE_Z = 24;
+
+bool TestSphereAABB(vec3 sphereCenter, float radius, vec3 aabbMin, vec3 aabbMax) {
+    float sqDist = 0.0;
+
+    for(int i = 0; i < 3; i++) {
+        float v = sphereCenter[i];
+
+        if(v < aabbMin[i]) {
+            sqDist += (aabbMin[i] - v) * (aabbMin[i] - v);
+        }
+
+        if(v > aabbMax[i]) {
+            sqDist += (v - aabbMax[i]) * (v - aabbMax[i]);
+        }
+    }
+
+    return sqDist <= (radius * radius);
+}
+
+void main() {
+    uint tileIndex = gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * GRID_SIZE_X + gl_GlobalInvocationID.z * GRID_SIZE_X * GRID_SIZE_Y;
+
+    vec3 minPoint = clusters[tileIndex].minPoint.xyz;
+    vec3 maxPoint = clusters[tileIndex].maxPoint.xyz;
+
+    // we collect indices locally first to minimize atomic operations on global memory
+    uint visiblePointIndices[MAX_LIGHTS_PER_CLUSTER];
+    uint visibleSpotIndices[MAX_LIGHTS_PER_CLUSTER];
+
+    uint pointCount = 0;
+    uint spotCount = 0;
+
+    uint totalPoints = uint(u_LightCounts.y);
+    for (uint i = 0; i < totalPoints; i++) {
+        if (pointCount >= MAX_LIGHTS_PER_CLUSTER) {
+            break;
+        }
+
+        vec4 posRadius = pointLights[i].position;
+        float radius = posRadius.w;
+
+        vec3 center = vec3(u_View * vec4(posRadius.xyz, 1.0));
+
+        if (TestSphereAABB(center, radius, minPoint, maxPoint)) {
+            visiblePointIndices[pointCount++] = i;
+        }
+    }
+
+    // approximating spots as spheres
+    uint totalSpots = uint(u_LightCounts.z);
+    for (uint i = 0; i < totalSpots; i++) {
+        if (spotCount >= MAX_LIGHTS_PER_CLUSTER) {
+            break;
+        }
+
+        vec4 posRadius = spotLights[i].position;
+        float radius = posRadius.w;
+
+        vec3 center = vec3(u_View * vec4(posRadius.xyz, 1.0));
+
+        if (TestSphereAABB(center, radius, minPoint, maxPoint)) {
+            visibleSpotIndices[spotCount++] = i;
+        }
+    }
+
+    uint offset = 0;
+    uint totalCount = pointCount + spotCount;
+
+    if (totalCount > 0) {
+        // atomic add returns the original value before adding, which is our offset
+        offset = atomicAdd(globalIndexCounter, totalCount);
+
+        for (uint i = 0; i < pointCount; i++) {
+            globalLightIndexList[offset + i] = visiblePointIndices[i];
+        }
+
+        for (uint i = 0; i < spotCount; i++) {
+            globalLightIndexList[offset + pointCount + i] = visibleSpotIndices[i];
+        }
+    }
+    
+    lightGrid[tileIndex].offset = offset;
+    lightGrid[tileIndex].pointCount = pointCount;
+    lightGrid[tileIndex].spotCount = spotCount;
+}

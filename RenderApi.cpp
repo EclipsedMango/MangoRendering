@@ -31,6 +31,7 @@ ShaderStorageBuffer* RenderApi::m_globalCountSsbo = nullptr;
 
 Shader* RenderApi::m_clusterShader = nullptr;
 Shader* RenderApi::m_cullShader = nullptr;
+Shader* RenderApi::m_depthShader = nullptr;
 
 constexpr uint32_t MAX_TEXTURE_SLOTS = 16;
 constexpr uint32_t MAX_DIR_LIGHTS = 4;
@@ -59,6 +60,7 @@ Window* RenderApi::CreateWindow(const char* title, const glm::vec2 pos, const gl
 
         m_clusterShader = new Shader("Shaders/cluster_build.comp");
         m_cullShader    = new Shader("Shaders/light_cull.comp");
+        InitDepthPass();
 
         constexpr size_t aabbSize  = NUM_CLUSTERS * 2 * sizeof(glm::vec4);
         constexpr size_t indexSize = NUM_CLUSTERS * MAX_LIGHTS_PER_CLUSTER * sizeof(uint32_t);
@@ -71,13 +73,16 @@ Window* RenderApi::CreateWindow(const char* title, const glm::vec2 pos, const gl
     }
 
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+
     m_windows.push_back(window);
     return window;
 }
 
 void RenderApi::ClearColour(const glm::vec4 &colour) {
     glClearColor(colour.r, colour.g, colour.b, colour.a);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT);
 }
 
 void RenderApi::HandleResizeEvent(const SDL_Event &event) {
@@ -148,6 +153,50 @@ void RenderApi::AddSpotLight(SpotLight *light) {
 
 void RenderApi::RemoveSpotLight(SpotLight *light) {
     std::erase(m_spotLights, light);
+}
+
+void RenderApi::InitDepthPass() {
+    m_depthShader = new Shader("Shaders/depth_only.vert", "Shaders/depth_only.frag");
+}
+
+void RenderApi::DrawObjectDepth(const Object *object) {
+    if (!object || !object->GetMesh()->IsUploaded()) {
+        std::cerr << "DrawObjectDepth called with null Object/Mesh" << std::endl;
+        return;
+    }
+
+    m_depthShader->Bind();
+    m_depthShader->SetMatrix4("u_Model", object->transform.GetModelMatrix());
+
+    object->GetMesh()->GetBuffer()->Bind();
+    glDrawElements(GL_TRIANGLES, object->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
+}
+
+void RenderApi::BeginZPrepass() {
+    // disable writing to the color buffer
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+    glDepthFunc(GL_LESS);
+
+    // glEnable(GL_POLYGON_OFFSET_FILL);
+    // glPolygonOffset(1.0f, 1.0f);
+
+    glClear(GL_DEPTH_BUFFER_BIT);
+}
+
+void RenderApi::EndZPrepass() {
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+
+    glDepthMask(GL_FALSE);
+    glDepthFunc(GL_LEQUAL);
+
+    // glDisable(GL_POLYGON_OFFSET_FILL);
+
+    // glMemoryBarrier(GL_DEPTH_BUFFER_BIT);
+
+    // transparent objs go here with glDepthMask(GL_FALSE) and glDepthFunc(GL_LESS)
 }
 
 void RenderApi::UploadLightData() {

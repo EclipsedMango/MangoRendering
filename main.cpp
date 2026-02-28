@@ -68,20 +68,19 @@ int main() {
             {{ 0.5f,  0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}},
             {{ 0.5f,  0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
             {{-0.5f,  0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-        },
-        {
+        },{
             // Back face
-            0,  1,  2,  2,  3,  0,
+            1,  0,  2,  2,  0,  3,
             // Front face
             4,  5,  6,  6,  7,  4,
             // Left face
             8,  9,  10, 10, 11, 8,
             // Right face
-            12, 13, 14, 14, 15, 12,
+            13, 12, 14, 14, 12, 15,
             // Bottom face
             16, 17, 18, 18, 19, 16,
             // Top face
-            20, 21, 22, 22, 23, 20
+            21, 20, 22, 22, 20, 23
         }
     );
 
@@ -105,7 +104,7 @@ int main() {
     object2->AddTexture(texture);
     object3->AddTexture(texture);
 
-    DirectionalLight* directionalLight = new DirectionalLight({0.5f, -1.0f, 0.5f}, {1.0f, 1.0f, 1.0f}, 0.75f);
+    DirectionalLight* directionalLight = new DirectionalLight({0.5f, -1.0f, 0.5f}, {1.0f, 1.0f, 1.0f}, 0.25f);
     RenderApi::AddDirectionalLight(directionalLight);
 
     PointLight* pointLight = new PointLight({0, 1, 0}, {1.0, 0.2, 0.1}, 1.5f);
@@ -117,8 +116,8 @@ int main() {
         return std::uniform_real_distribution<float>(min, max)(rng);
     };
 
-    constexpr int NUM_OBJECTS = 2000;
-    constexpr int NUM_LIGHTS  = 1800;
+    constexpr int NUM_OBJECTS = 1000;
+    constexpr int NUM_LIGHTS  = 5;
 
     std::vector<Object*> stressObjects;
     std::vector<PointLight*> stressLights;
@@ -137,6 +136,7 @@ int main() {
             { randFloat(0.5f, 1.0f), randFloat(0.5f, 1.0f), randFloat(0.5, 1.0f) },
             randFloat(0.5f, 1.0f)
         );
+
         RenderApi::AddPointLight(light);
         stressLights.push_back(light);
     }
@@ -191,13 +191,29 @@ int main() {
         if (keys[SDL_SCANCODE_D]) camera->Move(camera->GetRight() * speed * deltaTime);
 
         window->MakeCurrent();
-        RenderApi::ClearColour({0.12f, 0.12f, 0.12f, 1.0f});
 
+        // depth pass
         RenderApi::UploadCameraData();
-        RenderApi::UploadLightData();
+        RenderApi::BeginZPrepass();
 
+        RenderApi::DrawObjectDepth(object);
+        RenderApi::DrawObjectDepth(object1);
+        RenderApi::DrawObjectDepth(object2);
+        RenderApi::DrawObjectDepth(object3);
+
+        // only opaque objs should be drawn here
+        for (auto* obj : stressObjects) {
+            RenderApi::DrawObjectDepth(obj);
+        }
+
+        RenderApi::EndZPrepass();
+
+        RenderApi::UploadLightData();
         RenderApi::RebuildClusters();
         RenderApi::RunLightCulling();
+
+        // regular pass
+        RenderApi::ClearColour({0.12f, 0.12f, 0.12f, 1.0f});
 
         RenderApi::DrawObject(object);
         RenderApi::DrawObject(object1);

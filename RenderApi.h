@@ -27,8 +27,6 @@ public:
     static void SetActiveCamera(Camera* camera);
     static void UploadCameraData();
 
-    static VertexArray* CreateBuffer(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
-
     static void AddDirectionalLight(DirectionalLight* light);
     static void RemoveDirectionalLight(DirectionalLight* light);
 
@@ -41,10 +39,18 @@ public:
     static ShaderStorageBuffer* GetLightGridSsbo() { return m_lightGridSsbo; }
     static ShaderStorageBuffer* GetGlobalCountSsbo() { return m_globalCountSsbo; }
 
+    static void InitDepthPass();
+    static void DrawObjectDepth(const Object* object);
+
+    static void BeginZPrepass();
+    static void EndZPrepass();
+
     static void UploadLightData();
     static void RebuildClusters();
     static void RunLightCulling();
     static float CalculateLightRadius(const glm::vec3& color, float intensity, float constant, float linear, float quadratic);
+
+    static VertexArray* CreateBuffer(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
 
     static void DrawMesh(const Mesh& mesh, const Shader& shader);
     static void DrawObject(const Object* object);
@@ -75,6 +81,7 @@ private:
 
     static Shader* m_clusterShader;
     static Shader* m_cullShader;
+    static Shader* m_depthShader;
 };
 
 

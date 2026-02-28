@@ -1,5 +1,6 @@
-#ifndef MANGORENDERING_GPUBUFFER_H
-#define MANGORENDERING_GPUBUFFER_H
+#ifndef MANGORENDERING_VERTEXARRAY_H
+#define MANGORENDERING_VERTEXARRAY_H
+
 #include <vector>
 
 #include "glm/vec2.hpp"
@@ -34,4 +35,4 @@ private:
 };
 
 
-#endif //MANGORENDERING_GPUBUFFER_H
+#endif //MANGORENDERING_VERTEXARRAY_H

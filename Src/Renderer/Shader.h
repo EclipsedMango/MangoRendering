@@ -1,11 +1,11 @@
 #ifndef MANGORENDERING_SHADER_H
 #define MANGORENDERING_SHADER_H
+
 #include <string>
 #include <unordered_map>
 
 #include "glm/vec3.hpp"
 #include "glm/mat3x3.hpp"
-
 
 class Shader {
 public:

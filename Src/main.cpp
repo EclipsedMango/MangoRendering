@@ -84,8 +84,8 @@ int main() {
         }
     );
 
-    Texture* texture = new Texture("Assets/Textures/face.png");
-    Shader* shader = new Shader("Assets/Shaders/test.vert", "Assets/Shaders/test.frag");
+    Texture* texture = new Texture("../Assets/Textures/face.png");
+    Shader* shader = new Shader("../Assets/Shaders/test.vert", "../Assets/Shaders/test.frag");
 
     Object* object = new Object(mesh, shader);
     object->transform.Scale = {10, 0.5, 10};

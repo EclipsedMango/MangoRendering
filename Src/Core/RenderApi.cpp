@@ -47,6 +47,7 @@ void RenderApi::Init() {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
 }
 
 Window* RenderApi::CreateWindow(const char* title, const glm::vec2 size, const Uint32 flags) {
@@ -60,8 +61,29 @@ Window* RenderApi::CreateWindow(const char* title, const glm::vec2 size, const U
 
         m_gladInitialized = true;
 
-        m_clusterShader = new Shader("Assets/Shaders/cluster_build.comp");
-        m_cullShader    = new Shader("Assets/Shaders/light_cull.comp");
+        glEnable(GL_DEBUG_OUTPUT);
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        glDebugMessageCallback([](const GLenum source, const GLenum type, const GLuint id, const GLenum severity, GLsizei, const GLchar* message, const void*) {
+            if (severity == GL_DEBUG_SEVERITY_NOTIFICATION) return;
+
+            const char* srcStr   = source   == GL_DEBUG_SOURCE_API             ? "API"
+                                 : source   == GL_DEBUG_SOURCE_SHADER_COMPILER ? "Shader Compiler"
+                                 : source   == GL_DEBUG_SOURCE_APPLICATION     ? "Application"
+                                 : "Other";
+
+            const char* typeStr  = type     == GL_DEBUG_TYPE_ERROR               ? "ERROR"
+                                 : type     == GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR ? "DEPRECATED"
+                                 : type     == GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR  ? "UNDEFINED BEHAVIOUR"
+                                 : type     == GL_DEBUG_TYPE_PERFORMANCE         ? "PERFORMANCE"
+                                 : "OTHER";
+
+            const char* sevStr = severity == GL_DEBUG_SEVERITY_HIGH ? "HIGH" : severity == GL_DEBUG_SEVERITY_MEDIUM ? "MEDIUM" : "LOW";
+
+            std::cerr << "[GL " << typeStr << "] [" << sevStr << "] (" << srcStr << ") id=" << id << "\n  " << message << "\n";
+        }, nullptr);
+
+        m_clusterShader = new Shader("../Assets/Shaders/cluster_build.comp");
+        m_cullShader    = new Shader("../Assets/Shaders/light_cull.comp");
         InitDepthPass();
 
         constexpr size_t aabbSize  = NUM_CLUSTERS * 2 * sizeof(glm::vec4);
@@ -158,7 +180,7 @@ void RenderApi::RemoveSpotLight(SpotLight *light) {
 }
 
 void RenderApi::InitDepthPass() {
-    m_depthShader = new Shader("Assets/Shaders/depth_only.vert", "Assets/Shaders/depth_only.frag");
+    m_depthShader = new Shader("../Assets/Shaders/depth_only.vert", "../Assets/Shaders/depth_only.frag");
 }
 
 void RenderApi::DrawObjectDepth(const Object *object) {
@@ -264,7 +286,7 @@ void RenderApi::UploadLightData() {
             m_pointLightSsbo = new ShaderStorageBuffer(size, 2);
         }
 
-        m_pointLightSsbo->SetData(pointData.data(), size);
+        m_pointLightSsbo->SetData(pointData.data(), size, 0);
     }
 
     // spot lights - binding 3
@@ -296,7 +318,7 @@ void RenderApi::UploadLightData() {
             m_spotLightSsbo = new ShaderStorageBuffer(size, 3);
         }
 
-        m_spotLightSsbo->SetData(spotData.data(), size);
+        m_spotLightSsbo->SetData(spotData.data(), size, 0);
     }
 }
 
@@ -317,6 +339,9 @@ void RenderApi::RebuildClusters() {
     m_clusterShader->SetFloat("u_ZNear", m_activeCamera->GetNearPlane());
     m_clusterShader->SetFloat("u_ZFar", m_activeCamera->GetFarPlane());
 
+    if (m_clusterAabbSsbo) {
+        m_clusterAabbSsbo->Bind();
+    }
 
     m_clusterShader->Dispatch(CLUSTER_DIM_X, CLUSTER_DIM_Y, CLUSTER_DIM_Z);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
@@ -333,11 +358,16 @@ void RenderApi::RunLightCulling() {
     // reset counter
     constexpr uint32_t zero = 0;
     m_globalCountSsbo->Bind();
-    glClearBufferData(GL_SHADER_STORAGE_BUFFER, GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, &zero);
+    glClearNamedBufferData(m_globalCountSsbo->GetId(), GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, &zero);
 
     // reset light grid counts
     m_lightGridSsbo->Bind();
-    glClearBufferData(GL_SHADER_STORAGE_BUFFER, GL_RGBA32UI, GL_RGBA_INTEGER, GL_UNSIGNED_INT, nullptr);
+    glClearNamedBufferData(m_lightGridSsbo->GetId(), GL_RGBA32UI, GL_RGBA_INTEGER, GL_UNSIGNED_INT, nullptr);
+
+    m_clusterAabbSsbo->Bind();
+    m_lightIndexSsbo->Bind();
+    if (m_pointLightSsbo) m_pointLightSsbo->Bind();
+    if (m_spotLightSsbo) m_spotLightSsbo->Bind();
 
     m_cullShader->Dispatch(CLUSTER_DIM_X, CLUSTER_DIM_Y, CLUSTER_DIM_Z);
 
@@ -434,7 +464,7 @@ void RenderApi::DrawClusterVisualizer() {
 
         m_debugClusterMesh = new Mesh(vertices, indices);
         m_debugClusterMesh->Upload();
-        m_debugClusterShader = new Shader("Assets/Shaders/debug_clusters.vert", "Assets/Shaders/debug_clusters.frag");
+        m_debugClusterShader = new Shader("../Assets/Shaders/debug_clusters.vert", "../Assets/Shaders/debug_clusters.frag");
     }
 
     if (!m_activeCamera || !m_clusterAabbSsbo) return;

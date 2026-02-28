@@ -6,5 +6,9 @@ Object::Object(Mesh* mesh, Shader* shader) : m_mesh(mesh), m_shader(shader) {
         throw std::runtime_error("Object created with null mesh");
     }
 
+    if (m_shader == nullptr) {
+        throw std::runtime_error("Object created with null shader");
+    }
+
     m_mesh->Upload();
 }

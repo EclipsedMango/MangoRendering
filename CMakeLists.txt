@@ -63,10 +63,12 @@ add_executable(MangoRendering Src/main.cpp
         Src/Lights/SpotLight.h
         Src/Buffers/ShaderStorageBuffer.cpp
         Src/Buffers/ShaderStorageBuffer.h
-        Src/Lights/GpuLights.h)
+        Src/Lights/GpuLights.h
+        Src/Buffers/GpuBuffer.cpp
+        Src/Buffers/GpuBuffer.h)
 
 target_link_libraries(MangoRendering SDL3::SDL3 glad_gl imgui ${CMAKE_DL_LIBS})
-target_include_directories(MangoRendering PRIVATE include ${glm_SOURCE_DIR} ${stb_SOURCE_DIR})
+target_include_directories(MangoRendering PRIVATE ${CMAKE_SOURCE_DIR}/Src include ${glm_SOURCE_DIR} ${stb_SOURCE_DIR})
 
 add_custom_target(copy_assets ALL
         COMMAND ${CMAKE_COMMAND} -E copy_directory

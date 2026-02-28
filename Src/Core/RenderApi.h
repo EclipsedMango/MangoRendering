@@ -1,26 +1,26 @@
 #ifndef MANGORENDERING_RENDERAPI_H
 #define MANGORENDERING_RENDERAPI_H
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <vector>
 
 #include "Window.h"
-#include "Camera.h"
-#include "DirectionalLight.h"
-#include "VertexArray.h"
-#include "Mesh.h"
-#include "Object.h"
-#include "Shader.h"
-#include "UniformBuffer.h"
-#include "ShaderStorageBuffer.h"
-#include "DirectionalLight.h"
-#include "PointLight.h"
-#include "SpotLight.h"
+#include "../Scene/Camera.h"
+#include "../Lights/DirectionalLight.h"
+#include "../Renderer/VertexArray.h"
+#include "../Renderer/Mesh.h"
+#include "../Scene/Object.h"
+#include "../Renderer/Shader.h"
+#include "../Buffers/UniformBuffer.h"
+#include "../Buffers/ShaderStorageBuffer.h"
+#include "../Lights/DirectionalLight.h"
+#include "../Lights/PointLight.h"
+#include "../Lights/SpotLight.h"
 
 class RenderApi {
 public:
     static void Init();
-    static Window* CreateWindow(const char* title, glm::vec2 pos, glm::vec2 size, Uint32 flags);
+    static Window* CreateWindow(const char* title, glm::vec2 size, Uint32 flags);
     static void ClearColour(const glm::vec4& colour);
     static void HandleResizeEvent(const SDL_Event& event);
 

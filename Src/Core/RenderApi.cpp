@@ -3,11 +3,11 @@
 #include <algorithm>
 #include <iostream>
 #include <ostream>
-#include <SDL_video.h>
+#include <SDL3/SDL_video.h>
 #include <stdexcept>
 
-#include "GpuLights.h"
-#include "UniformBuffer.h"
+#include "../Lights/GpuLights.h"
+#include "../Buffers/UniformBuffer.h"
 #include "glad/gl.h"
 #include "glm/gtc/type_ptr.hpp"
 
@@ -40,7 +40,6 @@ constexpr uint32_t MAX_TEXTURE_SLOTS = 16;
 constexpr uint32_t MAX_DIR_LIGHTS = 4;
 
 void RenderApi::Init() {
-    SDL_SetHint(SDL_HINT_VIDEODRIVER, "x11");
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         throw std::runtime_error(std::string("SDL_Init failed: ") + SDL_GetError());
     }
@@ -50,8 +49,8 @@ void RenderApi::Init() {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 }
 
-Window* RenderApi::CreateWindow(const char* title, const glm::vec2 pos, const glm::vec2 size, const Uint32 flags) {
-    Window* window = new Window(title, pos, size, flags);
+Window* RenderApi::CreateWindow(const char* title, const glm::vec2 size, const Uint32 flags) {
+    Window* window = new Window(title, size, flags);
     window->MakeCurrent();
 
     if (!m_gladInitialized) {
@@ -61,8 +60,8 @@ Window* RenderApi::CreateWindow(const char* title, const glm::vec2 pos, const gl
 
         m_gladInitialized = true;
 
-        m_clusterShader = new Shader("Shaders/cluster_build.comp");
-        m_cullShader    = new Shader("Shaders/light_cull.comp");
+        m_clusterShader = new Shader("Assets/Shaders/cluster_build.comp");
+        m_cullShader    = new Shader("Assets/Shaders/light_cull.comp");
         InitDepthPass();
 
         constexpr size_t aabbSize  = NUM_CLUSTERS * 2 * sizeof(glm::vec4);
@@ -89,7 +88,7 @@ void RenderApi::ClearColour(const glm::vec4 &colour) {
 }
 
 void RenderApi::HandleResizeEvent(const SDL_Event &event) {
-    if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_RESIZED) {
+    if (event.type == SDL_EVENT_WINDOW_RESIZED) {
         const int width = event.window.data1;
         const int height = event.window.data2;
         glViewport(0, 0, width, height);
@@ -159,7 +158,7 @@ void RenderApi::RemoveSpotLight(SpotLight *light) {
 }
 
 void RenderApi::InitDepthPass() {
-    m_depthShader = new Shader("Shaders/depth_only.vert", "Shaders/depth_only.frag");
+    m_depthShader = new Shader("Assets/Shaders/depth_only.vert", "Assets/Shaders/depth_only.frag");
 }
 
 void RenderApi::DrawObjectDepth(const Object *object) {
@@ -435,7 +434,7 @@ void RenderApi::DrawClusterVisualizer() {
 
         m_debugClusterMesh = new Mesh(vertices, indices);
         m_debugClusterMesh->Upload();
-        m_debugClusterShader = new Shader("Shaders/debug_clusters.vert", "Shaders/debug_clusters.frag");
+        m_debugClusterShader = new Shader("Assets/Shaders/debug_clusters.vert", "Assets/Shaders/debug_clusters.frag");
     }
 
     if (!m_activeCamera || !m_clusterAabbSsbo) return;

@@ -2,9 +2,9 @@
 #ifndef MANGORENDERING_OBJECT_H
 #define MANGORENDERING_OBJECT_H
 
-#include "Mesh.h"
-#include "Shader.h"
-#include "Texture.h"
+#include "../Renderer/Mesh.h"
+#include "../Renderer/Shader.h"
+#include "../Renderer/Texture.h"
 #include "Transform.h"
 
 class Object {

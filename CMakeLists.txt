@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 include(FetchContent)
 
-FetchContent_Declare(sdl GIT_REPOSITORY https://github.com/libsdl-org/SDL.git GIT_TAG release-2.30.0)
+FetchContent_Declare(sdl GIT_REPOSITORY https://github.com/libsdl-org/SDL.git GIT_TAG release-3.2.10)
 FetchContent_MakeAvailable(sdl)
 
 FetchContent_Declare(glm GIT_REPOSITORY https://github.com/g-truc/glm.git GIT_TAG 1.0.1)
@@ -15,7 +15,7 @@ FetchContent_Declare(glad GIT_REPOSITORY https://github.com/Dav1dde/glad.git GIT
 FetchContent_MakeAvailable(glad)
 glad_add_library(glad_gl REPRODUCIBLE LOADER API gl:core=4.6)
 
-FetchContent_Declare(imgui GIT_REPOSITORY https://github.com/ocornut/imgui.git GIT_TAG v1.91.1)
+FetchContent_Declare(imgui GIT_REPOSITORY https://github.com/ocornut/imgui.git GIT_TAG v1.92.6)
 FetchContent_MakeAvailable(imgui)
 
 FetchContent_Declare(stb GIT_REPOSITORY https://github.com/nothings/stb.git GIT_TAG master)
@@ -26,53 +26,47 @@ add_library(imgui STATIC
         ${imgui_SOURCE_DIR}/imgui_draw.cpp
         ${imgui_SOURCE_DIR}/imgui_tables.cpp
         ${imgui_SOURCE_DIR}/imgui_widgets.cpp
-        ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp
         ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
 )
 
 target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
-target_link_libraries(imgui PUBLIC SDL2::SDL2 glad_gl)
+target_link_libraries(imgui PUBLIC SDL3::SDL3 glad_gl)
 
-add_executable(MangoRendering main.cpp
-        RenderApi.h
-        RenderApi.cpp
-        Window.h
-        Window.cpp
-        VertexArray.h
-        VertexArray.cpp
-        Mesh.h
-        Mesh.cpp
-        Shader.h
-        Shader.cpp
-        Camera.cpp
-        Camera.h
-        stb.cpp
-        Texture.cpp
-        Texture.h
-        UniformBuffer.cpp
-        UniformBuffer.h
-        Object.cpp
-        Object.h
-        Transform.cpp
-        Transform.h
-        DirectionalLight.cpp
-        DirectionalLight.h
-        PointLight.cpp
-        PointLight.h
-        SpotLight.cpp
-        SpotLight.h
-        ShaderStorageBuffer.cpp
-        ShaderStorageBuffer.h
-        GpuLights.h)
+add_executable(MangoRendering Src/main.cpp
+        Src/Core/RenderApi.h
+        Src/Core/RenderApi.cpp
+        Src/Core/Window.h
+        Src/Core/Window.cpp
+        Src/Renderer/VertexArray.h
+        Src/Renderer/VertexArray.cpp
+        Src/Renderer/Mesh.h
+        Src/Renderer/Mesh.cpp
+        Src/Renderer/Shader.h
+        Src/Renderer/Shader.cpp
+        Src/Scene/Camera.cpp
+        Src/Scene/Camera.h
+        Src/Renderer/stb.cpp
+        Src/Renderer/Texture.cpp
+        Src/Renderer/Texture.h
+        Src/Buffers/UniformBuffer.cpp
+        Src/Buffers/UniformBuffer.h
+        Src/Scene/Object.cpp
+        Src/Scene/Object.h
+        Src/Scene/Transform.cpp
+        Src/Scene/Transform.h
+        Src/Lights/DirectionalLight.cpp
+        Src/Lights/DirectionalLight.h
+        Src/Lights/PointLight.cpp
+        Src/Lights/PointLight.h
+        Src/Lights/SpotLight.cpp
+        Src/Lights/SpotLight.h
+        Src/Buffers/ShaderStorageBuffer.cpp
+        Src/Buffers/ShaderStorageBuffer.h
+        Src/Lights/GpuLights.h)
 
-target_link_libraries(MangoRendering SDL2::SDL2 SDL2::SDL2main glad_gl imgui ${CMAKE_DL_LIBS})
+target_link_libraries(MangoRendering SDL3::SDL3 glad_gl imgui ${CMAKE_DL_LIBS})
 target_include_directories(MangoRendering PRIVATE include ${glm_SOURCE_DIR} ${stb_SOURCE_DIR})
-
-add_custom_target(copy_shaders ALL
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/Shaders
-        ${CMAKE_BINARY_DIR}/Shaders
-)
 
 add_custom_target(copy_assets ALL
         COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -80,4 +74,4 @@ add_custom_target(copy_assets ALL
         ${CMAKE_BINARY_DIR}/Assets
 )
 
-add_dependencies(MangoRendering copy_shaders copy_assets)
+add_dependencies(MangoRendering copy_assets)

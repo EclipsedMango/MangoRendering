@@ -1,21 +1,21 @@
+#include <imgui_impl_sdl3.h>
 #include <iostream>
 #include <random>
 
-#include "RenderApi.h"
+#include "Core/RenderApi.h"
 #include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+#include <X11/Xproto.h>
 
-#include "Camera.h"
+#include "Scene/Camera.h"
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
-#include "imgui_impl_sdl2.h"
+#include "Core/Window.h"
 #include "glad/gl.h"
 #include "glm/gtc/type_ptr.hpp"
-#include "SDL2/SDL.h"
 
 int main() {
     RenderApi::Init();
-    Window* window = RenderApi::CreateWindow("Mango", {SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED}, {500, 500}, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
+    Window* window = RenderApi::CreateWindow("Mango", {500, 500}, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
 
     std::cout << "Vendor: "   << glGetString(GL_VENDOR)   << std::endl;
     std::cout << "Renderer: " << glGetString(GL_RENDERER)  << std::endl;
@@ -23,13 +23,13 @@ int main() {
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGui_ImplSDL2_InitForOpenGL(window->GetSDLWindow(), window->GetContext());
+    ImGui_ImplSDL3_InitForOpenGL(window->GetSDLWindow(), window->GetContext());
     ImGui_ImplOpenGL3_Init("#version 460");
 
     SDL_GL_SetSwapInterval(0);
 
     bool mouseCaptured = true;
-    SDL_SetRelativeMouseMode(static_cast<SDL_bool>(mouseCaptured));
+    SDL_SetWindowRelativeMouseMode(window->GetSDLWindow(), mouseCaptured);
 
     Mesh* mesh = new Mesh(
         {
@@ -85,7 +85,7 @@ int main() {
     );
 
     Texture* texture = new Texture("Assets/Textures/face.png");
-    Shader* shader = new Shader("Shaders/test.vert", "Shaders/test.frag");
+    Shader* shader = new Shader("Assets/Shaders/test.vert", "Assets/Shaders/test.frag");
 
     Object* object = new Object(mesh, shader);
     object->transform.Scale = {10, 0.5, 10};
@@ -150,7 +150,7 @@ int main() {
     SDL_Event event;
     while (window->IsOpen()) {
         ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplSDL2_NewFrame();
+        ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
         ImGui::Begin("Info");
@@ -171,29 +171,29 @@ int main() {
         ImGui::End();
 
         while (SDL_PollEvent(&event)) {
-            ImGui_ImplSDL2_ProcessEvent(&event);
+            ImGui_ImplSDL3_ProcessEvent(&event);
 
-            if (event.type == SDL_QUIT || event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE) {
+            if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE) {
                 window->Close();
             }
 
-            if (event.type == SDL_MOUSEMOTION && mouseCaptured) {
+            if (event.type == SDL_EVENT_MOUSE_MOTION && mouseCaptured) {
                 camera->Rotate(event.motion.xrel * 0.05f, -event.motion.yrel * 0.05f);
             }
 
-            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_TAB) {
+            if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_TAB) {
                 mouseCaptured = !mouseCaptured;
-                SDL_SetRelativeMouseMode(static_cast<SDL_bool>(mouseCaptured));
+                SDL_SetWindowRelativeMouseMode(window->GetSDLWindow(), mouseCaptured);
             }
 
             RenderApi::HandleResizeEvent(event);
         }
 
-        const uint32_t currentTime = SDL_GetTicks();
+        const uint64_t currentTime = SDL_GetTicks();
         const float deltaTime = (currentTime - lastTime) / 1000.0f;
         lastTime = currentTime;
 
-        const uint8_t* keys = SDL_GetKeyboardState(nullptr);
+        const bool* keys = SDL_GetKeyboardState(nullptr);
         float speed = 5.0f;
         if (keys[SDL_SCANCODE_LSHIFT]) speed += 50.0f;
         if (keys[SDL_SCANCODE_W]) camera->Move(camera->GetFront() * speed * deltaTime);
@@ -264,7 +264,7 @@ int main() {
     }
 
     ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplSDL2_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();
     SDL_Quit();
     return 0;

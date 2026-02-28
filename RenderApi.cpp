@@ -33,6 +33,9 @@ Shader* RenderApi::m_clusterShader = nullptr;
 Shader* RenderApi::m_cullShader = nullptr;
 Shader* RenderApi::m_depthShader = nullptr;
 
+Mesh* RenderApi::m_debugClusterMesh = nullptr;
+Shader* RenderApi::m_debugClusterShader = nullptr;
+
 constexpr uint32_t MAX_TEXTURE_SLOTS = 16;
 constexpr uint32_t MAX_DIR_LIGHTS = 4;
 
@@ -317,6 +320,7 @@ void RenderApi::RebuildClusters() {
 
 
     m_clusterShader->Dispatch(CLUSTER_DIM_X, CLUSTER_DIM_Y, CLUSTER_DIM_Z);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 }
 
 void RenderApi::RunLightCulling() {
@@ -412,4 +416,47 @@ void RenderApi::DrawObject(const Object* object) {
 
     object->GetMesh()->GetBuffer()->Bind();
     glDrawElements(GL_TRIANGLES, object->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
+}
+
+void RenderApi::DrawClusterVisualizer() {
+    if (!m_debugClusterMesh) {
+        const std::vector<Vertex> vertices = {
+            {{0, 0, 0}, {0,0,0}, {0,0}}, {{1, 0, 0}, {0,0,0}, {0,0}},
+            {{1, 1, 0}, {0,0,0}, {0,0}}, {{0, 1, 0}, {0,0,0}, {0,0}},
+            {{0, 0, 1}, {0,0,0}, {0,0}}, {{1, 0, 1}, {0,0,0}, {0,0}},
+            {{1, 1, 1}, {0,0,0}, {0,0}}, {{0, 1, 1}, {0,0,0}, {0,0}}
+        };
+
+        const std::vector<uint32_t> indices = {
+            0,1, 1,2, 2,3, 3,0,  // bottom face
+            4,5, 5,6, 6,7, 7,4,  // top face
+            0,4, 1,5, 2,6, 3,7   // verticals
+        };
+
+        m_debugClusterMesh = new Mesh(vertices, indices);
+        m_debugClusterMesh->Upload();
+        m_debugClusterShader = new Shader("Shaders/debug_clusters.vert", "Shaders/debug_clusters.frag");
+    }
+
+    if (!m_activeCamera || !m_clusterAabbSsbo) return;
+
+    m_debugClusterShader->Bind();
+
+    m_debugClusterShader->SetMatrix4("u_View", m_activeCamera->GetViewMatrix());
+    m_debugClusterShader->SetMatrix4("u_Projection", m_activeCamera->GetProjectionMatrix());
+
+    m_debugClusterShader->SetUint("u_DimX", CLUSTER_DIM_X);
+    m_debugClusterShader->SetUint("u_DimY", CLUSTER_DIM_Y);
+    m_debugClusterShader->SetUint("u_DimZ", CLUSTER_DIM_Z);
+
+    m_clusterAabbSsbo->Bind();
+    m_debugClusterMesh->GetBuffer()->Bind();
+
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glDisable(GL_CULL_FACE);
+
+    glDrawElementsInstanced(GL_LINES, m_debugClusterMesh->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, nullptr, NUM_CLUSTERS);
+
+    glEnable(GL_CULL_FACE);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }

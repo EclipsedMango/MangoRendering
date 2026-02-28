@@ -117,7 +117,7 @@ int main() {
     };
 
     constexpr int NUM_OBJECTS = 1000;
-    constexpr int NUM_LIGHTS  = 5;
+    constexpr int NUM_LIGHTS  = 50;
 
     std::vector<Object*> stressObjects;
     std::vector<PointLight*> stressLights;
@@ -134,7 +134,7 @@ int main() {
         PointLight* light = new PointLight(
             { randFloat(-30, 30), randFloat(0, 8), randFloat(-30, 30) },
             { randFloat(0.5f, 1.0f), randFloat(0.5f, 1.0f), randFloat(0.5, 1.0f) },
-            randFloat(0.5f, 1.0f)
+            randFloat(0.1f, 1.0f)
         );
 
         RenderApi::AddPointLight(light);
@@ -158,6 +158,16 @@ int main() {
         ImGui::Text("Objects: %d", NUM_OBJECTS + 4);
         ImGui::Text("Point Lights: %d", NUM_LIGHTS + 1);
         ImGui::Text("MS/frame: %.3f", 1000.0f / ImGui::GetIO().Framerate);
+
+        static int debugMode = 0;
+        const char* debugModes[] = { "Normal", "Heatmap", "Z-Slices", "XY-Tiles" };
+        if (ImGui::Combo("Debug Mode", &debugMode, debugModes, 4)) {
+            shader->SetInt("u_DebugMode", debugMode);
+        }
+
+        static bool showClusterBounds = false;
+        ImGui::Checkbox("Show Cluster Bounds", &showClusterBounds);
+
         ImGui::End();
 
         while (SDL_PollEvent(&event)) {
@@ -184,7 +194,8 @@ int main() {
         lastTime = currentTime;
 
         const uint8_t* keys = SDL_GetKeyboardState(nullptr);
-        constexpr float speed = 5.0f;
+        float speed = 5.0f;
+        if (keys[SDL_SCANCODE_LSHIFT]) speed += 50.0f;
         if (keys[SDL_SCANCODE_W]) camera->Move(camera->GetFront() * speed * deltaTime);
         if (keys[SDL_SCANCODE_S]) camera->Move(-camera->GetFront() * speed * deltaTime);
         if (keys[SDL_SCANCODE_A]) camera->Move(-camera->GetRight() * speed * deltaTime);
@@ -222,6 +233,11 @@ int main() {
 
         for (auto* obj : stressObjects) {
             RenderApi::DrawObject(obj);
+        }
+
+        // shows the clustered forward rendering clusters, shows size and z index
+        if (showClusterBounds) {
+            RenderApi::DrawClusterVisualizer();
         }
 
         ImGui::Render();

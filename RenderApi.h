@@ -54,6 +54,7 @@ public:
 
     static void DrawMesh(const Mesh& mesh, const Shader& shader);
     static void DrawObject(const Object* object);
+    static void DrawClusterVisualizer();
 
 private:
     static bool m_gladInitialized;
@@ -82,6 +83,10 @@ private:
     static Shader* m_clusterShader;
     static Shader* m_cullShader;
     static Shader* m_depthShader;
+
+    // debug tools
+    static Mesh* m_debugClusterMesh;
+    static Shader* m_debugClusterShader;
 };
 
 

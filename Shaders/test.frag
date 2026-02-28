@@ -11,6 +11,7 @@ uniform sampler2D u_Textures[16];
 uniform float u_ZNear;
 uniform float u_ZFar;
 uniform vec2 u_ScreenSize;
+uniform int u_DebugMode;
 
 layout (std140, binding = 0) uniform CameraData {
     mat4 u_View;
@@ -67,10 +68,18 @@ const uint GRID_SIZE_X = 16;
 const uint GRID_SIZE_Y = 9;
 const uint GRID_SIZE_Z = 24;
 
+vec3 Heatmap(float t) {
+    t = clamp(t, 0.0, 1.0);
+    vec3 cold = vec3(0.0, 0.0, 1.0);
+    vec3 mid  = vec3(0.0, 1.0, 0.0);
+    vec3 hot  = vec3(1.0, 0.0, 0.0);
+    if (t < 0.5) return mix(cold, mid, t * 2.0);
+    return mix(mid, hot, (t - 0.5) * 2.0);
+}
+
 void main() {
     vec3 norm = normalize(v_Normal);
     float viewDepth = -(u_View * vec4(v_FragPos, 1.0)).z;
-
 
     uint x = uint(gl_FragCoord.x / (u_ScreenSize.x / float(GRID_SIZE_X)));
     uint y = uint(gl_FragCoord.y / (u_ScreenSize.y / float(GRID_SIZE_Y)));
@@ -84,8 +93,34 @@ void main() {
     z = clamp(z, 0u, GRID_SIZE_Z - 1u);
 
     uint clusterIndex = x + y * GRID_SIZE_X + z * GRID_SIZE_X * GRID_SIZE_Y;
-
     LightGrid grid = lightGrid[clusterIndex];
+
+    // heatmap
+    if (u_DebugMode == 1) {
+        uint totalLights = grid.pointCount + grid.spotCount;
+        if (totalLights == 0) {
+            FragColor = vec4(0.0, 0.0, 0.1, 1.0);
+        } else {
+            FragColor = vec4(Heatmap(float(totalLights) / 8.0), 1.0);
+        }
+        return;
+    }
+
+    // z-slices
+    if (u_DebugMode == 2) {
+        float t = float(z) / float(GRID_SIZE_Z);
+        FragColor = vec4(Heatmap(t), 1.0);
+        return;
+    }
+
+    // xy tiles / tile boundaries
+    if (u_DebugMode == 3) {
+        float cx = float(x) / float(GRID_SIZE_X);
+        float cy = float(y) / float(GRID_SIZE_Y);
+        FragColor = vec4(cx, cy, 0.5, 1.0);
+        return;
+    }
+
     vec3 totalLighting = vec3(0.0);
 
     for (int i = 0; i < u_LightCounts.x; i++) {
@@ -158,8 +193,4 @@ void main() {
 
     vec4 texColor = texture(u_Textures[0], v_TexCoord);
     FragColor = vec4(totalLighting * texColor.rgb, texColor.a);
-
-    // debug to check, does tell much but i think its working
-//    float heat = float(grid.pointCount + grid.spotCount);
-//    FragColor = vec4(min(heat, 1.0), 0.0, 1.0 - min(heat, 1.0), 1.0);
 }

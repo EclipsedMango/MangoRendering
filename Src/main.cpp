@@ -4,7 +4,6 @@
 
 #include "Core/RenderApi.h"
 #include <glm/glm.hpp>
-#include <X11/Xproto.h>
 
 #include "Scene/Camera.h"
 #include "imgui.h"
@@ -12,6 +11,7 @@
 #include "Core/Window.h"
 #include "glad/gl.h"
 #include "glm/gtc/type_ptr.hpp"
+#include "Renderer/GltfLoader.h"
 
 int main() {
     RenderApi::Init();
@@ -87,8 +87,10 @@ int main() {
     Texture* texture = new Texture("../Assets/Textures/face.png");
     Shader* shader = new Shader("../Assets/Shaders/test.vert", "../Assets/Shaders/test.frag");
 
+    const auto gltfObjects = GltfLoader::Load("../Assets/Models/teddy.glb", shader);
+
     Object* object = new Object(mesh, shader);
-    object->transform.Scale = {10, 0.5, 10};
+    object->transform.Scale = {0.1, 0.5, 0.1};
 
     Object* object1 = new Object(mesh, shader);
     object1->transform.Position = {0, 3, -3};
@@ -134,6 +136,7 @@ int main() {
     for (int i = 0; i < NUM_LIGHTS; i++) {
         PointLight* light = new PointLight(
             { randFloat(-30, 30), randFloat(0, 8), randFloat(-30, 30) },
+            // { 0, 1, 0 },
             { randFloat(0.1f, 1.0f), randFloat(0.1f, 1.0f), randFloat(0.1, 1.0f) },
             randFloat(0.1f, 1.0f)
         );
@@ -219,10 +222,13 @@ int main() {
             RenderApi::DrawObjectDepth(obj);
         }
 
+        for (auto* coolobj : gltfObjects) {
+            RenderApi::DrawObjectDepth(coolobj);
+        }
+
         RenderApi::EndZPrepass();
 
         RenderApi::UploadLightData();
-        RenderApi::RebuildClusters();
         RenderApi::RunLightCulling();
 
         // regular pass
@@ -235,6 +241,10 @@ int main() {
 
         for (auto* obj : stressObjects) {
             RenderApi::DrawObject(obj);
+        }
+
+        for (auto* coolobj : gltfObjects) {
+            RenderApi::DrawObject(coolobj);
         }
 
         // shows the clustered forward rendering clusters, shows size and z index
@@ -264,6 +274,8 @@ int main() {
         RenderApi::RemovePointLight(light);
         delete light;
     }
+
+    for (auto* coolobj : gltfObjects) delete coolobj;
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL3_Shutdown();

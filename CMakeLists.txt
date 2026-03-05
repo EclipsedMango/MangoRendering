@@ -69,7 +69,9 @@ add_executable(MangoRendering Src/main.cpp
         Src/Buffers/GpuBuffer.cpp
         Src/Buffers/GpuBuffer.h
         Src/Renderer/GltfLoader.cpp
-        Src/Renderer/GltfLoader.h)
+        Src/Renderer/GltfLoader.h
+        Src/Renderer/Material.cpp
+        Src/Renderer/Material.h)
 
 target_link_libraries(MangoRendering SDL3::SDL3 glad_gl imgui ${CMAKE_DL_LIBS})
 target_include_directories(MangoRendering PRIVATE ${CMAKE_SOURCE_DIR}/Src include ${glm_SOURCE_DIR} ${stb_SOURCE_DIR} ${tinygltf_SOURCE_DIR})

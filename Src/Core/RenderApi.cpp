@@ -33,6 +33,8 @@ Shader* RenderApi::m_clusterShader = nullptr;
 Shader* RenderApi::m_cullShader = nullptr;
 Shader* RenderApi::m_depthShader = nullptr;
 
+std::vector<const Object*> RenderApi::m_renderQueue {};
+
 Mesh* RenderApi::m_debugClusterMesh = nullptr;
 Shader* RenderApi::m_debugClusterShader = nullptr;
 
@@ -177,6 +179,32 @@ void RenderApi::AddSpotLight(SpotLight *light) {
 
 void RenderApi::RemoveSpotLight(SpotLight *light) {
     std::erase(m_spotLights, light);
+}
+
+void RenderApi::Submit(const Object *object) {
+    m_renderQueue.push_back(object);
+}
+
+void RenderApi::Flush() {
+    UploadCameraData();
+    UploadLightData();
+
+    // z-prepass
+    BeginZPrepass();
+    for (const Object* object : m_renderQueue) {
+        DrawObjectDepth(object);
+    }
+    EndZPrepass();
+
+    // light culling
+    RunLightCulling();
+
+    // main pass
+    for (const Object* object : m_renderQueue) {
+        DrawObject(object);
+    }
+
+    m_renderQueue.clear();
 }
 
 void RenderApi::InitDepthPass() {
@@ -418,31 +446,22 @@ void RenderApi::DrawObject(const Object* object) {
         throw std::runtime_error("Objects mesh has not been uploaded to the GPU");
     }
 
-    object->GetShader()->Bind();
-    object->GetShader()->SetMatrix4("u_Model", object->transform.GetModelMatrix());
-    object->GetShader()->SetMatrix4("u_NormalMatrix", glm::transpose(glm::inverse(object->transform.GetModelMatrix())));
+    const Shader* shader = object->GetShader();
+    shader->Bind();
+    shader->SetMatrix4("u_Model", object->transform.GetModelMatrix());
+    shader->SetMatrix4("u_NormalMatrix", glm::transpose(glm::inverse(object->transform.GetModelMatrix())));
 
     if (m_activeCamera) {
-        object->GetShader()->SetFloat("u_ZNear", m_activeCamera->GetNearPlane());
-        object->GetShader()->SetFloat("u_ZFar", m_activeCamera->GetFarPlane());
+        shader->SetFloat("u_ZNear", m_activeCamera->GetNearPlane());
+        shader->SetFloat("u_ZFar", m_activeCamera->GetFarPlane());
     }
 
     if (!m_windows.empty()) {
         const glm::vec2 size = m_windows[0]->GetSize();
-        object->GetShader()->SetVector2("u_ScreenSize", size);
+        shader->SetVector2("u_ScreenSize", size);
     }
 
-    const std::vector<Texture*>& textures = object->GetTextures();
-    if (textures.size() > MAX_TEXTURE_SLOTS) {
-        throw std::runtime_error("Object exceeds maximum texture slots (" + std::to_string(MAX_TEXTURE_SLOTS) + ")");
-    }
-
-    for (uint32_t i = 0; i < textures.size(); i++) {
-        textures[i]->Bind(i);
-        // TODO: change to have specific names, not just a generic array. (similar to godots material system maybe)
-        object->GetShader()->SetInt("u_Textures[" + std::to_string(i) + "]", i);
-    }
-
+    object->GetMaterial().Bind(*shader);
     object->GetMesh()->GetBuffer()->Bind();
     glDrawElements(GL_TRIANGLES, object->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
 }

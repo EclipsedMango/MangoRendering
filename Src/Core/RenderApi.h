@@ -39,6 +39,9 @@ public:
     static ShaderStorageBuffer* GetLightGridSsbo() { return m_lightGridSsbo; }
     static ShaderStorageBuffer* GetGlobalCountSsbo() { return m_globalCountSsbo; }
 
+    static void Submit(const Object* object);
+    static void Flush();
+
     static void InitDepthPass();
     static void DrawObjectDepth(const Object* object);
 
@@ -83,6 +86,8 @@ private:
     static Shader* m_clusterShader;
     static Shader* m_cullShader;
     static Shader* m_depthShader;
+
+    static std::vector<const Object*> m_renderQueue;
 
     // debug tools
     static Mesh* m_debugClusterMesh;

@@ -84,7 +84,7 @@ int main() {
         }
     );
 
-    Texture* texture = new Texture("../Assets/Textures/face.png");
+    auto texture = std::make_shared<Texture>("../Assets/Textures/face.png");
     Shader* shader = new Shader("../Assets/Shaders/test.vert", "../Assets/Shaders/test.frag");
 
     Shader* shader2 = new Shader("../Assets/Shaders/new_test.vert", "../Assets/Shaders/new_test.frag");
@@ -93,20 +93,19 @@ int main() {
 
     Object* object = new Object(mesh, shader);
     object->transform.Scale = {0.1, 0.5, 0.1};
+    object->GetMaterial().SetDiffuse(texture);
 
     Object* object1 = new Object(mesh, shader);
     object1->transform.Position = {0, 3, -3};
+    object1->GetMaterial().SetDiffuse(texture);
 
     Object* object2 = new Object(mesh, shader);
     object2->transform.Position = {-1, 2, 2};
+    object2->GetMaterial().SetDiffuse(texture);
 
-    Object* object3 = new Object(mesh, shader2);
+    Object* object3 = new Object(mesh, shader);
     object3->transform.Position = {3, 1, 1};
-
-    object->AddTexture(texture);
-    object1->AddTexture(texture);
-    object2->AddTexture(texture);
-    object3->AddTexture(texture);
+    object3->GetMaterial().SetDiffuse(texture);
 
     DirectionalLight* directionalLight = new DirectionalLight({0.5f, -1.0f, 0.5f}, {1.0f, 1.0f, 1.0f}, 0.0f);
     RenderApi::AddDirectionalLight(directionalLight);
@@ -131,7 +130,7 @@ int main() {
         Object* obj = new Object(mesh, shader);
         obj->transform.Position = { randFloat(-30, 30), randFloat(-5, 10), randFloat(-30, 30) };
         obj->transform.Scale    = { randFloat(0.3f, 2.0f), randFloat(0.3f, 2.0f), randFloat(0.3f, 2.0f) };
-        obj->AddTexture(texture);
+        obj->GetMaterial().SetDiffuse(texture);
         stressObjects.push_back(obj);
     }
 
@@ -211,43 +210,16 @@ int main() {
         window->MakeCurrent();
 
         // depth pass
-        RenderApi::UploadCameraData();
-        RenderApi::BeginZPrepass();
+        RenderApi::Submit(object);
+        RenderApi::Submit(object1);
+        RenderApi::Submit(object2);
+        RenderApi::Submit(object3);
 
-        RenderApi::DrawObjectDepth(object);
-        RenderApi::DrawObjectDepth(object1);
-        RenderApi::DrawObjectDepth(object2);
-        RenderApi::DrawObjectDepth(object3);
+        for (auto* obj : stressObjects) RenderApi::Submit(obj);
+        for (auto* coolobj : gltfObjects) RenderApi::Submit(coolobj);
 
-        // only opaque objs should be drawn here
-        for (auto* obj : stressObjects) {
-            RenderApi::DrawObjectDepth(obj);
-        }
-
-        for (auto* coolobj : gltfObjects) {
-            RenderApi::DrawObjectDepth(coolobj);
-        }
-
-        RenderApi::EndZPrepass();
-
-        RenderApi::UploadLightData();
-        RenderApi::RunLightCulling();
-
-        // regular pass
         RenderApi::ClearColour({0.12f, 0.12f, 0.12f, 1.0f});
-
-        RenderApi::DrawObject(object);
-        RenderApi::DrawObject(object1);
-        RenderApi::DrawObject(object2);
-        RenderApi::DrawObject(object3);
-
-        for (auto* obj : stressObjects) {
-            RenderApi::DrawObject(obj);
-        }
-
-        for (auto* coolobj : gltfObjects) {
-            RenderApi::DrawObject(coolobj);
-        }
+        RenderApi::Flush();
 
         // shows the clustered forward rendering clusters, shows size and z index
         if (showClusterBounds) {
@@ -267,7 +239,6 @@ int main() {
     delete object1;
     delete object2;
     delete object3;
-    delete texture;
     delete directionalLight;
     delete pointLight;
 

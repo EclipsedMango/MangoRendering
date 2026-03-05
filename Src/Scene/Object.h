@@ -4,24 +4,24 @@
 
 #include "../Renderer/Mesh.h"
 #include "../Renderer/Shader.h"
-#include "../Renderer/Texture.h"
 #include "Transform.h"
+#include "Renderer/Material.h"
 
 class Object {
 public:
     Transform transform;
 
     Object(Mesh* mesh, Shader* shader);
-    void AddTexture(Texture* texture) { m_textures.push_back(texture); }
 
     [[nodiscard]] Mesh* GetMesh() const { return m_mesh; }
     [[nodiscard]] Shader* GetShader() const { return m_shader; }
-    [[nodiscard]] const std::vector<Texture*>& GetTextures() const { return m_textures; }
+    [[nodiscard]] Material& GetMaterial() { return m_material; }
+    [[nodiscard]] const Material& GetMaterial() const { return m_material; }
 
 private:
     Mesh* m_mesh = nullptr;
     Shader* m_shader = nullptr;
-    std::vector<Texture*> m_textures;
+    Material m_material;
 };
 
 

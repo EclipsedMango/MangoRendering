@@ -1,4 +1,5 @@
 #version 460 core
+#include "lighting.glsl"
 
 in vec3 v_Normal;
 in vec2 v_TexCoord;
@@ -6,7 +7,33 @@ in vec3 v_FragPos;
 
 out vec4 FragColor;
 
-uniform sampler2D u_Textures[16];
+// material
+uniform vec4 u_AlbedoColor;
+uniform float u_MetallicValue;
+uniform float u_RoughnessValue;
+uniform float u_AOStrength;
+uniform float u_NormalStrength;
+uniform float u_EmissionStrength;
+uniform vec3 u_EmissionColor;
+uniform float u_DisplacementScale;
+uniform vec2 u_UVScale;
+uniform vec2 u_UVOffset;
+
+uniform sampler2D u_Diffuse;
+uniform sampler2D u_Normal;
+uniform sampler2D u_Metallic;
+uniform sampler2D u_Roughness;
+uniform sampler2D u_AmbientOcclusion;
+uniform sampler2D u_Emissive;
+uniform sampler2D u_Displacement;
+
+uniform bool u_HasDiffuse;
+uniform bool u_HasNormal;
+uniform bool u_HasMetallic;
+uniform bool u_HasRoughness;
+uniform bool u_HasAmbientOcclusion;
+uniform bool u_HasEmissive;
+uniform bool u_HasDisplacement;
 
 uniform float u_ZNear;
 uniform float u_ZFar;
@@ -18,68 +45,9 @@ layout (std140, binding = 0) uniform CameraData {
     mat4 u_Projection;
 };
 
-struct DirectionalLight {
-    vec4 direction;
-    vec4 color;
-};
-
-layout (std140, binding = 1) uniform GlobalLightData {
-    ivec4 u_LightCounts; // x = dir, y = point, z = spot
-    DirectionalLight u_DirLights[4];
-};
-
-struct PointLight {
-    vec4 position;    // w = radius
-    vec4 color;       // w = intensity
-    vec4 attenuation; // x = constant, y = linear, z = quadratic
-};
-
-layout (std430, binding = 2) readonly buffer PointLightBuffer {
-    PointLight pointLights[];
-};
-
-struct SpotLight {
-    vec4 position;    // w = radius
-    vec4 direction;
-    vec4 color;
-    vec4 params;
-};
-
-layout (std430, binding = 3) readonly buffer SpotLightBuffer {
-    SpotLight spotLights[];
-};
-
-layout (std430, binding = 5) readonly buffer LightIndexBuffer {
-    uint globalLightIndexList[];
-};
-
-struct LightGrid {
-    uint offset;
-    uint pointCount;
-    uint spotCount;
-    uint pad;
-};
-
-layout (std430, binding = 6) readonly buffer LightGridBuffer {
-    LightGrid lightGrid[];
-};
-
 const uint GRID_SIZE_X = 16;
 const uint GRID_SIZE_Y = 9;
 const uint GRID_SIZE_Z = 24;
-
-vec3 Heatmap(float t) {
-    t = clamp(t, 0.0, 1.0);
-    vec3 cold = vec3(0.0, 0.0, 1.0);
-    vec3 mid  = vec3(0.0, 1.0, 0.0);
-    vec3 hot  = vec3(1.0, 0.0, 0.0);
-    if (t < 0.5) return mix(cold, mid, t * 2.0);
-    return mix(mid, hot, (t - 0.5) * 2.0);
-}
-
-vec3 ACESFilmic(vec3 x) {
-    return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
-}
 
 void main() {
     vec3 norm = normalize(v_Normal);
@@ -99,108 +67,40 @@ void main() {
     uint clusterIndex = x + y * GRID_SIZE_X + z * GRID_SIZE_X * GRID_SIZE_Y;
     LightGrid grid = lightGrid[clusterIndex];
 
-    // normals
     if (u_DebugMode == 1) {
         FragColor = vec4(norm * 0.5 + 0.5, 1.0);
         return;
     }
 
-    // heatmap
     if (u_DebugMode == 2) {
         uint totalLights = grid.pointCount + grid.spotCount;
-        if (totalLights == 0) {
-            FragColor = vec4(0.0, 0.0, 0.1, 1.0);
-        } else {
-            FragColor = vec4(Heatmap(float(totalLights) / 8.0), 1.0);
-        }
+        FragColor = totalLights == 0 ? vec4(0.0, 0.0, 0.1, 1.0) : vec4(Heatmap(float(totalLights) / 8.0), 1.0);
         return;
     }
 
-    // z-slices
     if (u_DebugMode == 3) {
-        float t = float(z) / float(GRID_SIZE_Z);
-        FragColor = vec4(Heatmap(t), 1.0);
+        FragColor = vec4(Heatmap(float(z) / float(GRID_SIZE_Z)), 1.0);
         return;
     }
 
-    // xy tiles / tile boundaries
     if (u_DebugMode == 4) {
-        float cx = float(x) / float(GRID_SIZE_X);
-        float cy = float(y) / float(GRID_SIZE_Y);
-        FragColor = vec4(cx, cy, 0.5, 1.0);
+        FragColor = vec4(float(x) / float(GRID_SIZE_X), float(y) / float(GRID_SIZE_Y), 0.5, 1.0);
         return;
     }
 
-    vec3 totalLighting = vec3(0.0);
+    vec2 uv = v_TexCoord * u_UVScale + u_UVOffset;
+    vec4 albedo = u_HasDiffuse ? texture(u_Diffuse, uv) * u_AlbedoColor : u_AlbedoColor;
 
-    for (int i = 0; i < u_LightCounts.x; i++) {
-        vec3 lightDir = normalize(-u_DirLights[i].direction.xyz);
-        float diff = max(dot(norm, lightDir), 0.0);
+    vec3 totalLighting = CalculateLighting(norm, v_FragPos, grid);
 
-        vec3 color = u_DirLights[i].color.rgb;
-        float intensity = u_DirLights[i].color.w;
-
-        totalLighting += diff * color * intensity;
-    }
-
-    for (uint i = 0; i < grid.pointCount; i++) {
-        uint lightIndex = globalLightIndexList[grid.offset + i];
-        PointLight light = pointLights[lightIndex];
-
-        vec3 lightDir = normalize(light.position.xyz - v_FragPos);
-        float distance = length(light.position.xyz - v_FragPos);
-
-        if (distance > light.position.w) {
-            continue;
-        }
-
-        float diff = max(dot(norm, lightDir), 0.0);
-
-        float constant = light.attenuation.x;
-        float linear = light.attenuation.y;
-        float quadratic = light.attenuation.z;
-        float attenuation = 1.0 / (constant + linear * distance + quadratic * (distance * distance));
-
-        vec3 color = light.color.rgb;
-        float intensity = light.color.w;
-
-        totalLighting += diff * color * intensity * attenuation;
-    }
-
-    for (uint i = 0; i < grid.spotCount; i++) {
-        uint lightIndex = globalLightIndexList[grid.offset + grid.pointCount + i];
-        SpotLight light = spotLights[lightIndex];
-
-        vec3 lightDir = normalize(light.position.xyz - v_FragPos);
-        float distance = length(light.position.xyz - v_FragPos);
-
-        if (distance > light.position.w) {
-            continue;
-        }
-
-        float diff = max(dot(norm, lightDir), 0.0);
-
-        float linear = light.params.z;
-        float quadratic = light.params.w;
-        float attenuation = 1.0 / (1.0 + linear * distance + quadratic * (distance * distance));
-
-        float theta = dot(lightDir, normalize(-light.direction.xyz));
-        float cutOff = light.params.x;
-        float outerCutOff = light.params.y;
-        float epsilon = cutOff - outerCutOff;
-        float intensityFactor = clamp((theta - outerCutOff) / epsilon, 0.0, 1.0);
-
-        vec3 color = light.color.rgb;
-        float intensity = light.color.w;
-
-        totalLighting += diff * color * intensity * attenuation * intensityFactor;
-    }
-
-    vec3 ambient = vec3(0.05);
+    vec3 ambient = vec3(0.05) * u_AOStrength;
     totalLighting += ambient;
+
+    vec3 emission = u_HasEmissive ? texture(u_Emissive, uv).rgb * u_EmissionColor * u_EmissionStrength : u_EmissionColor * u_EmissionStrength;
+    totalLighting += emission;
+
     float exposure = 2.0;
     totalLighting = ACESFilmic(totalLighting * exposure);
 
-    vec4 texColor = texture(u_Textures[0], v_TexCoord);
-    FragColor = vec4(totalLighting * texColor.rgb, texColor.a);
+    FragColor = vec4(totalLighting * albedo.rgb, albedo.a);
 }

@@ -165,14 +165,53 @@ int main() {
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
-        ImGui::Begin("Info");
-        ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
-        ImGui::Text("Objects: %d", NUM_OBJECTS + 4);
-        ImGui::Text("Point Lights: %d", NUM_LIGHTS + 1);
-        ImGui::Text("MS/frame: %.3f", 1000.0f / ImGui::GetIO().Framerate);
+        ImGui::Begin("Renderer");
 
+        // frame time graph
+        static float frameTimes[128] = {};
+        static int frameIndex = 0;
+        const float ms = 1000.0f / ImGui::GetIO().Framerate;
+        frameTimes[frameIndex] = ms;
+        frameIndex = (frameIndex + 1) % 128;
+        char overlay[32];
+        snprintf(overlay, sizeof(overlay), "%.2f ms", ms);
+        ImGui::PlotLines("##frametime", frameTimes, 128, frameIndex, overlay, 0.0f, 33.0f, ImVec2(0, 60));
+
+        ImGui::Separator();
+
+        ImGui::Text("FPS:          %.1f", ImGui::GetIO().Framerate);
+        ImGui::Text("Frame Time:   %.3f ms", ms);
+
+        ImGui::Separator();
+
+        ImGui::Text("Submitted:    %u", RenderApi::GetSubmittedCount());
+        ImGui::Text("Draw Calls:   %u", RenderApi::GetDrawCallCount());
+        ImGui::Text("Shadow DCs:   %u", RenderApi::GetShadowDrawCallCount());
+        ImGui::Text("Triangles:    %u", RenderApi::GetTriangleCount());
+
+        ImGui::Separator();
+        const uint32_t submitted = RenderApi::GetSubmittedCount();
+        const uint32_t culled    = RenderApi::GetCulledCount();
+        const uint32_t drawn     = submitted - culled;
+        const float cullPct      = submitted > 0 ? (culled / static_cast<float>(submitted)) * 100.0f : 0.0f;
+
+        ImGui::Text("Culled:       %u / %u (%.0f%%)", culled, submitted, cullPct);
+
+        ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.2f, 0.8f, 0.3f, 1.0f));
+        ImGui::ProgressBar(culled / static_cast<float>(std::max(submitted, 1u)), ImVec2(-1, 0), "Cull Efficiency");
+        ImGui::PopStyleColor();
+
+        ImGui::Separator();
+
+        ImGui::Text("Point Lights: %u", NUM_LIGHTS + 1);
+        ImGui::Text("Spot Lights:  0");
+        ImGui::Text("Dir Lights:   %u", 1);
+
+        ImGui::Separator();
+
+        // debug modes
         static int debugMode = 0;
-        const char* debugModes[] = { "None", "Normal", "Heatmap", "Z-Slices", "XY-Tiles", "Shadow Map"};
+        const char* debugModes[] = { "None", "Normal", "Heatmap", "Z-Slices", "XY-Tiles", "Shadow Map" };
         if (ImGui::Combo("Debug Mode", &debugMode, debugModes, 6)) {
             shader->SetInt("u_DebugMode", debugMode);
         }
@@ -182,7 +221,6 @@ int main() {
 
         static bool showShadowMap = false;
         ImGui::Checkbox("Show Shadow Map", &showShadowMap);
-
         if (showShadowMap && !RenderApi::GetShadowMaps().empty()) {
             const ImTextureID texId = static_cast<uint64_t>(RenderApi::GetShadowMaps()[0]->GetDepthTexture());
             ImGui::Image(texId, ImVec2(256, 256));

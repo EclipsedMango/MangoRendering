@@ -75,7 +75,9 @@ add_executable(MangoRendering Src/main.cpp
         Src/Buffers/Framebuffer.cpp
         Src/Buffers/Framebuffer.h
         Src/Renderer/ShadowMap.cpp
-        Src/Renderer/ShadowMap.h)
+        Src/Renderer/ShadowMap.h
+        Src/Scene/Frustum.h
+        Src/Scene/Frustum.cpp)
 
 target_link_libraries(MangoRendering SDL3::SDL3 glad_gl imgui ${CMAKE_DL_LIBS})
 target_include_directories(MangoRendering PRIVATE ${CMAKE_SOURCE_DIR}/Src include ${glm_SOURCE_DIR} ${stb_SOURCE_DIR} ${tinygltf_SOURCE_DIR})

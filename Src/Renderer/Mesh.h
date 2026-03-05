@@ -19,10 +19,16 @@ public:
     [[nodiscard]] const std::vector<uint32_t>& GetIndices() const { return m_indices; }
     [[nodiscard]] VertexArray* GetBuffer() const { return m_buffer.get(); }
 
+    [[nodiscard]] glm::vec3 GetBoundsCenter() const { return m_boundsCenter; }
+    [[nodiscard]] float GetBoundsRadius() const { return m_boundsRadius; }
+
 private:
     std::vector<Vertex> m_vertices;
     std::vector<uint32_t> m_indices;
     std::unique_ptr<VertexArray> m_buffer;
+
+    glm::vec3 m_boundsCenter = glm::vec3(0.0f);
+    float m_boundsRadius = 0.0f;
 };
 
 

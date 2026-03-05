@@ -10,6 +10,7 @@
 #include "../Buffers/UniformBuffer.h"
 #include "glad/gl.h"
 #include "glm/gtc/type_ptr.hpp"
+#include "Scene/Frustum.h"
 
 bool RenderApi::m_gladInitialized = false;
 Camera* RenderApi::m_activeCamera {};
@@ -39,6 +40,11 @@ std::vector<const Object*> RenderApi::m_renderQueue {};
 
 Mesh* RenderApi::m_debugClusterMesh = nullptr;
 Shader* RenderApi::m_debugClusterShader = nullptr;
+uint32_t RenderApi::m_drawCallCount = 0;
+uint32_t RenderApi::m_shadowDrawCallCount = 0;
+uint32_t RenderApi::m_culledCount = 0;
+uint32_t RenderApi::m_triangleCount = 0;
+uint32_t RenderApi::m_submittedCount = 0;
 
 constexpr uint32_t MAX_TEXTURE_SLOTS = 16;
 constexpr uint32_t MAX_DIR_LIGHTS = 4;
@@ -198,6 +204,12 @@ void RenderApi::Submit(const Object *object) {
 }
 
 void RenderApi::Flush() {
+    m_drawCallCount = 0;
+    m_shadowDrawCallCount = 0;
+    m_culledCount = 0;
+    m_triangleCount = 0;
+    m_submittedCount = static_cast<uint32_t>(m_renderQueue.size());
+
     UploadCameraData();
     UploadLightData();
 
@@ -216,6 +228,7 @@ void RenderApi::Flush() {
             m_shadowDepthShader->SetMatrix4("u_Model", object->transform.GetModelMatrix());
             object->GetMesh()->GetBuffer()->Bind();
             glDrawElements(GL_TRIANGLES, object->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
+            m_shadowDrawCallCount++;
         }
 
         ShadowMap::EndRender();
@@ -243,8 +256,25 @@ void RenderApi::Flush() {
         glBindTexture(GL_TEXTURE_2D, m_shadowMaps[i]->GetDepthTexture());
     }
 
+    const glm::mat4 viewProj = m_activeCamera->GetProjectionMatrix() * m_activeCamera->GetViewMatrix();
+    Frustum frustum {};
+    frustum.ExtractFromMatrix(viewProj);
+
     // main pass
     for (const Object* object : m_renderQueue) {
+        const Mesh* mesh = object->GetMesh();
+
+        glm::vec3 localCenter = mesh->GetBoundsCenter();
+        const float localRadius = mesh->GetBoundsRadius();
+
+        glm::vec3 worldCenter = glm::vec3(object->transform.GetModelMatrix() * glm::vec4(localCenter, 1.0f));
+        const float worldRadius = localRadius * std::max({object->transform.Scale.x, object->transform.Scale.y, object->transform.Scale.z});
+
+        if (!frustum.IntersectsSphere(worldCenter, worldRadius)) {
+            m_culledCount++;
+            continue;
+        }
+
         DrawObject(object);
     }
 
@@ -530,6 +560,9 @@ void RenderApi::DrawObject(const Object* object) {
     object->GetMaterial().Bind(*shader);
     object->GetMesh()->GetBuffer()->Bind();
     glDrawElements(GL_TRIANGLES, object->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
+
+    m_drawCallCount++;
+    m_triangleCount += object->GetMesh()->GetBuffer()->GetIndexCount() / 3;
 }
 
 void RenderApi::DrawClusterVisualizer() {

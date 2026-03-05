@@ -62,6 +62,12 @@ public:
     static void DrawObject(const Object* object);
     static void DrawClusterVisualizer();
 
+    [[nodiscard]] static uint32_t GetDrawCallCount() { return m_drawCallCount; }
+    [[nodiscard]] static uint32_t GetShadowDrawCallCount() { return m_shadowDrawCallCount; }
+    [[nodiscard]] static uint32_t GetCulledCount() { return m_culledCount; }
+    [[nodiscard]] static uint32_t GetTriangleCount() { return m_triangleCount; }
+    [[nodiscard]] static uint32_t GetSubmittedCount() { return m_submittedCount; }
+
 private:
     static bool m_gladInitialized;
     static Camera* m_activeCamera;
@@ -98,6 +104,11 @@ private:
     // debug tools
     static Mesh* m_debugClusterMesh;
     static Shader* m_debugClusterShader;
+    static uint32_t m_drawCallCount;
+    static uint32_t m_shadowDrawCallCount;
+    static uint32_t m_culledCount;
+    static uint32_t m_triangleCount;
+    static uint32_t m_submittedCount;
 };
 
 

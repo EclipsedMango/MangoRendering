@@ -172,13 +172,21 @@ int main() {
         ImGui::Text("MS/frame: %.3f", 1000.0f / ImGui::GetIO().Framerate);
 
         static int debugMode = 0;
-        const char* debugModes[] = { "None", "Normal", "Heatmap", "Z-Slices", "XY-Tiles" };
-        if (ImGui::Combo("Debug Mode", &debugMode, debugModes, 5)) {
+        const char* debugModes[] = { "None", "Normal", "Heatmap", "Z-Slices", "XY-Tiles", "Shadow Map"};
+        if (ImGui::Combo("Debug Mode", &debugMode, debugModes, 6)) {
             shader->SetInt("u_DebugMode", debugMode);
         }
 
         static bool showClusterBounds = false;
         ImGui::Checkbox("Show Cluster Bounds", &showClusterBounds);
+
+        static bool showShadowMap = false;
+        ImGui::Checkbox("Show Shadow Map", &showShadowMap);
+
+        if (showShadowMap && !RenderApi::GetShadowMaps().empty()) {
+            const ImTextureID texId = static_cast<uint64_t>(RenderApi::GetShadowMaps()[0]->GetDepthTexture());
+            ImGui::Image(texId, ImVec2(256, 256));
+        }
 
         ImGui::End();
 

@@ -39,6 +39,7 @@ public:
 
     static ShaderStorageBuffer* GetLightGridSsbo() { return m_lightGridSsbo; }
     static ShaderStorageBuffer* GetGlobalCountSsbo() { return m_globalCountSsbo; }
+    static const std::vector<ShadowMap*>& GetShadowMaps() { return m_shadowMaps; }
 
     static void Submit(const Object* object);
     static void Flush();

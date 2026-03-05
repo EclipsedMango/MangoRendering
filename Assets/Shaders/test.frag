@@ -88,6 +88,15 @@ void main() {
         return;
     }
 
+    if (u_DebugMode == 5) {
+        vec4 fragPosLightSpace = u_LightSpaceMatrix[0] * vec4(v_FragPos, 1.0);
+        vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+        projCoords = projCoords * 0.5 + 0.5;
+        float depth = texture(u_ShadowMap[0], projCoords.xy).r;
+        FragColor = vec4(vec3(depth), 1.0);
+        return;
+    }
+
     vec2 uv = v_TexCoord * u_UVScale + u_UVOffset;
     vec4 albedo = u_HasDiffuse ? texture(u_Diffuse, uv) * u_AlbedoColor : u_AlbedoColor;
 

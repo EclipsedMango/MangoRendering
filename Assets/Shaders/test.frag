@@ -39,6 +39,7 @@ uniform float u_ZNear;
 uniform float u_ZFar;
 uniform vec2 u_ScreenSize;
 uniform int u_DebugMode;
+uniform int u_DebugCascade;
 
 layout (std140, binding = 0) uniform CameraData {
     mat4 u_View;
@@ -89,18 +90,37 @@ void main() {
     }
 
     if (u_DebugMode == 5) {
-        vec4 fragPosLightSpace = u_LightSpaceMatrix[0] * vec4(v_FragPos, 1.0);
-        vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-        projCoords = projCoords * 0.5 + 0.5;
-        float depth = texture(u_ShadowMap[0], projCoords.xy).r;
+        vec2 uv = gl_FragCoord.xy / u_ScreenSize;
+        float depth = texture(u_ShadowMap, vec3(uv, float(u_DebugCascade))).r;
         FragColor = vec4(vec3(depth), 1.0);
+        return;
+    }
+
+    if (u_DebugMode == 6) {
+        int cascade = SelectCascade(viewDepth);
+        FragColor = vec4(Heatmap(float(cascade) / float(u_CascadeCount - 1)), 1.0);
+        return;
+    }
+
+    if (u_DebugMode == 7) {
+        int cascade = SelectCascade(viewDepth);
+        vec4 lightSpace = u_LightSpaceMatrix[cascade] * vec4(v_FragPos, 1.0);
+        vec3 projCoords = lightSpace.xyz / lightSpace.w;
+        projCoords = projCoords * 0.5 + 0.5;
+        FragColor = vec4(projCoords, 1.0);
+        return;
+    }
+
+    if (u_DebugMode == 8) {
+        float shadowFactor = ShadowWithBlend(v_FragPos, viewDepth, norm, normalize(-u_DirLights[0].direction.xyz));
+        FragColor = vec4(vec3(shadowFactor), 1.0);
         return;
     }
 
     vec2 uv = v_TexCoord * u_UVScale + u_UVOffset;
     vec4 albedo = u_HasDiffuse ? texture(u_Diffuse, uv) * u_AlbedoColor : u_AlbedoColor;
 
-    vec3 totalLighting = CalculateLighting(norm, v_FragPos, grid);
+    vec3 totalLighting = CalculateLighting(norm, v_FragPos, viewDepth, grid);
 
     vec3 ambient = vec3(0.05) * u_AOStrength;
     totalLighting += ambient;

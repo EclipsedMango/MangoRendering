@@ -36,6 +36,8 @@ public:
     void SetMatrix4(const std::string& name, const glm::mat4& value) const;
 
 private:
+    bool IsBound() const;
+
     mutable std::unordered_map<std::string, int> m_uniformCache;
 
     int GetUniformLocation(const std::string& name) const;

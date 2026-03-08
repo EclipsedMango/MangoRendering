@@ -18,7 +18,7 @@ UniformBuffer* RenderApi::m_cameraUbo {};
 std::vector<Window*> RenderApi::m_windows {};
 
 std::vector<DirectionalLight*> RenderApi::m_directionalLights;
-std::vector<ShadowMap*> RenderApi::m_shadowMaps;
+std::vector<CascadedShadowMap*> RenderApi::m_cascadedShadowMaps;
 std::vector<PointLight*> RenderApi::m_pointLights;
 std::vector<SpotLight*> RenderApi::m_spotLights;
 
@@ -45,6 +45,8 @@ uint32_t RenderApi::m_shadowDrawCallCount = 0;
 uint32_t RenderApi::m_culledCount = 0;
 uint32_t RenderApi::m_triangleCount = 0;
 uint32_t RenderApi::m_submittedCount = 0;
+int RenderApi::m_debugMode = 0;
+int RenderApi::m_debugCascade = 0;
 
 constexpr uint32_t MAX_TEXTURE_SLOTS = 16;
 constexpr uint32_t MAX_DIR_LIGHTS = 4;
@@ -164,9 +166,9 @@ void RenderApi::AddDirectionalLight(DirectionalLight *light) {
 
     m_directionalLights.push_back(light);
 
-    ShadowMap* shadowMap = new ShadowMap(2048, 2048);
-    shadowMap->SetLightDirection(light->GetDirection());
-    m_shadowMaps.push_back(shadowMap);
+    // one csm per dir light, 4 cascades each 2048 by 2048
+    auto* csm = new CascadedShadowMap(2048, 2048, light->GetDirection());
+    m_cascadedShadowMaps.push_back(csm);
 }
 
 void RenderApi::RemoveDirectionalLight(DirectionalLight *light) {
@@ -174,8 +176,8 @@ void RenderApi::RemoveDirectionalLight(DirectionalLight *light) {
     if (it == m_directionalLights.end()) return;
 
     const size_t index = std::distance(m_directionalLights.begin(), it);
-    delete m_shadowMaps[index];
-    m_shadowMaps.erase(m_shadowMaps.begin() + index);
+    delete m_cascadedShadowMaps[index];
+    m_cascadedShadowMaps.erase(m_cascadedShadowMaps.begin() + index);
     m_directionalLights.erase(it);
 }
 
@@ -214,26 +216,35 @@ void RenderApi::Flush() {
     UploadLightData();
 
     // shadow pass
-    glDisable(GL_CULL_FACE); // avoid peter panning on thin geometry
-    for (size_t i = 0; i < m_directionalLights.size(); i++) {
-        m_shadowMaps[i]->SetLightDirection(m_directionalLights[i]->GetDirection());
-        FitShadowMapToScene(m_shadowMaps[i]);
-        m_shadowMaps[i]->BeginRender();
-
-        m_shadowDepthShader->Bind();
-        m_shadowDepthShader->SetMatrix4("u_LightSpaceMatrix", m_shadowMaps[i]->GetLightSpaceMatrix());
-
-        for (const Object* object : m_renderQueue) {
-            if (!object->GetMaterial().GetCastShadows()) continue;
-            m_shadowDepthShader->SetMatrix4("u_Model", object->transform.GetModelMatrix());
-            object->GetMesh()->GetBuffer()->Bind();
-            glDrawElements(GL_TRIANGLES, object->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
-            m_shadowDrawCallCount++;
-        }
-
-        ShadowMap::EndRender();
-    }
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+    glDepthFunc(GL_LESS);
     glEnable(GL_CULL_FACE);
+    for (size_t i = 0; i < m_directionalLights.size(); i++) {
+        CascadedShadowMap* csm = m_cascadedShadowMaps[i];
+        csm->Update(*m_activeCamera);
+
+        for (int c = 0; c < CascadedShadowMap::NUM_CASCADES; c++) {
+            csm->BeginRender(c);
+            glClear(GL_DEPTH_BUFFER_BIT);
+            glDisable(GL_CULL_FACE);
+
+            m_shadowDepthShader->Bind();
+            m_shadowDepthShader->SetMatrix4("u_LightSpaceMatrix", csm->GetLightSpaceMatrix(c));
+
+            for (const Object* object : m_renderQueue) {
+                if (!object->GetMaterial().GetCastShadows()) continue;
+                m_shadowDepthShader->SetMatrix4("u_Model", object->transform.GetModelMatrix());
+                object->GetMesh()->GetBuffer()->Bind();
+                glDrawElements(GL_TRIANGLES, object->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
+                m_shadowDrawCallCount++;
+            }
+
+            glEnable(GL_CULL_FACE);
+            glCullFace(GL_BACK);
+            csm->EndRender();
+        }
+    }
 
     // restore viewport to window size
     if (!m_windows.empty()) {
@@ -251,26 +262,25 @@ void RenderApi::Flush() {
     // light culling
     RunLightCulling();
 
-    for (size_t i = 0; i < m_shadowMaps.size(); i++) {
+    for (size_t i = 0; i < m_cascadedShadowMaps.size(); i++) {
         glActiveTexture(GL_TEXTURE7 + i);
-        glBindTexture(GL_TEXTURE_2D, m_shadowMaps[i]->GetDepthTexture());
+        glBindTexture(GL_TEXTURE_2D_ARRAY, m_cascadedShadowMaps[i]->GetTextureArray());
     }
 
     const glm::mat4 viewProj = m_activeCamera->GetProjectionMatrix() * m_activeCamera->GetViewMatrix();
-    Frustum frustum {};
-    frustum.ExtractFromMatrix(viewProj);
+    Frustum cameraFrustum {};
+    cameraFrustum.ExtractFromMatrix(viewProj);
 
     // main pass
     for (const Object* object : m_renderQueue) {
+        // frustum culling main pass
         const Mesh* mesh = object->GetMesh();
 
-        glm::vec3 localCenter = mesh->GetBoundsCenter();
-        const float localRadius = mesh->GetBoundsRadius();
+        glm::vec3 worldCenter = glm::vec3(object->transform.GetModelMatrix() * glm::vec4(mesh->GetBoundsCenter(), 1.0f));
+        const float worldRadius = mesh->GetBoundsRadius() * std::max({object->transform.Scale.x, object->transform.Scale.y, object->transform.Scale.z});
 
-        glm::vec3 worldCenter = glm::vec3(object->transform.GetModelMatrix() * glm::vec4(localCenter, 1.0f));
-        const float worldRadius = localRadius * std::max({object->transform.Scale.x, object->transform.Scale.y, object->transform.Scale.z});
-
-        if (!frustum.IntersectsSphere(worldCenter, worldRadius)) {
+        // TODO: add aabb / obb for future more accurate bounds checking
+        if (!cameraFrustum.IntersectsSphere(worldCenter, worldRadius)) {
             m_culledCount++;
             continue;
         }
@@ -502,22 +512,6 @@ float RenderApi::CalculateLightRadius(const glm::vec3 &color, const float intens
     return val > 0.0f ? std::sqrt(val) : 0.0f;
 }
 
-void RenderApi::FitShadowMapToScene(ShadowMap *shadowMap) {
-    glm::vec3 minBounds(FLT_MAX);
-    glm::vec3 maxBounds(-FLT_MAX);
-
-    for (const Object* obj : m_renderQueue) {
-        if (!obj->GetMaterial().GetCastShadows()) continue;
-        const glm::vec3 pos = obj->transform.Position;
-        minBounds = glm::min(minBounds, pos);
-        maxBounds = glm::max(maxBounds, pos);
-    }
-
-    const glm::vec3 center = (minBounds + maxBounds) * 0.5f;
-    const float size = glm::length(maxBounds - minBounds) * 0.5f;
-    shadowMap->SetProjectionBounds(size, 0.1f, size * 4.0f, center);
-}
-
 void RenderApi::DrawMesh(const Mesh &mesh, const Shader& shader) {
     if (!mesh.IsUploaded()) {
         throw std::runtime_error("Mesh has not been uploaded to the GPU");
@@ -539,9 +533,24 @@ void RenderApi::DrawObject(const Object* object) {
 
     const Shader* shader = object->GetShader();
     shader->Bind();
-    for (size_t i = 0; i < m_shadowMaps.size(); i++) {
-        shader->SetMatrix4("u_LightSpaceMatrix[" + std::to_string(i) + "]", m_shadowMaps[i]->GetLightSpaceMatrix());
-        shader->SetInt("u_ShadowMap[" + std::to_string(i) + "]", 7 + i);
+
+    shader->SetInt("u_DebugMode", m_debugMode);
+    shader->SetInt("u_DebugCascade", m_debugCascade);
+
+    for (size_t i = 0; i < m_cascadedShadowMaps.size(); i++) {
+        const CascadedShadowMap* csm = m_cascadedShadowMaps[i];
+
+        for (int c = 0; c < CascadedShadowMap::NUM_CASCADES; c++) {
+            shader->SetMatrix4("u_LightSpaceMatrix[" + std::to_string(c) + "]", csm->GetLightSpaceMatrix(c));
+        }
+
+        const auto& splits = csm->GetSplitDistances();
+        for (int c = 0; c < CascadedShadowMap::NUM_CASCADES; c++) {
+            shader->SetFloat("u_CascadeSplits[" + std::to_string(c) + "]", splits[c]);
+        }
+
+        shader->SetInt("u_ShadowMap", 7 + static_cast<int>(i));
+        shader->SetInt("u_CascadeCount", CascadedShadowMap::NUM_CASCADES);
     }
 
     shader->SetMatrix4("u_Model", object->transform.GetModelMatrix());
@@ -606,4 +615,12 @@ void RenderApi::DrawClusterVisualizer() {
 
     glEnable(GL_CULL_FACE);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+}
+
+void RenderApi::SetDebugMode(const int mode) {
+    m_debugMode = mode;
+}
+
+void RenderApi::SetDebugCascade(const int cascade) {
+    m_debugCascade = cascade;
 }

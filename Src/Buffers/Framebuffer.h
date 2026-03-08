@@ -4,12 +4,13 @@
 
 enum class FramebufferType {
     ColorDepth,  // color + depth, for post-processing etc
-    DepthOnly    // shadow maps
+    DepthOnly,   // shadow maps
+    DepthArray   // depth texture for csm
 };
 
 class Framebuffer {
 public:
-    Framebuffer(uint32_t width, uint32_t height, FramebufferType type);
+    Framebuffer(uint32_t width, uint32_t height, FramebufferType type, uint32_t layers = 1);
     ~Framebuffer();
 
     Framebuffer(const Framebuffer&) = delete;
@@ -17,6 +18,9 @@ public:
 
     void Bind() const;
     static void Unbind();
+
+    // only valid for deptharray
+    void BindLayer(uint32_t layer) const;
 
     void Resize(uint32_t width, uint32_t height);
 
@@ -32,6 +36,7 @@ private:
     uint32_t m_fbo = 0;
     uint32_t m_colorAttachment = 0;
     uint32_t m_depthAttachment = 0;
+    uint32_t m_layers = 1;
     uint32_t m_width;
     uint32_t m_height;
     FramebufferType m_type;

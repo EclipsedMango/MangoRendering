@@ -5,18 +5,18 @@
 #include <vector>
 
 #include "Window.h"
-#include "../Scene/Camera.h"
-#include "../Lights/DirectionalLight.h"
-#include "../Renderer/VertexArray.h"
-#include "../Renderer/Mesh.h"
-#include "../Scene/Object.h"
-#include "../Renderer/Shader.h"
-#include "../Buffers/UniformBuffer.h"
-#include "../Buffers/ShaderStorageBuffer.h"
-#include "../Lights/DirectionalLight.h"
-#include "../Lights/PointLight.h"
-#include "../Lights/SpotLight.h"
-#include "../Renderer/ShadowMap.h"
+#include "Scene/Camera.h"
+#include "Lights/DirectionalLight.h"
+#include "Renderer/VertexArray.h"
+#include "Renderer/Mesh.h"
+#include "Scene/Object.h"
+#include "Renderer/Shader.h"
+#include "Buffers/UniformBuffer.h"
+#include "Buffers/ShaderStorageBuffer.h"
+#include "Lights/DirectionalLight.h"
+#include "Lights/PointLight.h"
+#include "Lights/SpotLight.h"
+#include "Renderer/CascadedShadowMap.h"
 
 class RenderApi {
 public:
@@ -39,7 +39,7 @@ public:
 
     static ShaderStorageBuffer* GetLightGridSsbo() { return m_lightGridSsbo; }
     static ShaderStorageBuffer* GetGlobalCountSsbo() { return m_globalCountSsbo; }
-    static const std::vector<ShadowMap*>& GetShadowMaps() { return m_shadowMaps; }
+    static const std::vector<CascadedShadowMap*>& GetCascadedShadowMaps() { return m_cascadedShadowMaps; }
 
     static void Submit(const Object* object);
     static void Flush();
@@ -54,7 +54,6 @@ public:
     static void RebuildClusters();
     static void RunLightCulling();
     static float CalculateLightRadius(const glm::vec3& color, float intensity, float constant, float linear, float quadratic);
-    static void FitShadowMapToScene(ShadowMap* shadowMap);
 
     static VertexArray* CreateBuffer(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
 
@@ -62,11 +61,16 @@ public:
     static void DrawObject(const Object* object);
     static void DrawClusterVisualizer();
 
+    static void SetDebugMode(int mode);
+    static void SetDebugCascade(int cascade);
+
     [[nodiscard]] static uint32_t GetDrawCallCount() { return m_drawCallCount; }
     [[nodiscard]] static uint32_t GetShadowDrawCallCount() { return m_shadowDrawCallCount; }
     [[nodiscard]] static uint32_t GetCulledCount() { return m_culledCount; }
     [[nodiscard]] static uint32_t GetTriangleCount() { return m_triangleCount; }
     [[nodiscard]] static uint32_t GetSubmittedCount() { return m_submittedCount; }
+    [[nodiscard]] static int GetDebugMode() { return m_debugMode; }
+    [[nodiscard]] static int GetDebugCascade() { return m_debugCascade; }
 
 private:
     static bool m_gladInitialized;
@@ -75,7 +79,7 @@ private:
     static std::vector<Window*> m_windows;
 
     static std::vector<DirectionalLight*> m_directionalLights;
-    static std::vector<ShadowMap*> m_shadowMaps;
+    static std::vector<CascadedShadowMap*> m_cascadedShadowMaps;
 
     static std::vector<PointLight*> m_pointLights;
     static std::vector<SpotLight*> m_spotLights;
@@ -109,6 +113,8 @@ private:
     static uint32_t m_culledCount;
     static uint32_t m_triangleCount;
     static uint32_t m_submittedCount;
+    static int m_debugMode;
+    static int m_debugCascade;
 };
 
 

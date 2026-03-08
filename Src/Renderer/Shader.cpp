@@ -47,6 +47,14 @@ Shader::~Shader() {
 
 void Shader::Bind() const {
     glUseProgram(m_id);
+
+#ifndef NDEBUG
+    GLint current = 0;
+    glGetIntegerv(GL_CURRENT_PROGRAM, &current);
+    if (static_cast<GLuint>(current) != m_id) {
+        std::cerr << "[Shader] ERROR: glUseProgram failed for " << m_id << "\n";
+    }
+#endif
 }
 
 void Shader::Unbind() {
@@ -60,38 +68,69 @@ void Shader::Dispatch(const unsigned int x, const unsigned int y, const unsigned
 }
 
 void Shader::SetBool(const std::string &name, const bool value) const {
-    glUniform1i(GetUniformLocation(name), static_cast<int>(value));
+    if (const int loc = GetUniformLocation(name); loc != -1) {
+        glUniform1i(loc, static_cast<int>(value));
+    }
 }
 
 void Shader::SetInt(const std::string &name, const int value) const {
-    glUniform1i(GetUniformLocation(name), value);
+    if (const int loc = GetUniformLocation(name); loc != -1) {
+        glUniform1i(loc, value);
+    }
 }
 
 void Shader::SetUint(const std::string &name, const unsigned int value) const {
-    glUniform1ui(GetUniformLocation(name), value);
+    if (const int loc = GetUniformLocation(name); loc != -1) {
+        glUniform1ui(loc, value);
+    }
 }
 
 void Shader::SetFloat(const std::string &name, const float value) const {
-    glUniform1f(GetUniformLocation(name), value);
+    if (const int loc = GetUniformLocation(name); loc != -1) {
+        glUniform1f(loc, value);
+    }
 }
 
 void Shader::SetVector2(const std::string &name, const glm::vec2 &value) const {
-    glUniform2fv(GetUniformLocation(name), 1, &value[0]);
+    if (const int loc = GetUniformLocation(name); loc != -1) {
+        glUniform2fv(loc, 1, &value[0]);
+    }
 }
 
 void Shader::SetVector3(const std::string &name, const glm::vec3 &value) const {
-	glUniform3fv(GetUniformLocation(name), 1, &value[0]);
+    if (const int loc = GetUniformLocation(name); loc != -1) {
+        glUniform3fv(loc, 1, &value[0]);
+    }
 }
 
 void Shader::SetVector4(const std::string &name, const glm::vec4 &value) const {
-    glUniform4fv(GetUniformLocation(name), 1, &value[0]);
+    if (const int loc = GetUniformLocation(name); loc != -1) {
+        glUniform4fv(loc, 1, &value[0]);
+    }
 }
 
 void Shader::SetMatrix4(const std::string &name, const glm::mat4 &value) const {
-	glUniformMatrix4fv(GetUniformLocation(name), 1, GL_FALSE, &value[0][0]);
+    if (const int loc = GetUniformLocation(name); loc != -1) {
+        glUniformMatrix4fv(loc, 1, GL_FALSE, &value[0][0]);
+    }
+}
+
+bool Shader::IsBound() const {
+    GLint current = 0;
+    glGetIntegerv(GL_CURRENT_PROGRAM, &current);
+    return static_cast<GLuint>(current) == m_id;
 }
 
 int Shader::GetUniformLocation(const std::string& name) const {
+#ifndef NDEBUG
+    if (!IsBound()) {
+        GLint current = 0;
+        glGetIntegerv(GL_CURRENT_PROGRAM, &current);
+        std::cerr << "[Shader] WARNING: setting uniform '" << name << "' but shader program " << m_id << " is not bound (current=" << current << ")\n";
+        return -1;
+    }
+#endif
+
     if (m_uniformCache.contains(name)) {
         return m_uniformCache[name];
     }

@@ -90,32 +90,31 @@ int main() {
     auto texture = std::make_shared<Texture>("../Assets/Textures/face.png");
     Shader* shader = new Shader("../Assets/Shaders/test.vert", "../Assets/Shaders/test.frag");
 
-    // const Shader* shader2 = new Shader("../Assets/Shaders/new_test.vert", "../Assets/Shaders/new_test.frag");
-
     const auto gltfObjects = GltfLoader::Load("../Assets/Models/teddy.glb", shader);
 
     Object* object = new Object(mesh, shader);
     object->transform.Position = {0, -5, 0};
     object->transform.Scale = {100, 0.5, 100};
-    object->GetMaterial().SetDiffuse(texture);
+    object->GetMaterial().SetAlbedoColor(glm::vec4(1.0, 1.0, 1.0, 1.0));
     stressObjects.push_back(object);
 
     Object* object1 = new Object(mesh, shader);
-    object1->transform.Position = {0, 3, -3};
+    object1->transform.Position = {0, -4.5, 0};
+    object1->transform.Scale = {1.0, 2.0, 100};
     object1->GetMaterial().SetDiffuse(texture);
     stressObjects.push_back(object1);
 
     Object* object2 = new Object(mesh, shader);
-    object2->transform.Position = {-1, 2, 2};
+    object2->transform.Position = {0, -2.5, 2};
     object2->GetMaterial().SetDiffuse(texture);
     stressObjects.push_back(object2);
 
     Object* object3 = new Object(mesh, shader);
-    object3->transform.Position = {3, 1, 1};
+    object3->transform.Position = {0, -2.5, -2};
     object3->GetMaterial().SetDiffuse(texture);
     stressObjects.push_back(object3);
 
-    DirectionalLight* directionalLight = new DirectionalLight({0.5f, -1.0f, 0.5f}, {1.0f, 1.0f, 1.0f}, 0.05f);
+    DirectionalLight* directionalLight = new DirectionalLight({0.5f, -1.0f, 0.5f}, {1.0f, 1.0f, 1.0f}, 0.1f);
     RenderApi::AddDirectionalLight(directionalLight);
 
     PointLight* pointLight = new PointLight({0, 1, 0}, {1.0, 0.2, 0.1}, 1.5f);
@@ -125,11 +124,11 @@ int main() {
 
     // stress test
     std::mt19937 rng(42);
-    auto randFloat = [&](float min, float max) {
-        return std::uniform_real_distribution<float>(min, max)(rng);
+    auto randFloat = [&](const float min, const float max) {
+        return std::uniform_real_distribution(min, max)(rng);
     };
 
-    constexpr int NUM_OBJECTS = 1000;
+    constexpr int NUM_OBJECTS = 250;
     constexpr int NUM_LIGHTS  = 30;
 
     for (int i = 0; i < NUM_OBJECTS; i++) {
@@ -159,8 +158,15 @@ int main() {
     RenderApi::RebuildClusters();
 
     uint32_t lastTime = SDL_GetTicks();
+
+    float cpuMs = 0.0f;
+    static float cpuTimes[128] = {};
+    static int cpuTimeIndex = 0;
+
     SDL_Event event;
     while (window->IsOpen()) {
+        const uint64_t cpuFrameStart = SDL_GetTicksNS();
+
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
@@ -175,12 +181,24 @@ int main() {
         frameIndex = (frameIndex + 1) % 128;
         char overlay[32];
         snprintf(overlay, sizeof(overlay), "%.2f ms", ms);
-        ImGui::PlotLines("##frametime", frameTimes, 128, frameIndex, overlay, 0.0f, 33.0f, ImVec2(0, 60));
+        ImGui::PlotLines("##frametime", frameTimes, 128, frameIndex, overlay, 0.0f, 33.0f, ImVec2(0, 40));
+        ImGui::SameLine();
+        ImGui::Text("GPU");
+
+        // CPU time graph
+        cpuTimes[cpuTimeIndex] = cpuMs;
+        cpuTimeIndex = (cpuTimeIndex + 1) % 128;
+        char cpuOverlay[32];
+        snprintf(cpuOverlay, sizeof(cpuOverlay), "%.2f ms", cpuMs);
+        ImGui::PlotLines("##cputime", cpuTimes, 128, cpuTimeIndex, cpuOverlay, 0.0f, 33.0f, ImVec2(0, 40));
+        ImGui::SameLine();
+        ImGui::Text("CPU");
 
         ImGui::Separator();
 
         ImGui::Text("FPS:          %.1f", ImGui::GetIO().Framerate);
-        ImGui::Text("Frame Time:   %.3f ms", ms);
+        ImGui::Text("GPI Time:     %.3f ms", ms);
+        ImGui::Text("CPU Time:     %.3f ms", cpuMs);
 
         ImGui::Separator();
 
@@ -192,8 +210,7 @@ int main() {
         ImGui::Separator();
         const uint32_t submitted = RenderApi::GetSubmittedCount();
         const uint32_t culled    = RenderApi::GetCulledCount();
-        const uint32_t drawn     = submitted - culled;
-        const float cullPct      = submitted > 0 ? (culled / static_cast<float>(submitted)) * 100.0f : 0.0f;
+        const float cullPct      = submitted > 0 ? culled / static_cast<float>(submitted) * 100.0f : 0.0f;
 
         ImGui::Text("Culled:       %u / %u (%.0f%%)", culled, submitted, cullPct);
 
@@ -211,20 +228,20 @@ int main() {
 
         // debug modes
         static int debugMode = 0;
-        const char* debugModes[] = { "None", "Normal", "Heatmap", "Z-Slices", "XY-Tiles", "Shadow Map" };
-        if (ImGui::Combo("Debug Mode", &debugMode, debugModes, 6)) {
-            shader->SetInt("u_DebugMode", debugMode);
+        static int debugCascade = 0;
+
+        const char* debugModes[] = { "CF None", "CF Normal", "CF Heatmap", "CF Z-Slices", "CF XY-Tiles", "CSM", "CSM-Slices", "CSM Proj Coords", "CSM Shadow Factor" };
+        if (ImGui::Combo("Debug Mode", &debugMode, debugModes, IM_ARRAYSIZE(debugModes))) {
+            RenderApi::SetDebugMode(debugMode);
+        }
+
+        if (debugMode == 5) {
+            ImGui::SliderInt("Cascade", &debugCascade, 0, CascadedShadowMap::NUM_CASCADES - 1);
+            RenderApi::SetDebugCascade(debugCascade);
         }
 
         static bool showClusterBounds = false;
         ImGui::Checkbox("Show Cluster Bounds", &showClusterBounds);
-
-        static bool showShadowMap = false;
-        ImGui::Checkbox("Show Shadow Map", &showShadowMap);
-        if (showShadowMap && !RenderApi::GetShadowMaps().empty()) {
-            const ImTextureID texId = static_cast<uint64_t>(RenderApi::GetShadowMaps()[0]->GetDepthTexture());
-            ImGui::Image(texId, ImVec2(256, 256));
-        }
 
         ImGui::End();
 
@@ -270,7 +287,7 @@ int main() {
         for (auto* obj : stressObjects) RenderApi::Submit(obj);
         for (auto* coolobj : gltfObjects) RenderApi::Submit(coolobj);
 
-        RenderApi::ClearColour({0.12f, 0.12f, 0.12f, 1.0f});
+        RenderApi::ClearColour({0.16f, 0.16f, 0.16f, 1.0f});
         RenderApi::Flush();
 
         // shows the clustered forward rendering clusters, shows size and z index
@@ -280,6 +297,9 @@ int main() {
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+        const uint64_t cpuFrameEnd = SDL_GetTicksNS();
+        cpuMs = static_cast<float>(cpuFrameEnd - cpuFrameStart) / 1'000'000.0f;
 
         window->SwapBuffers();
     }

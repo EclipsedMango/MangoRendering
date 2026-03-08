@@ -29,7 +29,4 @@ void Mesh::Upload() {
     }
 
     m_boundsRadius = max_dist;
-
-    printf("Bounds Rad: %f\n", m_boundsRadius);
-    printf("Bounds: %f, %f, %f\n", m_boundsCenter.x, m_boundsCenter.y, m_boundsCenter.z);
 }

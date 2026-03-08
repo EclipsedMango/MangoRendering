@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include "glad/gl.h"
 
-Framebuffer::Framebuffer(const uint32_t width, const uint32_t height, const FramebufferType type) : m_width(width), m_height(height), m_type(type) {
+Framebuffer::Framebuffer(const uint32_t width, const uint32_t height, const FramebufferType type, uint32_t layers) : m_width(width), m_height(height), m_type(type), m_layers(layers) {
     Create();
 }
 
@@ -15,7 +15,21 @@ Framebuffer::~Framebuffer() {
 void Framebuffer::Create() {
     glCreateFramebuffers(1, &m_fbo);
 
-    if (m_type == FramebufferType::ColorDepth) {
+    if (m_type == FramebufferType::DepthArray) {
+        glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, &m_depthAttachment);
+        glTextureStorage3D(m_depthAttachment, 1, GL_DEPTH_COMPONENT32F, m_width, m_height, m_layers);
+
+        glTextureParameteri(m_depthAttachment, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTextureParameteri(m_depthAttachment, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTextureParameteri(m_depthAttachment, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTextureParameteri(m_depthAttachment, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        constexpr float border[] = {1,1,1,1};
+        glTextureParameterfv(m_depthAttachment, GL_TEXTURE_BORDER_COLOR, border);
+
+        // Don’t attach a specific layer here; we attach the layer per-cascade in BindLayer().
+        glNamedFramebufferDrawBuffer(m_fbo, GL_NONE);
+        glNamedFramebufferReadBuffer(m_fbo, GL_NONE);
+    } else if (m_type == FramebufferType::ColorDepth) {
         // color attachment
         glCreateTextures(GL_TEXTURE_2D, 1, &m_colorAttachment);
         glTextureStorage2D(m_colorAttachment, 1, GL_RGBA8, m_width, m_height);
@@ -47,8 +61,11 @@ void Framebuffer::Create() {
         glNamedFramebufferReadBuffer(m_fbo, GL_NONE);
     }
 
-    if (glCheckNamedFramebufferStatus(m_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-        throw std::runtime_error("Framebuffer is not complete");
+    // skip framebuffer completeness for deptharray
+    if (m_type != FramebufferType::DepthArray) {
+        if (glCheckNamedFramebufferStatus(m_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+            throw std::runtime_error("Framebuffer is not complete");
+        }
     }
 }
 
@@ -65,6 +82,20 @@ void Framebuffer::Bind() const {
 
 void Framebuffer::Unbind() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void Framebuffer::BindLayer(const uint32_t layer) const {
+    glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+    glViewport(0, 0, m_width, m_height);
+
+    // attach the requested layer
+    glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, m_depthAttachment, 0, static_cast<GLint>(layer));
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+
+    // validate per layer (good for debug)
+    // if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    //     throw std::runtime_error("DepthArray framebuffer incomplete for layer");
 }
 
 // TODO: this is fine for now but really should be changed to actually resize.

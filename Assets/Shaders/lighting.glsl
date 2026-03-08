@@ -1,8 +1,10 @@
 #ifndef LIGHTING_GLSL
 #define LIGHTING_GLSL
 
-uniform sampler2D u_ShadowMap[4];
+uniform sampler2DArray u_ShadowMap;
 uniform mat4 u_LightSpaceMatrix[4];
+uniform float u_CascadeSplits[4];
+uniform int u_CascadeCount;
 
 struct DirectionalLight {
     vec4 direction;
@@ -63,45 +65,92 @@ vec3 ACESFilmic(vec3 x) {
     return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
 }
 
-float ShadowCalculation(vec4 fragPosLightSpace, sampler2D shadowMap, vec3 norm, vec3 lightDir) {
-    // perspective divide (not needed for ortho but good practice)
-    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+int SelectCascade(float depthVS) {
+    for (int i = 0; i < u_CascadeCount; ++i) {
+        if (depthVS < u_CascadeSplits[i])
+        return i;
+    }
+    return u_CascadeCount - 1;
+}
 
-    // transform to [0,1] range
+// no clue how they got these random numbers
+const vec2 poissonDisk[16] = vec2[](
+    vec2(-0.94201624,  -0.39906216),
+    vec2( 0.94558609,  -0.76890725),
+    vec2(-0.09418410,  -0.92938870),
+    vec2( 0.34495938,   0.29387760),
+    vec2(-0.91588581,   0.45771432),
+    vec2(-0.81544232,  -0.87912464),
+    vec2(-0.38277543,   0.27676845),
+    vec2( 0.97484398,   0.75648379),
+    vec2( 0.44323325,  -0.97511554),
+    vec2( 0.53742981,  -0.47373420),
+    vec2(-0.26496911,  -0.41893023),
+    vec2( 0.79197514,   0.19090188),
+    vec2(-0.24188840,   0.99706507),
+    vec2(-0.81409955,   0.91437590),
+    vec2( 0.19984126,   0.78641367),
+    vec2( 0.14383161,  -0.14100790)
+);
+
+float ShadowCalculation(vec4 fragPosLightSpace, vec3 fragPos, int cascade, vec3 normal, vec3 lightDirVS) {
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     projCoords = projCoords * 0.5 + 0.5;
 
-    // outside light frustum = no shadow
-    if (projCoords.z > 1.0) return 0.0;
+    if (projCoords.z > 1.0 ||
+    projCoords.x < 0.0 || projCoords.x > 1.0 ||
+    projCoords.y < 0.0 || projCoords.y > 1.0)
+    return 0.0;
 
-    float closestDepth = texture(shadowMap, projCoords.xy).r;
     float currentDepth = projCoords.z;
 
-    // bias to avoid shadow acne
-    float bias = max(0.005 * (1.0 - dot(norm, lightDir)), 0.0005);
+    float cosTheta = clamp(dot(normal, lightDirVS), 0.0001, 1.0);
+    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+    float tanTheta = sinTheta / cosTheta;
+    float slopeBias = clamp(0.0005 * tanTheta, 0.0, 0.002);
+
+    float bias = slopeBias * (1.0 + float(cascade)) + 0.0001;
+
+    float diskRadius = (1.0 + float(cascade) * 0.5) / float(textureSize(u_ShadowMap, 0).x);
 
     float shadow = 0.0;
-    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
-    for(int x = -1; x <= 1; ++x) {
-        for(int y = -1; y <= 1; ++y) {
-            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
-            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
+    for (int i = 0; i < 16; i++) {
+        float pcfDepth = texture(u_ShadowMap, vec3(projCoords.xy + poissonDisk[i] * diskRadius, float(cascade))).r;
+        shadow += (currentDepth - bias) > pcfDepth ? 1.0 : 0.0;
+    }
+
+    return shadow / 16.0;
+}
+
+float ShadowWithBlend(vec3 fragPos, float fragDepthVS, vec3 normal, vec3 lightDirVS) {
+    int cascade = SelectCascade(fragDepthVS);
+
+    vec4 fragPosLightSpace = u_LightSpaceMatrix[cascade] * vec4(fragPos, 1.0);
+    float shadow = ShadowCalculation(fragPosLightSpace, fragPos, cascade, normal, lightDirVS);
+
+    if (cascade + 1 < u_CascadeCount) {
+        float splitDist  = u_CascadeSplits[cascade];
+        float blendRange = splitDist * 0.1;
+        float blendFactor = smoothstep(splitDist - blendRange, splitDist, fragDepthVS);
+
+        if (blendFactor > 0.0) {
+            vec4 nextFragPosLightSpace = u_LightSpaceMatrix[cascade + 1] * vec4(fragPos, 1.0);
+            float nextShadow = ShadowCalculation(nextFragPosLightSpace, fragPos, cascade + 1, normal, lightDirVS);
+            shadow = mix(shadow, nextShadow, blendFactor);
         }
     }
-    shadow /= 12.0;
 
     return shadow;
 }
 
-vec3 CalculateLighting(vec3 norm, vec3 fragPos, LightGrid grid) {
+vec3 CalculateLighting(vec3 norm, vec3 fragPos, float fragDepthVS, LightGrid grid) {
     vec3 totalLighting = vec3(0.0);
 
     for (int i = 0; i < u_LightCounts.x; i++) {
-        vec3 lightDir = normalize(-u_DirLights[i].direction.xyz);
-        float diff = max(dot(norm, lightDir), 0.0);
+        vec3 L = normalize(-u_DirLights[i].direction.xyz);
+        float diff = max(dot(norm, L), 0.0);
 
-        vec4 fragPosLightSpace = u_LightSpaceMatrix[i] * vec4(fragPos, 1.0);
-        float shadow = ShadowCalculation(fragPosLightSpace, u_ShadowMap[i], norm, lightDir);
-
+        float shadow = ShadowWithBlend(fragPos, fragDepthVS, norm, L);
         totalLighting += (1.0 - shadow) * diff * u_DirLights[i].color.rgb * u_DirLights[i].color.w;
     }
 

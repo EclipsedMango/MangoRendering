@@ -93,6 +93,18 @@ const vec2 poissonDisk[16] = vec2[](
     vec2( 0.14383161,  -0.14100790)
 );
 
+// Simple, fast hash: returns [0,1)
+float Hash12(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+mat2 Rotate2D(float a) {
+    float c = cos(a), s = sin(a);
+    return mat2(c, -s, s, c);
+}
+
 float ShadowCalculation(vec4 fragPosLightSpace, vec3 fragPos, int cascade, vec3 normal, vec3 lightDirVS) {
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     projCoords = projCoords * 0.5 + 0.5;
@@ -109,13 +121,18 @@ float ShadowCalculation(vec4 fragPosLightSpace, vec3 fragPos, int cascade, vec3 
     float tanTheta = sinTheta / cosTheta;
     float slopeBias = clamp(0.0005 * tanTheta, 0.0, 0.002);
 
-    float bias = slopeBias * (1.0 + float(cascade)) + 0.0001;
+    float bias = slopeBias * (1.0 + float(cascade)) + 0.001;
 
-    float diskRadius = (1.0 + float(cascade) * 0.5) / float(textureSize(u_ShadowMap, 0).x);
+    float texel = 1.0 / float(textureSize(u_ShadowMap, 0).x);
+    float diskRadius = (2.5 + float(cascade) * 1.5) * texel;
+
+    float angle = Hash12(gl_FragCoord.xy) * 6.28318530718;
+    mat2 R = Rotate2D(angle);
 
     float shadow = 0.0;
     for (int i = 0; i < 16; i++) {
-        float pcfDepth = texture(u_ShadowMap, vec3(projCoords.xy + poissonDisk[i] * diskRadius, float(cascade))).r;
+        vec2 offset = (R * poissonDisk[i]) * diskRadius;
+        float pcfDepth = texture(u_ShadowMap, vec3(projCoords.xy + offset, float(cascade))).r;
         shadow += (currentDepth - bias) > pcfDepth ? 1.0 : 0.0;
     }
 

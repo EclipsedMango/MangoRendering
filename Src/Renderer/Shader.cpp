@@ -28,6 +28,28 @@ Shader::Shader(const char *vertexPath, const char *fragmentPath) {
     glDeleteShader(fragment);
 }
 
+Shader::Shader(const char *vertexPath, const char *fragmentPath, const char *geometryPath) {
+    const std::string vertexCode = ReadFile(vertexPath);
+    const std::string fragmentCode = ReadFile(fragmentPath);
+    const std::string geometryCode = ReadFile(geometryPath);
+
+    const unsigned int vertex = CompileShader(GL_VERTEX_SHADER,   vertexCode);
+    const unsigned int fragment = CompileShader(GL_FRAGMENT_SHADER, fragmentCode);
+    const unsigned int geometry = CompileShader(GL_GEOMETRY_SHADER, geometryCode);
+
+    m_id = glCreateProgram();
+    glAttachShader(m_id, vertex);
+    glAttachShader(m_id, fragment);
+    glAttachShader(m_id, geometry);
+    glLinkProgram(m_id);
+
+    CheckCompileErrors(m_id, "PROGRAM");
+
+    glDeleteShader(vertex);
+    glDeleteShader(fragment);
+    glDeleteShader(geometry);
+}
+
 Shader::Shader(const char* computePath) {
     const std::string computeCode = ReadFile(computePath);
     const unsigned int compute = CompileShader(GL_COMPUTE_SHADER, computeCode);

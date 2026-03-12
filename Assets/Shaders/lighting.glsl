@@ -128,11 +128,27 @@ float PointShadow(vec3 fragPos, vec3 normal, uint lightIndex, PointLight light) 
     float currentDist = length(toFrag);
 
     vec3 L = normalize(light.position.xyz - fragPos);
-    float bias = max(biasBase * (1.0 - dot(normal, L)), biasBase * 0.25);
+    float cosTheta = clamp(dot(normal, L), 0.0, 1.0);
+    float bias = farPlane * max(biasBase * (1.0 - cosTheta), biasBase * 0.25);
 
-    float closest = texture(u_PointShadowMap, vec4(toFrag, float(slot))).r * farPlane;
+    vec3 dir = normalize(toFrag);
+    vec3 up = abs(dir.y) < 0.999 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    vec3 right = normalize(cross(up, dir));
+    vec3 tangent = normalize(cross(dir, right));
 
-    return (currentDist - bias) > closest ? 1.0 : 0.0;
+    float diskRadius = (currentDist / farPlane) * 0.04;
+    float angle = Hash12(gl_FragCoord.xy) * 6.28318530718;
+    mat2 R = Rotate2D(angle);
+
+    float shadow = 0.0;
+    for (int i = 0; i < 16; i++) {
+        vec2 offset = (R * poissonDisk[i]) * diskRadius;
+        vec3 sampleDir = normalize(toFrag + right * offset.x + tangent * offset.y);
+        float closest = texture(u_PointShadowMap, vec4(sampleDir, float(slot))).r * farPlane;
+        shadow += (currentDist - bias) > closest ? 1.0 : 0.0;
+    }
+
+    return shadow / 16.0;
 }
 
 float EdgeFade(float dist, float radius) {
@@ -145,21 +161,26 @@ float ShadowCalculation(vec4 fragPosLightSpace, vec3 fragPos, int cascade, vec3 
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     projCoords = projCoords * 0.5 + 0.5;
 
-    if (projCoords.z > 1.0 ||
-    projCoords.x < 0.0 || projCoords.x > 1.0 ||
+    if (projCoords.x < 0.0 || projCoords.x > 1.0 ||
     projCoords.y < 0.0 || projCoords.y > 1.0)
     return 0.0;
 
-    float currentDepth = projCoords.z;
+    float currentDepth = clamp(projCoords.z, 0.0, 1.0);
 
     float cosTheta = clamp(dot(normal, lightDirVS), 0.0001, 1.0);
     float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
-    float tanTheta = sinTheta / cosTheta;
-    float slopeBias = clamp(0.0005 * tanTheta, 0.0, 0.002);
+    float tanTheta = min(sinTheta / cosTheta, 4.0);
 
-    float bias = slopeBias * (1.0 + float(cascade)) + 0.001;
+    // Near cascades need more bias (high resolution = small texels = more acne risk)
+    // Far cascades need less bias (low resolution = large texels = depth is coarser)
+    const float baseBiases[4]  = float[](0.0020, 0.0010, 0.0005, 0.0003);
+    const float slopeScales[4] = float[](0.0015, 0.0008, 0.0004, 0.0002);
 
-    float texel = 1.0 / float(textureSize(u_ShadowMap, 0).x);
+    float baseBias  = baseBiases[cascade];
+    float slopeBias = clamp(slopeScales[cascade] * tanTheta, 0.0, baseBias * 2.0);
+    float bias      = baseBias + slopeBias;
+
+    float texel      = 1.0 / float(textureSize(u_ShadowMap, 0).x);
     float diskRadius = (2.5 + float(cascade) * 1.5) * texel;
 
     float angle = Hash12(gl_FragCoord.xy) * 6.28318530718;
@@ -167,7 +188,7 @@ float ShadowCalculation(vec4 fragPosLightSpace, vec3 fragPos, int cascade, vec3 
 
     float shadow = 0.0;
     for (int i = 0; i < 16; i++) {
-        vec2 offset = (R * poissonDisk[i]) * diskRadius;
+        vec2 offset    = (R * poissonDisk[i]) * diskRadius;
         float pcfDepth = texture(u_ShadowMap, vec3(projCoords.xy + offset, float(cascade))).r;
         shadow += (currentDepth - bias) > pcfDepth ? 1.0 : 0.0;
     }
@@ -183,7 +204,7 @@ float ShadowWithBlend(vec3 fragPos, float fragDepthVS, vec3 normal, vec3 lightDi
 
     if (cascade + 1 < u_CascadeCount) {
         float splitDist  = u_CascadeSplits[cascade];
-        float blendRange = splitDist * 0.1;
+        float blendRange = splitDist * 0.25;
         float blendFactor = smoothstep(splitDist - blendRange, splitDist, fragDepthVS);
 
         if (blendFactor > 0.0) {

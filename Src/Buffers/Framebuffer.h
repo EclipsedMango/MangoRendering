@@ -29,6 +29,7 @@ public:
     [[nodiscard]] uint32_t GetDepthAttachment() const { return m_depthAttachment; }
     [[nodiscard]] uint32_t GetWidth() const { return m_width; }
     [[nodiscard]] uint32_t GetHeight() const { return m_height; }
+    [[nodiscard]] uint32_t GetFbo() const { return m_fbo; }
 
 private:
     void Create();

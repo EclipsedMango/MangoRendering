@@ -13,6 +13,22 @@ void PointLightShadowMap::BeginFace(const uint32_t lightSlot, const uint32_t fac
     glClear(GL_DEPTH_BUFFER_BIT);
 }
 
+void PointLightShadowMap::BeginLight(const uint32_t lightSlot) {
+    glBindFramebuffer(GL_FRAMEBUFFER, m_fb->GetFbo());
+    glViewport(0, 0, m_resolution, m_resolution);
+
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, m_fb->GetDepthAttachment(), 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+
+    for (uint32_t face = 0; face < 6; face++) {
+        glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, m_fb->GetDepthAttachment(), 0, lightSlot * 6 + face);
+        glClear(GL_DEPTH_BUFFER_BIT);
+    }
+
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, m_fb->GetDepthAttachment(), 0);
+}
+
 void PointLightShadowMap::End() {
     Framebuffer::Unbind();
 }

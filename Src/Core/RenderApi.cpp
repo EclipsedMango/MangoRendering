@@ -276,7 +276,7 @@ void RenderApi::InitDepthPass() {
     m_depthShader = new Shader("../Assets/Shaders/depth_only.vert", "../Assets/Shaders/depth_only.frag");
     m_shadowDepthShader = new Shader("../Assets/Shaders/shadow_depth.vert", "../Assets/Shaders/shadow_depth.frag");
     m_pointShadowMap = new PointLightShadowMap(POINT_SHADOW_RES, MAX_SHADOWED_POINT_LIGHTS);
-    m_pointShadowDepthShader = new Shader("../Assets/Shaders/point_shadow_depth.vert", "../Assets/Shaders/point_shadow_depth.frag");
+    m_pointShadowDepthShader = new Shader("../Assets/Shaders/point_shadow_depth.vert", "../Assets/Shaders/point_shadow_depth.frag", "../Assets/Shaders/point_shadow_depth.geom");
 }
 
 void RenderApi::DrawObjectDepth(const Object *object) {
@@ -606,17 +606,16 @@ void RenderApi::RenderPointLightShadows() {
 
     for (uint32_t slot = 0; slot < shadowCount; slot++) {
         const uint32_t lightIndex = candidates[slot].index;
-        const PointLight* L = m_pointLights[lightIndex];
+        const PointLight* L       = m_pointLights[lightIndex];
+        const float farPlane      = glm::max(L->GetRadius(), 0.5f);
+        const float lightRadius   = L->GetRadius();
 
-        const float farPlane = glm::max(L->GetRadius(), 0.5f);
-
-        // debug stuff
-        const float radius = L->GetRadius();
+        // debug
         ShadowedPointLightDebug dbg{};
         dbg.lightIndex = lightIndex;
         dbg.slot = slot;
         dbg.score = candidates[slot].score;
-        dbg.radius = radius;
+        dbg.radius = lightRadius;
         dbg.farPlane = farPlane;
         dbg.position = L->GetPosition();
         dbg.distanceToCamera = glm::length(L->GetPosition() - m_activeCamera->GetPosition());
@@ -630,20 +629,31 @@ void RenderApi::RenderPointLightShadows() {
 
         m_pointShadowDepthShader->SetVector3("u_LightPos", L->GetPosition());
         m_pointShadowDepthShader->SetFloat("u_FarPlane", farPlane);
+        m_pointShadowDepthShader->SetInt("u_LightSlot", static_cast<int>(slot));
 
-        for (uint32_t face = 0; face < 6; face++) {
-            m_pointShadowMap->BeginFace(slot, face);
+        for (int face = 0; face < 6; face++) {
+            m_pointShadowDepthShader->SetMatrix4("u_LightVP[" + std::to_string(face) + "]", vp[face]);
+        }
 
-            m_pointShadowDepthShader->SetMatrix4("u_LightVP", vp[face]);
+        m_pointShadowMap->BeginLight(slot);
 
-            for (const Object* object : m_renderQueue) {
-                if (!object->GetMaterial().GetCastShadows()) continue;
-
-                m_pointShadowDepthShader->SetMatrix4("u_Model", object->transform.GetModelMatrix());
-                object->GetMesh()->GetBuffer()->Bind();
-                glDrawElements(GL_TRIANGLES, object->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
-                m_shadowDrawCallCount++;
+        for (const Object* object : m_renderQueue) {
+            if (!object->GetMaterial().GetCastShadows()) {
+                continue;
             }
+
+            const Mesh* mesh = object->GetMesh();
+            const glm::vec3 worldCenter = glm::vec3(object->transform.GetModelMatrix() * glm::vec4(mesh->GetBoundsCenter(), 1.0f));
+            const float worldRadius = mesh->GetBoundsRadius() * std::max({ object->transform.Scale.x, object->transform.Scale.y, object->transform.Scale.z });
+
+            if (glm::length(worldCenter - L->GetPosition()) > lightRadius + worldRadius) {
+                continue;
+            }
+
+            m_pointShadowDepthShader->SetMatrix4("u_Model", object->transform.GetModelMatrix());
+            object->GetMesh()->GetBuffer()->Bind();
+            glDrawElements(GL_TRIANGLES, object->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
+            m_shadowDrawCallCount++;
         }
     }
 

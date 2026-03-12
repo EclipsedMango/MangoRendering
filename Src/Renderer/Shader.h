@@ -15,6 +15,9 @@ public:
     // graphics pipeline
     Shader(const char* vertexPath, const char* fragmentPath);
 
+    // graphics pipeline with geometry shader
+    Shader(const char* vertexPath, const char* fragmentPath, const char* geometryPath);
+
     // compute pipeline
     explicit Shader(const char* computePath);
 

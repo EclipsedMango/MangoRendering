@@ -116,7 +116,7 @@ int main() {
     object3->GetMaterial().SetDiffuse(texture);
     stressObjects.push_back(object3);
 
-    DirectionalLight* directionalLight = new DirectionalLight({0.5f, -1.0f, 0.5f}, {1.0f, 1.0f, 1.0f}, 0.0f);
+    DirectionalLight* directionalLight = new DirectionalLight({0.5f, -0.6f, -0.5f}, {0.9f, 0.65f, 0.32f}, 0.1f);
     RenderApi::AddDirectionalLight(directionalLight);
 
     PointLight* pointLight = new PointLight({-5, 2, 0}, {1.0, 0.2, 0.1}, 1.5f, 15.0f);
@@ -154,6 +154,17 @@ int main() {
         RenderApi::AddPointLight(light);
         stressLights.push_back(light);
     }
+
+    std::vector<std::string> skyboxTextures = {
+        "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/px.png", // +X (right)
+        "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/nx.png", // -X (left)
+        "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/py.png", // +Y (top)
+        "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/ny.png", // -Y (bottom)
+        "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/pz.png", // +Z (front)
+        "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/nz.png", // -Z (back)
+    };
+    Skybox* skybox = new Skybox(skyboxTextures);
+    RenderApi::SetSkybox(skybox);
 
     Camera* camera = new Camera({0, 0, 3}, 75.0f, static_cast<float>(window->GetSize().x) / static_cast<float>(window->GetSize().y), 0.1f, 100.0f);
     RenderApi::SetActiveCamera(camera);
@@ -313,6 +324,7 @@ int main() {
 
     delete mesh;
     delete directionalLight;
+    delete skybox;
     delete camera;
     delete shader;
 

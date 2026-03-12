@@ -16,6 +16,7 @@ bool RenderApi::m_gladInitialized = false;
 Camera* RenderApi::m_activeCamera {};
 UniformBuffer* RenderApi::m_cameraUbo {};
 std::vector<Window*> RenderApi::m_windows {};
+Skybox* RenderApi::m_skybox = nullptr;
 
 std::vector<DirectionalLight*> RenderApi::m_directionalLights;
 std::vector<CascadedShadowMap*> RenderApi::m_cascadedShadowMaps;
@@ -262,6 +263,10 @@ void RenderApi::Flush() {
         glActiveTexture(GL_TEXTURE15);
         glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, m_pointShadowMap->GetTexture());
         DrawObject(object);
+    }
+
+    if (m_skybox && m_activeCamera) {
+        m_skybox->Draw(m_activeCamera->GetViewMatrix(), m_activeCamera->GetProjectionMatrix());
     }
 
     m_renderQueue.clear();
@@ -758,6 +763,10 @@ void RenderApi::DrawClusterVisualizer() {
 
     glEnable(GL_CULL_FACE);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+}
+
+void RenderApi::SetSkybox(Skybox *skybox) {
+    m_skybox = skybox;
 }
 
 void RenderApi::SetDebugMode(const int mode) {

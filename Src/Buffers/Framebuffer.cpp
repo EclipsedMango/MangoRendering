@@ -43,10 +43,9 @@ void Framebuffer::Create() {
 
         glTextureParameteri(m_depthAttachment, GL_TEXTURE_COMPARE_MODE, GL_NONE);
 
+        // Don’t attach a specific layer here; we attach the layer per-cascade in BindLayer().
         glNamedFramebufferDrawBuffer(m_fbo, GL_NONE);
         glNamedFramebufferReadBuffer(m_fbo, GL_NONE);
-
-        // Don’t attach a specific layer here; we attach the layer per-cascade in BindLayer().
 
     } else if (m_type == FramebufferType::ColorDepth) {
         // color attachment

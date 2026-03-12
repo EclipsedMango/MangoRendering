@@ -18,6 +18,7 @@
 #include "Lights/SpotLight.h"
 #include "Renderer/CascadedShadowMap.h"
 #include "Renderer/PointLightShadowMap.h"
+#include "Renderer/Skybox.h"
 
 struct ShadowedPointLightDebug {
     uint32_t lightIndex = 0;
@@ -79,6 +80,9 @@ public:
     static void DrawObject(const Object* object);
     static void DrawClusterVisualizer();
 
+    static void SetSkybox(Skybox* skybox);
+
+    // debug stuff
     static void SetDebugMode(int mode);
     static void SetDebugCascade(int cascade);
     static uint32_t GetPointLightCount() { return static_cast<uint32_t>(m_pointLights.size()); }
@@ -99,6 +103,7 @@ private:
     static Camera* m_activeCamera;
     static UniformBuffer* m_cameraUbo;
     static std::vector<Window*> m_windows;
+    static Skybox* m_skybox;
 
     static std::vector<DirectionalLight*> m_directionalLights;
     static std::vector<CascadedShadowMap*> m_cascadedShadowMaps;

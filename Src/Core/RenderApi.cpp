@@ -224,7 +224,12 @@ void RenderApi::Flush() {
     UploadLightData();
 
     // shadow pass
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(2.5f, 4.0f);
+    glCullFace(GL_FRONT);
     RenderDirectionalShadows();
+    glCullFace(GL_BACK);
+    glDisable(GL_POLYGON_OFFSET_FILL);
     RenderPointLightShadows();
 
     // z-prepass
@@ -579,7 +584,7 @@ void RenderApi::RenderPointLightShadows() {
     for (auto&[slot, farPlane, bias, pad] : meta) {
         slot = 0xFFFFFFFFu;
         farPlane = 1.0f;
-        bias = 0.02f;
+        bias = 0.002f;
         pad = 0.0f;
     }
 
@@ -703,6 +708,10 @@ void RenderApi::DrawObject(const Object* object) {
         const auto& splits = csm->GetSplitDistances();
         for (int c = 0; c < CascadedShadowMap::NUM_CASCADES; c++) {
             shader->SetFloat("u_CascadeSplits[" + std::to_string(c) + "]", splits[c]);
+        }
+
+        for (int c = 0; c < CascadedShadowMap::NUM_CASCADES; c++) {
+            shader->SetFloat("u_CascadeWorldUnits[" + std::to_string(c) + "]", csm->GetWorldUnitsPerTexel(c));
         }
 
         shader->SetInt("u_ShadowMap", 7 + static_cast<int>(i));

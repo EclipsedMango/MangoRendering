@@ -61,6 +61,7 @@ void CascadedShadowMap::Update(const Camera& camera) {
         glm::mat4 lightViewRot = glm::lookAt(glm::vec3(0.0f), m_lightDirection, up);
 
         float worldUnitsPerTexel = 2.0f * radius / static_cast<float>(m_width);
+        m_worldUnitsPerTexel[i] = worldUnitsPerTexel;
 
         glm::vec3 centerLS = glm::vec3(lightViewRot * glm::vec4(center, 1.0f));
         centerLS.x = std::floor(centerLS.x / worldUnitsPerTexel) * worldUnitsPerTexel;

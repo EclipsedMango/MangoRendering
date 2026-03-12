@@ -11,7 +11,7 @@ public:
     ~PointLightShadowMap() = default;
 
     void BeginFace(uint32_t lightSlot, uint32_t face) const;
-    void BeginLight(uint32_t lightSlot);
+    void BeginLight(uint32_t lightSlot) const;
     static void End();
 
     [[nodiscard]] uint32_t GetTexture() const { return m_fb->GetDepthAttachment(); }

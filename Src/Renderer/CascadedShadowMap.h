@@ -25,8 +25,11 @@ public:
     [[nodiscard]] glm::mat4 GetLightSpaceMatrix(const int index) const { return m_lightSpaceMatrices[index]; }
     [[nodiscard]] uint32_t GetTextureArray() const { return m_fb->GetDepthAttachment(); }
     [[nodiscard]] const std::array<float, NUM_CASCADES>& GetSplitDistances() const { return m_splitDistances; }
+    [[nodiscard]] float GetWorldUnitsPerTexel(const int i) const { return m_worldUnitsPerTexel[i]; }
 
 private:
+    std::array<float, NUM_CASCADES> m_worldUnitsPerTexel{};
+
     std::unique_ptr<Framebuffer> m_fb;
     uint32_t m_width  = 0;
     uint32_t m_height = 0;

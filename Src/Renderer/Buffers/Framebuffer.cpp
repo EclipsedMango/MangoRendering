@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include "glad/gl.h"
 
-Framebuffer::Framebuffer(const uint32_t width, const uint32_t height, const FramebufferType type, uint32_t layers) : m_width(width), m_height(height), m_type(type), m_layers(layers) {
+Framebuffer::Framebuffer(const uint32_t width, const uint32_t height, const FramebufferType type, const uint32_t layers) : m_layers(layers), m_width(width), m_height(height), m_type(type) {
     Create();
 }
 

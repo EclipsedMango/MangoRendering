@@ -3,154 +3,129 @@
 
 #include <SDL3/SDL.h>
 #include <vector>
+#include <memory>
 
+#include "Renderer/Pipeline/ClusterSystem.h"
+#include "Renderer/Pipeline/LightManager.h"
+#include "Renderer/Pipeline/ShadowRenderer.h"
 #include "Window.h"
 #include "Scene/Camera.h"
-#include "Lights/DirectionalLight.h"
-#include "Renderer/VertexArray.h"
+#include "Nodes/Lights/DirectionalLight.h"
 #include "Renderer/Mesh.h"
 #include "Scene/Object.h"
 #include "Renderer/Shader.h"
-#include "Buffers/UniformBuffer.h"
-#include "Buffers/ShaderStorageBuffer.h"
-#include "Lights/DirectionalLight.h"
-#include "Lights/PointLight.h"
-#include "Lights/SpotLight.h"
+#include "Renderer/Buffers/UniformBuffer.h"
+#include "Renderer/Buffers/ShaderStorageBuffer.h"
+#include "Nodes/Lights/PointLight.h"
+#include "Nodes/Lights/SpotLight.h"
 #include "Renderer/CascadedShadowMap.h"
-#include "Renderer/PointLightShadowMap.h"
 #include "Renderer/Skybox.h"
 
-struct ShadowedPointLightDebug {
-    uint32_t lightIndex = 0;
-    uint32_t slot = 0;
-    float score = 0.0f;
-    float radius = 0.0f;
-    float farPlane = 0.0f;
-    glm::vec3 position{0.0f};
-    float distanceToCamera = 0.0f;
+struct RenderStats {
+    uint32_t drawCalls       = 0;
+    uint32_t shadowDrawCalls = 0;
+    uint32_t culled          = 0;
+    uint32_t triangles       = 0;
+    uint32_t submitted       = 0;
 };
 
 class RenderApi {
 public:
-    static void Init();
-    static Window* CreateWindow(const char* title, glm::vec2 size, Uint32 flags);
-    static void ClearColour(const glm::vec4& colour);
-    static void HandleResizeEvent(const SDL_Event& event);
+    // Initializes SDL and sets GL attributes, MUST be called before constructing RenderApi
+    static void InitSDL();
 
-    static void SetActiveCamera(Camera* camera);
-    static void UploadCameraData();
+    RenderApi() = default;
+    ~RenderApi();
 
-    static void AddDirectionalLight(DirectionalLight* light);
-    static void RemoveDirectionalLight(DirectionalLight* light);
+    RenderApi(const RenderApi&)            = delete;
+    RenderApi& operator=(const RenderApi&) = delete;
+    RenderApi(RenderApi&&)                 = delete;
+    RenderApi& operator=(RenderApi&&)      = delete;
 
-    static void AddPointLight(PointLight* light);
-    static void RemovePointLight(PointLight* light);
+    Window* CreateWindow(const char* title, glm::vec2 size, Uint32 flags);
+    void ClearColour(const glm::vec4& colour);
+    void HandleResizeEvent(const SDL_Event& event);
 
-    static void AddSpotLight(SpotLight* light);
-    static void RemoveSpotLight(SpotLight* light);
+    void SetActiveCamera(Camera* camera);
+    void UploadCameraData();
 
-    static ShaderStorageBuffer* GetLightGridSsbo() { return m_lightGridSsbo; }
-    static ShaderStorageBuffer* GetGlobalCountSsbo() { return m_globalCountSsbo; }
-    static const std::vector<CascadedShadowMap*>& GetCascadedShadowMaps() { return m_cascadedShadowMaps; }
+    void AddDirectionalLight(DirectionalLight* light);
+    void RemoveDirectionalLight(DirectionalLight* light);
 
-    static void Submit(const Object* object);
-    static void Flush();
+    void AddPointLight(PointLight* light);
+    void RemovePointLight(PointLight* light);
 
-    static void InitDepthPass();
-    static void DrawObjectDepth(const Object* object);
+    void AddSpotLight(SpotLight* light);
+    void RemoveSpotLight(SpotLight* light);
 
-    static void BeginZPrepass();
-    static void EndZPrepass();
+    [[nodiscard]] ShaderStorageBuffer* GetLightGridSsbo()   const { return m_clusterSystem->GetLightGridSsbo(); }
+    [[nodiscard]] ShaderStorageBuffer* GetGlobalCountSsbo() const { return m_clusterSystem->GetGlobalCountSsbo(); }
 
-    static void UploadLightData();
-    static void RebuildClusters();
-    static void RunLightCulling();
-    static float CalculateLightRadius(const glm::vec3& color, float intensity, float constant, float linear, float quadratic);
+    [[nodiscard]] const std::vector<CascadedShadowMap*>& GetCascadedShadowMaps() const { return m_shadowRenderer->GetCascadedShadowMaps(); }
+    [[nodiscard]] uint32_t GetShadowedPointLightCount()  const { return m_shadowRenderer->GetShadowedPointLightCount(); }
+    [[nodiscard]] uint32_t GetMaxShadowedPointLights()   const { return ShadowRenderer::MAX_SHADOWED_POINT_LIGHTS; }
+    [[nodiscard]] const std::vector<ShadowedPointLightDebug>& GetShadowedPointLightsDebug() const { return m_shadowRenderer->GetShadowedPointLightsDebug(); }
 
-    static void RenderDirectionalShadows();
+    void Submit(const Object* object);
+    void Flush();
 
-    static void EnsurePointShadowMetaBuffer(size_t pointLightCount);
-    static float ScorePointLight(const PointLight* l, const Camera* cam);
-    static void BuildPointShadowFaceMatrices(const glm::vec3& lightPos, float nearPlane, float farPlane, glm::mat4 outVP[6]);
-    static void RenderPointLightShadows();
+    void DrawMesh(const Mesh& mesh, const Shader& shader);
+    void DrawClusterVisualizer();
 
-    static VertexArray* CreateBuffer(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
+    void SetSkybox(Skybox* skybox);
 
-    static void DrawMesh(const Mesh& mesh, const Shader& shader);
-    static void DrawObject(const Object* object);
-    static void DrawClusterVisualizer();
+    // Debug
+    void SetDebugMode(int mode);
+    void SetDebugCascade(int cascade);
 
-    static void SetSkybox(Skybox* skybox);
-
-    // debug stuff
-    static void SetDebugMode(int mode);
-    static void SetDebugCascade(int cascade);
-    static uint32_t GetPointLightCount() { return static_cast<uint32_t>(m_pointLights.size()); }
-    static uint32_t GetShadowedPointLightCount() { return static_cast<uint32_t>(m_shadowedPointLightsDebug.size()); }
-    static uint32_t GetMaxShadowedPointLights() { return MAX_SHADOWED_POINT_LIGHTS; }
-    static const std::vector<ShadowedPointLightDebug>& GetShadowedPointLightsDebug() { return m_shadowedPointLightsDebug; }
-
-    [[nodiscard]] static uint32_t GetDrawCallCount() { return m_drawCallCount; }
-    [[nodiscard]] static uint32_t GetShadowDrawCallCount() { return m_shadowDrawCallCount; }
-    [[nodiscard]] static uint32_t GetCulledCount() { return m_culledCount; }
-    [[nodiscard]] static uint32_t GetTriangleCount() { return m_triangleCount; }
-    [[nodiscard]] static uint32_t GetSubmittedCount() { return m_submittedCount; }
-    [[nodiscard]] static int GetDebugMode() { return m_debugMode; }
-    [[nodiscard]] static int GetDebugCascade() { return m_debugCascade; }
+    [[nodiscard]] uint32_t GetPointLightCount() const { return m_lightManager->GetPointLightCount(); }
+    [[nodiscard]] RenderStats GetStats()        const { return m_stats; }
+    [[nodiscard]] int GetDebugMode()            const { return m_debugMode; }
+    [[nodiscard]] int GetDebugCascade()         const { return m_debugCascade; }
 
 private:
-    static bool m_gladInitialized;
-    static Camera* m_activeCamera;
-    static UniformBuffer* m_cameraUbo;
-    static std::vector<Window*> m_windows;
-    static Skybox* m_skybox;
+    void InitGLResources(); // called once after GLAD is loaded
+    void InitDepthPass();
 
-    static std::vector<DirectionalLight*> m_directionalLights;
-    static std::vector<CascadedShadowMap*> m_cascadedShadowMaps;
+    void DrawObject(const Object* object);
+    void DrawObjectDepth(const Object* object);
+    void BeginZPrepass();
+    void EndZPrepass();
 
-    static std::vector<PointLight*> m_pointLights;
-    static PointLightShadowMap* m_pointShadowMap;
+    void RebuildClusters();
+    void RunLightCulling();
+    void RenderMainPass();
 
-    static std::vector<SpotLight*> m_spotLights;
-
-    static constexpr uint32_t CLUSTER_DIM_X = 16;
-    static constexpr uint32_t CLUSTER_DIM_Y = 9;
-    static constexpr uint32_t CLUSTER_DIM_Z = 24;
-    static constexpr uint32_t NUM_CLUSTERS = CLUSTER_DIM_X * CLUSTER_DIM_Y * CLUSTER_DIM_Z;
+    // constants
+    static constexpr uint32_t CLUSTER_DIM_X         = 16;
+    static constexpr uint32_t CLUSTER_DIM_Y         = 9;
+    static constexpr uint32_t CLUSTER_DIM_Z         = 24;
+    static constexpr uint32_t NUM_CLUSTERS           = CLUSTER_DIM_X * CLUSTER_DIM_Y * CLUSTER_DIM_Z;
     static constexpr uint32_t MAX_LIGHTS_PER_CLUSTER = 100;
-    static constexpr uint32_t CSM_RESOLUTION = 2048;
-    static constexpr uint32_t MAX_SHADOWED_POINT_LIGHTS = 8;
-    static constexpr uint32_t POINT_SHADOW_RES = 1024;
+    static constexpr uint32_t MAX_DIR_LIGHTS         = 4;
+    static constexpr uint32_t MAX_TEXTURE_SLOTS      = 16;
 
-    static UniformBuffer* m_globalLightUbo;            // directional and light info in UBO: binding 1
-    static ShaderStorageBuffer* m_pointLightSsbo;      // point lights in SSBO: binding 2
-    static ShaderStorageBuffer* m_spotLightSsbo;       // spot lights in SSBO: binding 3
-    static ShaderStorageBuffer* m_clusterAabbSsbo;     // cluster AABBs dimensions in SSBO: binding 4
-    static ShaderStorageBuffer* m_lightIndexSsbo;      // light index list in SSBO: binding 5
-    static ShaderStorageBuffer* m_lightGridSsbo;       // light grid in SSBO: binding 6
-    static ShaderStorageBuffer* m_globalCountSsbo;     // global index counter in SSBO: binding 7
-    static ShaderStorageBuffer* m_pointShadowMetaSsbo; // point light shadows in SSBO: binding 8
+    std::vector<std::unique_ptr<Window>> m_windows;
 
-    static Shader* m_clusterShader;
-    static Shader* m_cullShader;
-    static Shader* m_depthShader;
-    static Shader* m_shadowDepthShader;
-    static Shader* m_pointShadowDepthShader;
+    Camera* m_activeCamera = nullptr;
+    Skybox* m_skybox       = nullptr;
 
-    static std::vector<const Object*> m_renderQueue;
+    std::unique_ptr<ClusterSystem> m_clusterSystem;
+    std::unique_ptr<LightManager> m_lightManager;
+    std::unique_ptr<ShadowRenderer> m_shadowRenderer;
 
-    // debug tools
-    static Mesh* m_debugClusterMesh;
-    static Shader* m_debugClusterShader;
-    static uint32_t m_drawCallCount;
-    static uint32_t m_shadowDrawCallCount;
-    static uint32_t m_culledCount;
-    static uint32_t m_triangleCount;
-    static uint32_t m_submittedCount;
-    static int m_debugMode;
-    static int m_debugCascade;
-    static std::vector<ShadowedPointLightDebug> m_shadowedPointLightsDebug;
+    std::unique_ptr<UniformBuffer> m_cameraUbo;
+
+    std::unique_ptr<Shader> m_depthShader;
+
+    std::vector<const Object*> m_renderQueue;
+
+    std::unique_ptr<Mesh>   m_debugClusterMesh;
+    std::unique_ptr<Shader> m_debugClusterShader;
+
+    RenderStats m_stats;
+    int m_debugMode    = 0;
+    int m_debugCascade = 0;
 };
-
 
 #endif //MANGORENDERING_RENDERAPI_H

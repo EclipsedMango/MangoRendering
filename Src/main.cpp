@@ -13,11 +13,13 @@
 #include "glm/gtc/type_ptr.hpp"
 #include "Renderer/GltfLoader.h"
 
-static void ShowPointShadowDebugUI();
+static void ShowPointShadowDebugUI(const RenderApi& renderer);
 
 int main() {
-    RenderApi::Init();
-    Window* window = RenderApi::CreateWindow("Mango", {500, 500}, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
+    RenderApi::InitSDL();
+    RenderApi renderer;
+
+    Window* window = renderer.CreateWindow("Mango", {500, 500}, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
 
     std::cout << "Vendor: "   << glGetString(GL_VENDOR)   << std::endl;
     std::cout << "Renderer: " << glGetString(GL_RENDERER)  << std::endl;
@@ -117,11 +119,11 @@ int main() {
     stressObjects.push_back(object3);
 
     DirectionalLight* directionalLight = new DirectionalLight({0.5f, -0.6f, -0.5f}, {0.9f, 0.65f, 0.32f}, 0.1f);
-    RenderApi::AddDirectionalLight(directionalLight);
+    renderer.AddDirectionalLight(directionalLight);
 
     PointLight* pointLight = new PointLight({-5, 2, 0}, {1.0, 0.2, 0.1}, 1.5f, 15.0f);
     pointLight->SetAttenuation(1.0, 0.22, 0.20);
-    RenderApi::AddPointLight(pointLight);
+    renderer.AddPointLight(pointLight);
     stressLights.push_back(pointLight);
 
     // stress test
@@ -151,7 +153,7 @@ int main() {
         );
         light->SetAttenuation(1.0, 0.22, 0.20);
 
-        RenderApi::AddPointLight(light);
+        renderer.AddPointLight(light);
         stressLights.push_back(light);
     }
 
@@ -164,12 +166,10 @@ int main() {
         "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/nz.png", // -Z (back)
     };
     Skybox* skybox = new Skybox(skyboxTextures);
-    RenderApi::SetSkybox(skybox);
+    renderer.SetSkybox(skybox);
 
-    Camera* camera = new Camera({0, 0, 3}, 75.0f, static_cast<float>(window->GetSize().x) / static_cast<float>(window->GetSize().y), 0.1f, 100.0f);
-    RenderApi::SetActiveCamera(camera);
-
-    RenderApi::RebuildClusters();
+    Camera* camera = new Camera({0, 0, 3}, 75.0f, static_cast<float>(window->GetSize().x) / static_cast<float>(window->GetSize().y), 0.1f, 200.0f);
+    renderer.SetActiveCamera(camera);
 
     uint32_t lastTime = SDL_GetTicks();
 
@@ -185,7 +185,7 @@ int main() {
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
-        ShowPointShadowDebugUI();
+        ShowPointShadowDebugUI(renderer);
 
         ImGui::Begin("Renderer");
 
@@ -218,14 +218,15 @@ int main() {
 
         ImGui::Separator();
 
-        ImGui::Text("Submitted:    %u", RenderApi::GetSubmittedCount());
-        ImGui::Text("Draw Calls:   %u", RenderApi::GetDrawCallCount());
-        ImGui::Text("Shadow DCs:   %u", RenderApi::GetShadowDrawCallCount());
-        ImGui::Text("Triangles:    %u", RenderApi::GetTriangleCount());
+        ImGui::Text("Submitted:    %u", renderer.GetStats().submitted);
+        ImGui::Text("Draw Calls:   %u", renderer.GetStats().drawCalls);
+        ImGui::Text("Shadow DCs:   %u", renderer.GetStats().shadowDrawCalls);
+        ImGui::Text("Triangles:    %u", renderer.GetStats().triangles);
 
         ImGui::Separator();
-        const uint32_t submitted = RenderApi::GetSubmittedCount();
-        const uint32_t culled    = RenderApi::GetCulledCount();
+
+        const uint32_t submitted = renderer.GetStats().submitted;
+        const uint32_t culled    = renderer.GetStats().culled;
         const float cullPct      = submitted > 0 ? culled / static_cast<float>(submitted) * 100.0f : 0.0f;
 
         ImGui::Text("Culled:       %u / %u (%.0f%%)", culled, submitted, cullPct);
@@ -248,12 +249,12 @@ int main() {
 
         const char* debugModes[] = { "CF None", "CF Normal", "CF Heatmap", "CF Z-Slices", "CF XY-Tiles", "CSM", "CSM-Slices", "CSM Proj Coords", "CSM Shadow Factor" };
         if (ImGui::Combo("Debug Mode", &debugMode, debugModes, IM_ARRAYSIZE(debugModes))) {
-            RenderApi::SetDebugMode(debugMode);
+            renderer.SetDebugMode(debugMode);
         }
 
         if (debugMode == 5) {
             ImGui::SliderInt("Cascade", &debugCascade, 0, CascadedShadowMap::NUM_CASCADES - 1);
-            RenderApi::SetDebugCascade(debugCascade);
+            renderer.SetDebugCascade(debugCascade);
         }
 
         static bool showClusterBounds = false;
@@ -264,7 +265,7 @@ int main() {
         while (SDL_PollEvent(&event)) {
             ImGui_ImplSDL3_ProcessEvent(&event);
 
-            if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE) {
+            if (event.type == SDL_EVENT_QUIT || (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE)) {
                 window->Close();
             }
 
@@ -277,7 +278,7 @@ int main() {
                 SDL_SetWindowRelativeMouseMode(window->GetSDLWindow(), mouseCaptured);
             }
 
-            RenderApi::HandleResizeEvent(event);
+            renderer.HandleResizeEvent(event);
         }
 
         const uint64_t currentTime = SDL_GetTicks();
@@ -292,23 +293,14 @@ int main() {
         if (keys[SDL_SCANCODE_A]) camera->Move(-camera->GetRight() * speed * deltaTime);
         if (keys[SDL_SCANCODE_D]) camera->Move(camera->GetRight() * speed * deltaTime);
 
-        window->MakeCurrent();
+        for (auto* obj : stressObjects) renderer.Submit(obj);
+        for (auto* coolobj : gltfObjects) renderer.Submit(coolobj);
 
-        // depth pass
-        RenderApi::Submit(object);
-        RenderApi::Submit(object1);
-        RenderApi::Submit(object2);
-        RenderApi::Submit(object3);
+        renderer.ClearColour({0.16f, 0.16f, 0.16f, 1.0f});
+        renderer.Flush();
 
-        for (auto* obj : stressObjects) RenderApi::Submit(obj);
-        for (auto* coolobj : gltfObjects) RenderApi::Submit(coolobj);
-
-        RenderApi::ClearColour({0.16f, 0.16f, 0.16f, 1.0f});
-        RenderApi::Flush();
-
-        // shows the clustered forward rendering clusters, shows size and z index
         if (showClusterBounds) {
-            RenderApi::DrawClusterVisualizer();
+            renderer.DrawClusterVisualizer();
         }
 
         ImGui::Render();
@@ -328,32 +320,32 @@ int main() {
     delete camera;
     delete shader;
 
-    for (auto* obj : stressObjects) delete obj;
+    for (auto* obj : stressObjects)  delete obj;
+    for (auto* obj : gltfObjects)    delete obj;
+
     for (auto* light : stressLights) {
-        RenderApi::RemovePointLight(light);
+        renderer.RemovePointLight(light);
         delete light;
     }
-
-    for (auto* coolobj : gltfObjects) delete coolobj;
 
     texture.reset();
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();
-    SDL_Quit();
+
     return 0;
 }
 
-static void ShowPointShadowDebugUI() {
+static void ShowPointShadowDebugUI(const RenderApi& renderer) {
     if (!ImGui::Begin("Point Light Shadows")) {
         ImGui::End();
         return;
     }
 
-    const uint32_t totalPoint = RenderApi::GetPointLightCount();
-    const uint32_t maxShadow  = RenderApi::GetMaxShadowedPointLights();
-    const uint32_t shadowed   = RenderApi::GetShadowedPointLightCount();
+    const uint32_t totalPoint = renderer.GetPointLightCount();
+    const uint32_t maxShadow  = renderer.GetMaxShadowedPointLights();
+    const uint32_t shadowed   = renderer.GetShadowedPointLightCount();
 
     ImGui::Text("Total point lights:        %u", totalPoint);
     ImGui::Text("Max shadowed point lights: %u", maxShadow);
@@ -362,7 +354,7 @@ static void ShowPointShadowDebugUI() {
 
     ImGui::Separator();
 
-    const auto& dbg = RenderApi::GetShadowedPointLightsDebug();
+    const auto& dbg = renderer.GetShadowedPointLightsDebug();
     if (ImGui::BeginTable("shadowed_point_lights", 7, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY, ImVec2(0, 240))) {
         ImGui::TableSetupColumn("Slot");
         ImGui::TableSetupColumn("LightIdx");

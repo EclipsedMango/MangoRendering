@@ -24,6 +24,9 @@ FetchContent_MakeAvailable(stb)
 FetchContent_Declare(tinygltf GIT_REPOSITORY https://github.com/syoyo/tinygltf.git GIT_TAG v2.9.6)
 FetchContent_MakeAvailable(tinygltf)
 
+FetchContent_Declare(json GIT_REPOSITORY https://github.com/nlohmann/json.git GIT_TAG v3.11.3)
+FetchContent_MakeAvailable(json)
+
 add_library(imgui STATIC
         ${imgui_SOURCE_DIR}/imgui.cpp
         ${imgui_SOURCE_DIR}/imgui_draw.cpp
@@ -51,29 +54,29 @@ add_executable(MangoRendering Src/main.cpp
         Src/Scene/Camera.h
         Src/Renderer/Texture.cpp
         Src/Renderer/Texture.h
-        Src/Buffers/UniformBuffer.cpp
-        Src/Buffers/UniformBuffer.h
+        Src/Renderer/Buffers/UniformBuffer.cpp
+        Src/Renderer/Buffers/UniformBuffer.h
         Src/Scene/Object.cpp
         Src/Scene/Object.h
-        Src/Scene/Transform.cpp
-        Src/Scene/Transform.h
-        Src/Lights/DirectionalLight.cpp
-        Src/Lights/DirectionalLight.h
-        Src/Lights/PointLight.cpp
-        Src/Lights/PointLight.h
-        Src/Lights/SpotLight.cpp
-        Src/Lights/SpotLight.h
-        Src/Buffers/ShaderStorageBuffer.cpp
-        Src/Buffers/ShaderStorageBuffer.h
-        Src/Lights/GpuLights.h
-        Src/Buffers/GpuBuffer.cpp
-        Src/Buffers/GpuBuffer.h
+        Src/Nodes/Transform.cpp
+        Src/Nodes/Transform.h
+        Src/Nodes/Lights/DirectionalLight.cpp
+        Src/Nodes/Lights/DirectionalLight.h
+        Src/Nodes/Lights/PointLight.cpp
+        Src/Nodes/Lights/PointLight.h
+        Src/Nodes/Lights/SpotLight.cpp
+        Src/Nodes/Lights/SpotLight.h
+        Src/Renderer/Buffers/ShaderStorageBuffer.cpp
+        Src/Renderer/Buffers/ShaderStorageBuffer.h
+        Src/Nodes/Lights/GpuLights.h
+        Src/Renderer/Buffers/GpuBuffer.cpp
+        Src/Renderer/Buffers/GpuBuffer.h
         Src/Renderer/GltfLoader.cpp
         Src/Renderer/GltfLoader.h
         Src/Renderer/Material.cpp
         Src/Renderer/Material.h
-        Src/Buffers/Framebuffer.cpp
-        Src/Buffers/Framebuffer.h
+        Src/Renderer/Buffers/Framebuffer.cpp
+        Src/Renderer/Buffers/Framebuffer.h
         Src/Scene/Frustum.h
         Src/Scene/Frustum.cpp
         Src/Renderer/CascadedShadowMap.cpp
@@ -81,9 +84,19 @@ add_executable(MangoRendering Src/main.cpp
         Src/Renderer/PointLightShadowMap.cpp
         Src/Renderer/PointLightShadowMap.h
         Src/Renderer/Skybox.cpp
-        Src/Renderer/Skybox.h)
+        Src/Renderer/Skybox.h
+        Src/Nodes/Node3d.cpp
+        Src/Nodes/Node3d.h
+        Src/Core/Core.cpp
+        Src/Core/Core.h
+        Src/Renderer/Pipeline/ShadowRenderer.cpp
+        Src/Renderer/Pipeline/ShadowRenderer.h
+        Src/Renderer/Pipeline/LightManager.cpp
+        Src/Renderer/Pipeline/LightManager.h
+        Src/Renderer/Pipeline/ClusterSystem.cpp
+        Src/Renderer/Pipeline/ClusterSystem.h)
 
-target_link_libraries(MangoRendering SDL3::SDL3 glad_gl imgui ${CMAKE_DL_LIBS})
+target_link_libraries(MangoRendering SDL3::SDL3 glad_gl imgui ${CMAKE_DL_LIBS} nlohmann_json::nlohmann_json)
 target_include_directories(MangoRendering PRIVATE ${CMAKE_SOURCE_DIR}/Src include ${glm_SOURCE_DIR} ${stb_SOURCE_DIR} ${tinygltf_SOURCE_DIR})
 
 add_custom_target(copy_assets ALL

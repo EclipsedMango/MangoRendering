@@ -6,60 +6,13 @@
 #include <SDL3/SDL_video.h>
 #include <stdexcept>
 
-#include "../Lights/GpuLights.h"
-#include "../Buffers/UniformBuffer.h"
+#include "Nodes/Lights/GpuLights.h"
+#include "Renderer/Buffers/UniformBuffer.h"
 #include "glad/gl.h"
 #include "glm/gtc/type_ptr.hpp"
 #include "Scene/Frustum.h"
 
-bool RenderApi::m_gladInitialized = false;
-Camera* RenderApi::m_activeCamera {};
-UniformBuffer* RenderApi::m_cameraUbo {};
-std::vector<Window*> RenderApi::m_windows {};
-Skybox* RenderApi::m_skybox = nullptr;
-
-std::vector<DirectionalLight*> RenderApi::m_directionalLights;
-std::vector<CascadedShadowMap*> RenderApi::m_cascadedShadowMaps;
-
-std::vector<PointLight*> RenderApi::m_pointLights;
-PointLightShadowMap* RenderApi::m_pointShadowMap;
-
-std::vector<SpotLight*> RenderApi::m_spotLights;
-
-UniformBuffer* RenderApi::m_globalLightUbo = nullptr;
-ShaderStorageBuffer* RenderApi::m_pointLightSsbo = nullptr;
-ShaderStorageBuffer* RenderApi::m_spotLightSsbo = nullptr;
-
-ShaderStorageBuffer* RenderApi::m_clusterAabbSsbo = nullptr;
-ShaderStorageBuffer* RenderApi::m_lightIndexSsbo = nullptr;
-ShaderStorageBuffer* RenderApi::m_lightGridSsbo = nullptr;
-ShaderStorageBuffer* RenderApi::m_globalCountSsbo = nullptr;
-
-ShaderStorageBuffer* RenderApi::m_pointShadowMetaSsbo = nullptr;
-
-Shader* RenderApi::m_clusterShader = nullptr;
-Shader* RenderApi::m_cullShader = nullptr;
-Shader* RenderApi::m_depthShader = nullptr;
-Shader* RenderApi::m_shadowDepthShader = nullptr;
-Shader* RenderApi::m_pointShadowDepthShader = nullptr;
-
-std::vector<const Object*> RenderApi::m_renderQueue {};
-
-Mesh* RenderApi::m_debugClusterMesh = nullptr;
-Shader* RenderApi::m_debugClusterShader = nullptr;
-uint32_t RenderApi::m_drawCallCount = 0;
-uint32_t RenderApi::m_shadowDrawCallCount = 0;
-uint32_t RenderApi::m_culledCount = 0;
-uint32_t RenderApi::m_triangleCount = 0;
-uint32_t RenderApi::m_submittedCount = 0;
-int RenderApi::m_debugMode = 0;
-int RenderApi::m_debugCascade = 0;
-std::vector<ShadowedPointLightDebug> RenderApi::m_shadowedPointLightsDebug;
-
-constexpr uint32_t MAX_TEXTURE_SLOTS = 16;
-constexpr uint32_t MAX_DIR_LIGHTS = 4;
-
-void RenderApi::Init() {
+void RenderApi::InitSDL() {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         throw std::runtime_error(std::string("SDL_Init failed: ") + SDL_GetError());
     }
@@ -70,58 +23,80 @@ void RenderApi::Init() {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
 }
 
+RenderApi::~RenderApi() {
+    // destroy all GL resources while the context is still alive
+    m_clusterSystem.reset();
+    m_lightManager.reset();
+    m_shadowRenderer.reset();
+    m_depthShader.reset();
+    m_cameraUbo.reset();
+    m_debugClusterMesh.reset();
+    m_debugClusterShader.reset();
+
+    m_windows.clear(); // destroys the window and GL context
+
+    SDL_Quit();
+}
+
 Window* RenderApi::CreateWindow(const char* title, const glm::vec2 size, const Uint32 flags) {
-    Window* window = new Window(title, size, flags);
+    auto window = std::make_unique<Window>(title, size, flags);
     window->MakeCurrent();
 
-    if (!m_gladInitialized) {
+    if (m_windows.empty()) {
         if (!gladLoadGL(SDL_GL_GetProcAddress)) {
             throw std::runtime_error("Failed to initialize Glad");
         }
 
-        m_gladInitialized = true;
-
-        glEnable(GL_DEBUG_OUTPUT);
-        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-        glDebugMessageCallback([](const GLenum source, const GLenum type, const GLuint id, const GLenum severity, GLsizei, const GLchar* message, const void*) {
-            if (severity == GL_DEBUG_SEVERITY_NOTIFICATION) return;
-
-            const char* srcStr   = source   == GL_DEBUG_SOURCE_API             ? "API"
-                                 : source   == GL_DEBUG_SOURCE_SHADER_COMPILER ? "Shader Compiler"
-                                 : source   == GL_DEBUG_SOURCE_APPLICATION     ? "Application"
-                                 : "Other";
-
-            const char* typeStr  = type     == GL_DEBUG_TYPE_ERROR               ? "ERROR"
-                                 : type     == GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR ? "DEPRECATED"
-                                 : type     == GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR  ? "UNDEFINED BEHAVIOUR"
-                                 : type     == GL_DEBUG_TYPE_PERFORMANCE         ? "PERFORMANCE"
-                                 : "OTHER";
-
-            const char* sevStr = severity == GL_DEBUG_SEVERITY_HIGH ? "HIGH" : severity == GL_DEBUG_SEVERITY_MEDIUM ? "MEDIUM" : "LOW";
-
-            std::cerr << "[GL " << typeStr << "] [" << sevStr << "] (" << srcStr << ") id=" << id << "\n  " << message << "\n";
-        }, nullptr);
-
-        m_clusterShader = new Shader("../Assets/Shaders/cluster_build.comp");
-        m_cullShader    = new Shader("../Assets/Shaders/light_cull.comp");
-        InitDepthPass();
-
-        constexpr size_t aabbSize  = NUM_CLUSTERS * 2 * sizeof(glm::vec4);
-        constexpr size_t indexSize = NUM_CLUSTERS * MAX_LIGHTS_PER_CLUSTER * sizeof(uint32_t);
-        constexpr size_t gridSize  = NUM_CLUSTERS * sizeof(glm::uvec4);
-
-        m_clusterAabbSsbo  = new ShaderStorageBuffer(aabbSize, 4);
-        m_lightIndexSsbo   = new ShaderStorageBuffer(indexSize, 5);
-        m_lightGridSsbo    = new ShaderStorageBuffer(gridSize, 6);
-        m_globalCountSsbo  = new ShaderStorageBuffer(sizeof(uint32_t),7);
+        InitGLResources();
     }
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
 
-    m_windows.push_back(window);
-    return window;
+    Window* raw = window.get();
+    m_windows.push_back(std::move(window));
+    return raw;
+}
+
+void RenderApi::InitGLResources() {
+    // debug output
+    glEnable(GL_DEBUG_OUTPUT);
+    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+    glDebugMessageCallback([](const GLenum source, const GLenum type, const GLuint id, const GLenum severity, GLsizei, const GLchar* message, const void*) {
+        if (severity == GL_DEBUG_SEVERITY_NOTIFICATION) return;
+
+        const char* srcStr  = source == GL_DEBUG_SOURCE_API             ? "API"
+                            : source == GL_DEBUG_SOURCE_SHADER_COMPILER ? "Shader Compiler"
+                            : source == GL_DEBUG_SOURCE_APPLICATION     ? "Application"
+                            : "Other";
+
+        const char* typeStr = type == GL_DEBUG_TYPE_ERROR               ? "ERROR"
+                            : type == GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR ? "DEPRECATED"
+                            : type == GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR  ? "UNDEFINED BEHAVIOUR"
+                            : type == GL_DEBUG_TYPE_PERFORMANCE         ? "PERFORMANCE"
+                            : "OTHER";
+
+        const char* sevStr  = severity == GL_DEBUG_SEVERITY_HIGH   ? "HIGH"
+                            : severity == GL_DEBUG_SEVERITY_MEDIUM ? "MEDIUM"
+                            : "LOW";
+
+        std::cerr << "[GL " << typeStr << "] [" << sevStr << "] (" << srcStr << ") id=" << id << "\n  " << message << "\n";
+    }, nullptr);
+
+    // depth/shadow shaders and point shadow map
+    InitDepthPass();
+
+    // camera UBO
+    m_cameraUbo = std::make_unique<UniformBuffer>(2 * sizeof(glm::mat4), 0);
+
+    m_clusterSystem  = std::make_unique<ClusterSystem>();
+    m_shadowRenderer = std::make_unique<ShadowRenderer>();
+    m_lightManager   = std::make_unique<LightManager>();
+}
+
+void RenderApi::InitDepthPass() {
+    m_depthShader = std::make_unique<Shader>("../Assets/Shaders/depth_only.vert", "../Assets/Shaders/depth_only.frag");
 }
 
 void RenderApi::ClearColour(const glm::vec4 &colour) {
@@ -130,27 +105,31 @@ void RenderApi::ClearColour(const glm::vec4 &colour) {
 }
 
 void RenderApi::HandleResizeEvent(const SDL_Event &event) {
-    if (event.type == SDL_EVENT_WINDOW_RESIZED) {
-        int w, h;
-        SDL_GetWindowSizeInPixels(m_windows[0]->GetSDLWindow(), &w, &h);
-        glViewport(0, 0, w, h);
-        if (m_activeCamera) {
-            m_activeCamera->SetAspectRatio(static_cast<float>(w) / static_cast<float>(h));
-            RebuildClusters();
-        }
+    if (event.type != SDL_EVENT_WINDOW_RESIZED) {
+        return;
+    }
+
+    int w, h;
+    SDL_GetWindowSizeInPixels(m_windows[0]->GetSDLWindow(), &w, &h);
+    glViewport(0, 0, w, h);
+
+    if (m_activeCamera) {
+        m_activeCamera->SetAspectRatio(static_cast<float>(w) / static_cast<float>(h));
+        RebuildClusters();
     }
 }
 
-void RenderApi::SetActiveCamera(Camera *camera) {
+void RenderApi::SetActiveCamera(Camera* camera) {
     m_activeCamera = camera;
-    if (!m_cameraUbo) {
-        m_cameraUbo = new UniformBuffer(2 * sizeof(glm::mat4), 0);
+    if (!m_windows.empty()) {
+        RebuildClusters();
     }
 }
 
-// sets the active cameras data into the cameras UBO.
 void RenderApi::UploadCameraData() {
-    if (!m_activeCamera || !m_cameraUbo) return;
+    if (!m_activeCamera || !m_cameraUbo) {
+        return;
+    }
 
     const glm::mat4 view = m_activeCamera->GetViewMatrix();
     const glm::mat4 proj = m_activeCamera->GetProjectionMatrix();
@@ -159,78 +138,44 @@ void RenderApi::UploadCameraData() {
     m_cameraUbo->SetData(&proj, sizeof(glm::mat4), sizeof(glm::mat4));
 }
 
-VertexArray* RenderApi::CreateBuffer(const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices) {
-    return new VertexArray(vertices, indices);
-}
-
 void RenderApi::AddDirectionalLight(DirectionalLight *light) {
-    if (!light) {
-        throw std::runtime_error("Null Directional light");
-    }
-
-    if (m_directionalLights.size() >= MAX_DIR_LIGHTS) {
-        throw std::runtime_error("Max Directional Lights reached");
-    }
-
-    m_directionalLights.push_back(light);
-
-    // one csm per dir light, 4 cascades each 2048 by 2048
-    auto* csm = new CascadedShadowMap(CSM_RESOLUTION, CSM_RESOLUTION, light->GetDirection());
-    m_cascadedShadowMaps.push_back(csm);
+    m_lightManager->AddDirectionalLight(light);
+    m_shadowRenderer->AddDirectionalLight(light);
 }
 
 void RenderApi::RemoveDirectionalLight(DirectionalLight *light) {
-    const auto it = std::ranges::find(m_directionalLights, light);
-    if (it == m_directionalLights.end()) return;
-
-    const size_t index = std::distance(m_directionalLights.begin(), it);
-    delete m_cascadedShadowMaps[index];
-    m_cascadedShadowMaps.erase(m_cascadedShadowMaps.begin() + index);
-    m_directionalLights.erase(it);
+    m_lightManager->RemoveDirectionalLight(light);
+    m_shadowRenderer->RemoveDirectionalLight(light);
 }
 
-void RenderApi::AddPointLight(PointLight *light) {
-    if (light) {
-        m_pointLights.push_back(light);
-    }
-}
-
-void RenderApi::RemovePointLight(PointLight *light) {
-    std::erase(m_pointLights, light);
-}
-
-void RenderApi::AddSpotLight(SpotLight *light) {
-    if (light) {
-        m_spotLights.push_back(light);
-    }
-}
-
-void RenderApi::RemoveSpotLight(SpotLight *light) {
-    std::erase(m_spotLights, light);
-}
+void RenderApi::AddPointLight(PointLight* light)    { m_lightManager->AddPointLight(light); }
+void RenderApi::RemovePointLight(PointLight* light) { m_lightManager->RemovePointLight(light); }
+void RenderApi::AddSpotLight(SpotLight* light)      { m_lightManager->AddSpotLight(light); }
+void RenderApi::RemoveSpotLight(SpotLight* light)   { m_lightManager->RemoveSpotLight(light); }
 
 void RenderApi::Submit(const Object *object) {
     m_renderQueue.push_back(object);
 }
 
 void RenderApi::Flush() {
-    m_drawCallCount = 0;
-    m_shadowDrawCallCount = 0;
-    m_culledCount = 0;
-    m_triangleCount = 0;
-    m_submittedCount = static_cast<uint32_t>(m_renderQueue.size());
+    m_stats = {};
+    m_stats.submitted = static_cast<uint32_t>(m_renderQueue.size());
 
     UploadCameraData();
-    UploadLightData();
+
+    m_lightManager->Upload();
+    m_shadowRenderer->ResetStats();
 
     // shadow pass
     glEnable(GL_POLYGON_OFFSET_FILL);
     glPolygonOffset(2.5f, 4.0f);
     glCullFace(GL_FRONT);
-    RenderDirectionalShadows();
+    m_shadowRenderer->RenderDirectionalShadows(*m_activeCamera, m_renderQueue, m_windows[0]->GetSize());
     glCullFace(GL_BACK);
     glDisable(GL_POLYGON_OFFSET_FILL);
-    RenderPointLightShadows();
+    m_shadowRenderer->RenderPointLightShadows(*m_activeCamera, m_lightManager->GetPointLights(), m_renderQueue, m_windows[0]->GetSize());
+
+    m_stats.shadowDrawCalls = m_shadowRenderer->GetShadowDrawCallCount();
 
     // z-prepass
     BeginZPrepass();
@@ -242,46 +187,35 @@ void RenderApi::Flush() {
     // light culling
     RunLightCulling();
 
-    for (size_t i = 0; i < m_cascadedShadowMaps.size(); i++) {
-        glActiveTexture(GL_TEXTURE7 + i);
-        glBindTexture(GL_TEXTURE_2D_ARRAY, m_cascadedShadowMaps[i]->GetTextureArray());
-    }
+    m_shadowRenderer->BindCSMTextures();
+    m_shadowRenderer->BindPointShadowTexture();
 
-    const glm::mat4 viewProj = m_activeCamera->GetProjectionMatrix() * m_activeCamera->GetViewMatrix();
-    Frustum cameraFrustum {};
-    cameraFrustum.ExtractFromMatrix(viewProj);
+    RenderMainPass();
 
-    // main pass
-    for (const Object* object : m_renderQueue) {
-        // frustum culling main pass
-        const Mesh* mesh = object->GetMesh();
-
-        glm::vec3 worldCenter = glm::vec3(object->transform.GetModelMatrix() * glm::vec4(mesh->GetBoundsCenter(), 1.0f));
-        const float worldRadius = mesh->GetBoundsRadius() * std::max({object->transform.Scale.x, object->transform.Scale.y, object->transform.Scale.z});
-
-        // TODO: add aabb / obb for future more accurate bounds checking
-        if (!cameraFrustum.IntersectsSphere(worldCenter, worldRadius)) {
-            m_culledCount++;
-            continue;
-        }
-
-        glActiveTexture(GL_TEXTURE15);
-        glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, m_pointShadowMap->GetTexture());
-        DrawObject(object);
-    }
-
-    if (m_skybox && m_activeCamera) {
+    if (m_skybox) {
         m_skybox->Draw(m_activeCamera->GetViewMatrix(), m_activeCamera->GetProjectionMatrix());
     }
 
     m_renderQueue.clear();
 }
 
-void RenderApi::InitDepthPass() {
-    m_depthShader = new Shader("../Assets/Shaders/depth_only.vert", "../Assets/Shaders/depth_only.frag");
-    m_shadowDepthShader = new Shader("../Assets/Shaders/shadow_depth.vert", "../Assets/Shaders/shadow_depth.frag");
-    m_pointShadowMap = new PointLightShadowMap(POINT_SHADOW_RES, MAX_SHADOWED_POINT_LIGHTS);
-    m_pointShadowDepthShader = new Shader("../Assets/Shaders/point_shadow_depth.vert", "../Assets/Shaders/point_shadow_depth.frag", "../Assets/Shaders/point_shadow_depth.geom");
+void RenderApi::RenderMainPass() {
+    const glm::mat4 viewProj = m_activeCamera->GetProjectionMatrix() * m_activeCamera->GetViewMatrix();
+    Frustum cameraFrustum{};
+    cameraFrustum.ExtractFromMatrix(viewProj);
+
+    for (const Object* object : m_renderQueue) {
+        const Mesh* mesh = object->GetMesh();
+        const glm::vec3 worldCenter = glm::vec3(object->transform.GetModelMatrix() * glm::vec4(mesh->GetBoundsCenter(), 1.0f));
+        const float worldRadius = mesh->GetBoundsRadius() * std::max({ object->transform.Scale.x, object->transform.Scale.y, object->transform.Scale.z });
+
+        if (!cameraFrustum.IntersectsSphere(worldCenter, worldRadius)) {
+            m_stats.culled++;
+            continue;
+        }
+
+        DrawObject(object);
+    }
 }
 
 void RenderApi::DrawObjectDepth(const Object *object) {
@@ -300,397 +234,41 @@ void RenderApi::DrawObjectDepth(const Object *object) {
 void RenderApi::BeginZPrepass() {
     // disable writing to the color buffer
     glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-
     glEnable(GL_DEPTH_TEST);
     glDepthMask(GL_TRUE);
     glDepthFunc(GL_LESS);
-
-    // glEnable(GL_POLYGON_OFFSET_FILL);
-    // glPolygonOffset(1.0f, 1.0f);
-
     glClear(GL_DEPTH_BUFFER_BIT);
 }
 
 void RenderApi::EndZPrepass() {
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-
     glDepthMask(GL_FALSE);
     glDepthFunc(GL_LEQUAL);
-
-    // glDisable(GL_POLYGON_OFFSET_FILL);
-
-    // glMemoryBarrier(GL_DEPTH_BUFFER_BIT);
 
     // transparent objs go here with glDepthMask(GL_FALSE) and glDepthFunc(GL_LESS)
 }
 
-void RenderApi::UploadLightData() {
-    // layout (counts + directional lights) - binding 1
-    // 16 bytes: ivec4 counts (x=dir, y=point, z=spot, w=pad)
-    // 32 bytes * MAX_DIR_LIGHTS: directional light array
-    constexpr size_t uboSize = sizeof(glm::ivec4) + (MAX_DIR_LIGHTS * 2 * sizeof(glm::vec4));
-    if (!m_globalLightUbo) {
-        m_globalLightUbo = new UniformBuffer(uboSize, 1);
-    }
-
-    const glm::ivec4 counts(
-        static_cast<int>(m_directionalLights.size()),
-        static_cast<int>(m_pointLights.size()),
-        static_cast<int>(m_spotLights.size()),
-        0
-    );
-    m_globalLightUbo->SetData(&counts, sizeof(glm::ivec4), 0);
-
-    size_t offset = sizeof(glm::ivec4);
-    for (size_t i = 0; i < MAX_DIR_LIGHTS; i++) {
-        GPUDirectionalLight gpuLight{};
-
-        if (i < m_directionalLights.size()) {
-            const DirectionalLight* l = m_directionalLights[i];
-            gpuLight.direction = glm::vec4(l->GetDirection(), 0.0f);
-            gpuLight.color = glm::vec4(l->GetColor(), l->GetIntensity());
-        } else {
-            // unused slots
-            gpuLight.direction = glm::vec4(0.0f);
-            gpuLight.color = glm::vec4(0.0f);
-        }
-
-        m_globalLightUbo->SetData(&gpuLight, sizeof(GPUDirectionalLight), offset);
-        offset += sizeof(GPUDirectionalLight);
-    }
-
-    // point lights - binding 2
-    if (!m_pointLights.empty()) {
-        std::vector<GPUPointLight> pointData;
-        pointData.reserve(m_pointLights.size());
-
-        for (auto* l : m_pointLights) {
-            GPUPointLight gl {};
-
-            float radius = l->GetRadius();
-            gl.position = glm::vec4(l->GetPosition(), radius);
-            gl.color = glm::vec4(l->GetColor(), l->GetIntensity());
-            gl.attenuation = glm::vec4(l->GetConstant(), l->GetLinear(), l->GetQuadratic(), 0.0f);
-            pointData.push_back(gl);
-        }
-
-        size_t size = pointData.size() * sizeof(GPUPointLight);
-        if (!m_pointLightSsbo || m_pointLightSsbo->GetSize() < size) {
-            delete m_pointLightSsbo;
-            m_pointLightSsbo = new ShaderStorageBuffer(size, 2);
-        }
-
-        m_pointLightSsbo->SetData(pointData.data(), size, 0);
-    }
-
-    // spot lights - binding 3
-    if (!m_spotLights.empty()) {
-        std::vector<GPUSpotLight> spotData;
-        spotData.reserve(m_spotLights.size());
-
-        for (auto* l : m_spotLights) {
-            GPUSpotLight gl {};
-
-            float radius = CalculateLightRadius(
-                l->GetColor(),
-                l->GetIntensity(),
-                1.0f,
-                l->GetLinear(),
-                l->GetQuadratic()
-            );
-
-            gl.position = glm::vec4(l->GetPosition(), radius);
-            gl.direction = glm::vec4(l->GetDirection(), 0.0f);
-            gl.color = glm::vec4(l->GetColor(), l->GetIntensity());
-            gl.params = glm::vec4(l->GetCutOff(), l->GetOuterCutOff(), l->GetLinear(), l->GetQuadratic());
-            spotData.push_back(gl);
-        }
-
-        size_t size = spotData.size() * sizeof(GPUSpotLight);
-        if (!m_spotLightSsbo || m_spotLightSsbo->GetSize() < size) {
-            delete m_spotLightSsbo;
-            m_spotLightSsbo = new ShaderStorageBuffer(size, 3);
-        }
-
-        m_spotLightSsbo->SetData(spotData.data(), size, 0);
-    }
-}
-
 void RenderApi::RebuildClusters() {
-    if (!m_clusterShader || !m_activeCamera) {
-        std::cerr << "No cluster shader or active camera" << std::endl;
+    if (!m_clusterSystem || !m_activeCamera) {
+        std::cerr << "RebuildClusters: no cluster system or active camera\n";
         return;
     }
 
-    m_clusterShader->Bind();
-
-    m_clusterShader->SetMatrix4("u_InverseProjection", glm::inverse(m_activeCamera->GetProjectionMatrix()));
-
-    // replace with RenderApi::GetActiveWindowSize()
-    const glm::vec2 winSize = m_windows[0]->GetSize();
-    m_clusterShader->SetVector2("u_ScreenDimensions", winSize);
-
-    m_clusterShader->SetFloat("u_ZNear", m_activeCamera->GetNearPlane());
-    m_clusterShader->SetFloat("u_ZFar", m_activeCamera->GetFarPlane());
-
-    if (m_clusterAabbSsbo) {
-        m_clusterAabbSsbo->Bind();
-    }
-
-    m_clusterShader->Dispatch(CLUSTER_DIM_X, CLUSTER_DIM_Y, CLUSTER_DIM_Z);
-    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    m_clusterSystem->Rebuild(*m_activeCamera, m_windows[0]->GetSize());
 }
 
 void RenderApi::RunLightCulling() {
-    if (!m_cullShader || !m_activeCamera) {
-        std::cerr << "No cull shader or active camera" << std::endl;
+    if (!m_clusterSystem || !m_activeCamera) {
+        std::cerr << "RunLightCulling: no cluster system or active camera\n";
         return;
     }
 
-    m_cullShader->Bind();
-
-    // reset counter
-    constexpr uint32_t zero = 0;
-    m_globalCountSsbo->Bind();
-    glClearNamedBufferData(m_globalCountSsbo->GetId(), GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, &zero);
-
-    // reset light grid counts
-    m_lightGridSsbo->Bind();
-    glClearNamedBufferData(m_lightGridSsbo->GetId(), GL_RGBA32UI, GL_RGBA_INTEGER, GL_UNSIGNED_INT, nullptr);
-
-    m_clusterAabbSsbo->Bind();
-    m_lightIndexSsbo->Bind();
-    if (m_pointLightSsbo) m_pointLightSsbo->Bind();
-    if (m_spotLightSsbo) m_spotLightSsbo->Bind();
-
-    m_cullShader->Dispatch(CLUSTER_DIM_X, CLUSTER_DIM_Y, CLUSTER_DIM_Z);
-
-    // SUPER IMPORTANT: wait for writes to finish before the frag reads them
-    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-}
-
-float RenderApi::CalculateLightRadius(const glm::vec3 &color, const float intensity, const float constant, float linear, float quadratic) {
-    constexpr float threshold = 0.01f;
-
-    const float maxChannel = std::max({color.r, color.g, color.b});
-    const float maxBrightness = maxChannel * intensity;
-    if (maxBrightness <= 0.0f) {
-        return 0.0f;
-    }
-
-    const float target = maxBrightness / threshold; // desired denominator size
-
-    // Solve: constant + linear*d + quadratic*d^2 = target
-    // => quadratic*d^2 + linear*d + (constant - target) = 0
-    const float a = quadratic;
-    const float b = linear;
-    const float c = constant - target;
-
-    if (std::abs(a) < 1e-6f) {
-        if (std::abs(b) < 1e-6f) return 1000.0f;
-        return std::max(0.0f, -c / b);
-    }
-
-    const float disc = b*b - 4.0f*a*c;
-    if (disc < 0.0f) return 0.0f;
-
-    return std::max(0.0f, (-b + std::sqrt(disc)) / (2.0f * a));
-}
-
-void RenderApi::RenderDirectionalShadows() {
-    glEnable(GL_DEPTH_TEST);
-    glDepthMask(GL_TRUE);
-    glDepthFunc(GL_LESS);
-
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
-
-    m_shadowDepthShader->Bind();
-    for (size_t i = 0; i < m_directionalLights.size(); i++) {
-        CascadedShadowMap* csm = m_cascadedShadowMaps[i];
-        csm->Update(*m_activeCamera);
-
-        for (int c = 0; c < CascadedShadowMap::NUM_CASCADES; c++) {
-            csm->BeginRender(c);
-            glClear(GL_DEPTH_BUFFER_BIT);
-
-            m_shadowDepthShader->SetMatrix4("u_LightSpaceMatrix", csm->GetLightSpaceMatrix(c));
-
-            for (const Object* object : m_renderQueue) {
-                if (!object->GetMaterial().GetCastShadows()) {
-                    continue;
-                }
-
-                // TODO: for two sided materials like cloth/foliage disable cull just for them.
-
-                m_shadowDepthShader->SetMatrix4("u_Model", object->transform.GetModelMatrix());
-                object->GetMesh()->GetBuffer()->Bind();
-                glDrawElements(GL_TRIANGLES, object->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
-                m_shadowDrawCallCount++;
-            }
-
-            CascadedShadowMap::EndRender();
-        }
-    }
-
-    glCullFace(GL_BACK);
-
-    if (!m_windows.empty()) {
-        const glm::vec2 size = m_windows[0]->GetSize();
-        glViewport(0, 0, static_cast<int>(size.x), static_cast<int>(size.y));
-    }
-}
-
-void RenderApi::EnsurePointShadowMetaBuffer(size_t pointLightCount) {
-    const size_t bytes = pointLightCount * sizeof(GPUPointShadowMeta);
-    if (!m_pointShadowMetaSsbo || m_pointShadowMetaSsbo->GetSize() < bytes) {
-        delete m_pointShadowMetaSsbo;
-        m_pointShadowMetaSsbo = new ShaderStorageBuffer(bytes, 8);
-    }
-}
-
-float RenderApi::ScorePointLight(const PointLight *l, const Camera *cam) {
-    const float d2 = glm::length(l->GetPosition() - cam->GetPosition());
-    // prefer closer + brighter
-    return d2 / glm::max(l->GetIntensity(), 0.001f);
-}
-
-void RenderApi::BuildPointShadowFaceMatrices(const glm::vec3 &lightPos, float nearPlane, float farPlane, glm::mat4 outVP[6]) {
-    const glm::mat4 proj = glm::perspective(glm::radians(90.0f), 1.0f, nearPlane, farPlane);
-
-    const glm::vec3 dirs[6] = {
-        { 1, 0, 0}, {-1, 0, 0}, { 0, 1, 0}, { 0,-1, 0}, { 0, 0, 1}, { 0, 0,-1}
-    };
-
-    const glm::vec3 ups[6] = {
-        { 0,-1, 0}, { 0,-1, 0}, { 0, 0, 1}, { 0, 0,-1}, { 0,-1, 0}, { 0,-1, 0}
-    };
-
-    for (int i = 0; i < 6; i++) {
-        glm::mat4 view = glm::lookAt(lightPos, lightPos + dirs[i], ups[i]);
-        outVP[i] = proj * view;
-    }
-}
-
-void RenderApi::RenderPointLightShadows() {
-    if (!m_pointShadowMap || !m_pointShadowDepthShader) return;
-    if (!m_activeCamera) return;
-    if (m_pointLights.empty()) return;
-
-    EnsurePointShadowMetaBuffer(m_pointLights.size());
-
-    // default: no shadows
-    std::vector<GPUPointShadowMeta> meta(m_pointLights.size());
-    for (auto&[slot, farPlane, bias, pad] : meta) {
-        slot = 0xFFFFFFFFu;
-        farPlane = 1.0f;
-        bias = 0.002f;
-        pad = 0.0f;
-    }
-
-    std::vector<ShadowCandidate> candidates;
-    candidates.reserve(m_pointLights.size());
-    for (uint32_t i = 0; i < static_cast<uint32_t>(m_pointLights.size()); i++) {
-        candidates.push_back({ i, ScorePointLight(m_pointLights[i], m_activeCamera) });
-    }
-    std::ranges::sort(candidates, [](auto& a, auto& b){ return a.score < b.score; });
-
-    const uint32_t shadowCount = static_cast<uint32_t>(std::min<size_t>(candidates.size(), MAX_SHADOWED_POINT_LIGHTS));
-
-    m_shadowedPointLightsDebug.clear();
-    m_shadowedPointLightsDebug.reserve(shadowCount);
-
-    glEnable(GL_DEPTH_TEST);
-    glDepthMask(GL_TRUE);
-    glDepthFunc(GL_LESS);
-
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_FRONT);
-
-    m_pointShadowDepthShader->Bind();
-
-    for (uint32_t slot = 0; slot < shadowCount; slot++) {
-        const uint32_t lightIndex = candidates[slot].index;
-        const PointLight* L       = m_pointLights[lightIndex];
-        const float farPlane      = glm::max(L->GetRadius(), 0.5f);
-        const float lightRadius   = L->GetRadius();
-
-        // debug
-        ShadowedPointLightDebug dbg{};
-        dbg.lightIndex = lightIndex;
-        dbg.slot = slot;
-        dbg.score = candidates[slot].score;
-        dbg.radius = lightRadius;
-        dbg.farPlane = farPlane;
-        dbg.position = L->GetPosition();
-        dbg.distanceToCamera = glm::length(L->GetPosition() - m_activeCamera->GetPosition());
-        m_shadowedPointLightsDebug.push_back(dbg);
-
-        meta[lightIndex].slot = slot;
-        meta[lightIndex].farPlane = farPlane;
-
-        glm::mat4 vp[6];
-        BuildPointShadowFaceMatrices(L->GetPosition(), 0.1f, farPlane, vp);
-
-        m_pointShadowDepthShader->SetVector3("u_LightPos", L->GetPosition());
-        m_pointShadowDepthShader->SetFloat("u_FarPlane", farPlane);
-        m_pointShadowDepthShader->SetInt("u_LightSlot", static_cast<int>(slot));
-
-        for (int face = 0; face < 6; face++) {
-            m_pointShadowDepthShader->SetMatrix4("u_LightVP[" + std::to_string(face) + "]", vp[face]);
-        }
-
-        m_pointShadowMap->BeginLight(slot);
-
-        for (const Object* object : m_renderQueue) {
-            if (!object->GetMaterial().GetCastShadows()) {
-                continue;
-            }
-
-            const Mesh* mesh = object->GetMesh();
-            const glm::vec3 worldCenter = glm::vec3(object->transform.GetModelMatrix() * glm::vec4(mesh->GetBoundsCenter(), 1.0f));
-            const float worldRadius = mesh->GetBoundsRadius() * std::max({ object->transform.Scale.x, object->transform.Scale.y, object->transform.Scale.z });
-
-            if (glm::length(worldCenter - L->GetPosition()) > lightRadius + worldRadius) {
-                continue;
-            }
-
-            m_pointShadowDepthShader->SetMatrix4("u_Model", object->transform.GetModelMatrix());
-            object->GetMesh()->GetBuffer()->Bind();
-            glDrawElements(GL_TRIANGLES, object->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
-            m_shadowDrawCallCount++;
-        }
-    }
-
-    PointLightShadowMap::End();
-
-    m_pointShadowMetaSsbo->SetData(meta.data(), meta.size() * sizeof(GPUPointShadowMeta), 0);
-    glCullFace(GL_BACK);
-
-    if (!m_windows.empty()) {
-        const glm::vec2 size = m_windows[0]->GetSize();
-        glViewport(0, 0, static_cast<int>(size.x), static_cast<int>(size.y));
-    }
-}
-
-void RenderApi::DrawMesh(const Mesh &mesh, const Shader& shader) {
-    if (!mesh.IsUploaded()) {
-        throw std::runtime_error("Mesh has not been uploaded to the GPU");
-    }
-
-    shader.Bind();
-    mesh.GetBuffer()->Bind();
-    glDrawElements(GL_TRIANGLES, mesh.GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, nullptr);
+    m_clusterSystem->Cull(m_lightManager->GetPointLightSsbo(), m_lightManager->GetSpotLightSsbo());
 }
 
 void RenderApi::DrawObject(const Object* object) {
-    if (object == nullptr) {
-        throw std::runtime_error("DrawObject called with null Object");
-    }
-
-    if (!object->GetMesh()->IsUploaded()) {
-        throw std::runtime_error("Objects mesh has not been uploaded to the GPU");
-    }
+    if (!object) throw std::runtime_error("DrawObject: null object");
+    if (!object->GetMesh()->IsUploaded()) throw std::runtime_error("DrawObject: mesh not uploaded to GPU");
 
     const Shader* shader = object->GetShader();
     shader->Bind();
@@ -698,27 +276,7 @@ void RenderApi::DrawObject(const Object* object) {
     shader->SetInt("u_DebugMode", m_debugMode);
     shader->SetInt("u_DebugCascade", m_debugCascade);
 
-    for (size_t i = 0; i < m_cascadedShadowMaps.size(); i++) {
-        const CascadedShadowMap* csm = m_cascadedShadowMaps[i];
-
-        for (int c = 0; c < CascadedShadowMap::NUM_CASCADES; c++) {
-            shader->SetMatrix4("u_LightSpaceMatrix[" + std::to_string(c) + "]", csm->GetLightSpaceMatrix(c));
-        }
-
-        const auto& splits = csm->GetSplitDistances();
-        for (int c = 0; c < CascadedShadowMap::NUM_CASCADES; c++) {
-            shader->SetFloat("u_CascadeSplits[" + std::to_string(c) + "]", splits[c]);
-        }
-
-        for (int c = 0; c < CascadedShadowMap::NUM_CASCADES; c++) {
-            shader->SetFloat("u_CascadeWorldUnits[" + std::to_string(c) + "]", csm->GetWorldUnitsPerTexel(c));
-        }
-
-        shader->SetInt("u_ShadowMap", 7 + static_cast<int>(i));
-        shader->SetInt("u_CascadeCount", CascadedShadowMap::NUM_CASCADES);
-    }
-
-    shader->SetInt("u_PointShadowMap", 15);
+    m_shadowRenderer->BindShadowUniforms(*shader);
 
     shader->SetMatrix4("u_Model", object->transform.GetModelMatrix());
     shader->SetMatrix4("u_NormalMatrix", glm::transpose(glm::inverse(object->transform.GetModelMatrix())));
@@ -728,70 +286,65 @@ void RenderApi::DrawObject(const Object* object) {
         shader->SetFloat("u_ZFar", m_activeCamera->GetFarPlane());
     }
 
-    if (!m_windows.empty()) {
-        const glm::vec2 size = m_windows[0]->GetSize();
-        shader->SetVector2("u_ScreenSize", size);
-    }
+    shader->SetVector2("u_ScreenSize", m_windows[0]->GetSize());
 
     object->GetMaterial().Bind(*shader);
     object->GetMesh()->GetBuffer()->Bind();
     glDrawElements(GL_TRIANGLES, object->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
 
-    m_drawCallCount++;
-    m_triangleCount += object->GetMesh()->GetBuffer()->GetIndexCount() / 3;
+    m_stats.drawCalls++;
+    m_stats.triangles += object->GetMesh()->GetBuffer()->GetIndexCount() / 3;
+}
+
+void RenderApi::DrawMesh(const Mesh &mesh, const Shader& shader) {
+    if (!mesh.IsUploaded()) {
+        throw std::runtime_error("DrawMesh: mesh not uploaded to GPU");
+    }
+
+    shader.Bind();
+    mesh.GetBuffer()->Bind();
+    glDrawElements(GL_TRIANGLES, mesh.GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, nullptr);
 }
 
 void RenderApi::DrawClusterVisualizer() {
     if (!m_debugClusterMesh) {
         const std::vector<Vertex> vertices = {
-            {{0, 0, 0}, {0,0,0}, {0,0}}, {{1, 0, 0}, {0,0,0}, {0,0}},
-            {{1, 1, 0}, {0,0,0}, {0,0}}, {{0, 1, 0}, {0,0,0}, {0,0}},
-            {{0, 0, 1}, {0,0,0}, {0,0}}, {{1, 0, 1}, {0,0,0}, {0,0}},
-            {{1, 1, 1}, {0,0,0}, {0,0}}, {{0, 1, 1}, {0,0,0}, {0,0}}
+            {{0,0,0},{0,0,0},{0,0}}, {{1,0,0},{0,0,0},{0,0}},
+            {{1,1,0},{0,0,0},{0,0}}, {{0,1,0},{0,0,0},{0,0}},
+            {{0,0,1},{0,0,0},{0,0}}, {{1,0,1},{0,0,0},{0,0}},
+            {{1,1,1},{0,0,0},{0,0}}, {{0,1,1},{0,0,0},{0,0}}
         };
-
         const std::vector<uint32_t> indices = {
-            0,1, 1,2, 2,3, 3,0,  // bottom face
-            4,5, 5,6, 6,7, 7,4,  // top face
-            0,4, 1,5, 2,6, 3,7   // verticals
+            0,1, 1,2, 2,3, 3,0,   // bottom face
+            4,5, 5,6, 6,7, 7,4,   // top face
+            0,4, 1,5, 2,6, 3,7    // verticals
         };
 
-        m_debugClusterMesh = new Mesh(vertices, indices);
+        m_debugClusterMesh   = std::make_unique<Mesh>(vertices, indices);
         m_debugClusterMesh->Upload();
-        m_debugClusterShader = new Shader("../Assets/Shaders/debug_clusters.vert", "../Assets/Shaders/debug_clusters.frag");
+        m_debugClusterShader = std::make_unique<Shader>("../Assets/Shaders/debug_clusters.vert", "../Assets/Shaders/debug_clusters.frag");
     }
 
-    if (!m_activeCamera || !m_clusterAabbSsbo) return;
+    if (!m_activeCamera) {
+        return;
+    }
 
     m_debugClusterShader->Bind();
-
     m_debugClusterShader->SetMatrix4("u_View", m_activeCamera->GetViewMatrix());
     m_debugClusterShader->SetMatrix4("u_Projection", m_activeCamera->GetProjectionMatrix());
-
     m_debugClusterShader->SetUint("u_DimX", CLUSTER_DIM_X);
     m_debugClusterShader->SetUint("u_DimY", CLUSTER_DIM_Y);
     m_debugClusterShader->SetUint("u_DimZ", CLUSTER_DIM_Z);
 
-    m_clusterAabbSsbo->Bind();
     m_debugClusterMesh->GetBuffer()->Bind();
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glDisable(GL_CULL_FACE);
-
     glDrawElementsInstanced(GL_LINES, m_debugClusterMesh->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, nullptr, NUM_CLUSTERS);
-
     glEnable(GL_CULL_FACE);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
-void RenderApi::SetSkybox(Skybox *skybox) {
-    m_skybox = skybox;
-}
-
-void RenderApi::SetDebugMode(const int mode) {
-    m_debugMode = mode;
-}
-
-void RenderApi::SetDebugCascade(const int cascade) {
-    m_debugCascade = cascade;
-}
+void RenderApi::SetSkybox(Skybox *skybox) { m_skybox = skybox; }
+void RenderApi::SetDebugMode(const int mode) { m_debugMode = mode; }
+void RenderApi::SetDebugCascade(const int cascade) { m_debugCascade = cascade; }

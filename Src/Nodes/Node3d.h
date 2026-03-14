@@ -9,13 +9,13 @@
 class Node3d {
 public:
     Node3d();
-    ~Node3d();
+    virtual ~Node3d();
 
     void AddChild(Node3d* child);
     void RemoveChild(Node3d* child);
 
-    void PhysicsProcess(float deltaTime);
-    void Process();
+    virtual void PhysicsProcess(float deltaTime);
+    virtual void Process();
 
     void SetRoot();
     void SetVisible(const bool visible) { m_visible = visible; }

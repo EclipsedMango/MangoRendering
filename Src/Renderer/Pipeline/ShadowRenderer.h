@@ -3,6 +3,7 @@
 #define MANGORENDERING_SHADOWRENDERER_H
 
 #include "glm/glm.hpp"
+#include "Nodes/MeshNode3d.h"
 #include "Renderer/Shader.h"
 #include "Renderer/CascadedShadowMap.h"
 #include "Renderer/PointLightShadowMap.h"
@@ -42,8 +43,8 @@ public:
     void RemoveDirectionalLight(DirectionalLight* light);
 
     // called once per frame from RenderApi::Flush()
-    void RenderDirectionalShadows(const Camera& camera, const std::vector<const Object*>& renderQueue, const glm::vec2& viewportSize);
-    void RenderPointLightShadows(const Camera& camera, const std::vector<PointLight*>& pointLights, const std::vector<const Object*>& renderQueue, const glm::vec2& viewportSize);
+    void RenderDirectionalShadows(const Camera& camera, const std::vector<MeshNode3d*>& renderQueue, const glm::vec2& viewportSize);
+    void RenderPointLightShadows(const Camera& camera, const std::vector<PointLight*>& pointLights, const std::vector<MeshNode3d*>& renderQueue, const glm::vec2& viewportSize);
 
     // binds shadow uniforms onto whatever shader is currently in use for the main pass
     void BindShadowUniforms(const Shader& shader) const;

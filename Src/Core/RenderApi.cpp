@@ -10,6 +10,7 @@
 #include "Renderer/Buffers/UniformBuffer.h"
 #include "glad/gl.h"
 #include "glm/gtc/type_ptr.hpp"
+#include "Nodes/MeshNode3d.h"
 #include "Scene/Frustum.h"
 
 void RenderApi::InitSDL() {
@@ -153,13 +154,9 @@ void RenderApi::RemovePointLight(PointLight* light) { m_lightManager->RemovePoin
 void RenderApi::AddSpotLight(SpotLight* light)      { m_lightManager->AddSpotLight(light); }
 void RenderApi::RemoveSpotLight(SpotLight* light)   { m_lightManager->RemoveSpotLight(light); }
 
-void RenderApi::Submit(const Object *object) {
-    m_renderQueue.push_back(object);
-}
-
 void RenderApi::Flush() {
     m_stats = {};
-    m_stats.submitted = static_cast<uint32_t>(m_renderQueue.size());
+    m_stats.submitted = static_cast<uint32_t>(m_meshQueue.size());
 
     UploadCameraData();
 
@@ -170,17 +167,17 @@ void RenderApi::Flush() {
     glEnable(GL_POLYGON_OFFSET_FILL);
     glPolygonOffset(2.5f, 4.0f);
     glCullFace(GL_FRONT);
-    m_shadowRenderer->RenderDirectionalShadows(*m_activeCamera, m_renderQueue, m_windows[0]->GetSize());
+    m_shadowRenderer->RenderDirectionalShadows(*m_activeCamera, m_meshQueue, m_windows[0]->GetSize());
     glCullFace(GL_BACK);
     glDisable(GL_POLYGON_OFFSET_FILL);
-    m_shadowRenderer->RenderPointLightShadows(*m_activeCamera, m_lightManager->GetPointLights(), m_renderQueue, m_windows[0]->GetSize());
+    m_shadowRenderer->RenderPointLightShadows(*m_activeCamera, m_lightManager->GetPointLights(), m_meshQueue, m_windows[0]->GetSize());
 
     m_stats.shadowDrawCalls = m_shadowRenderer->GetShadowDrawCallCount();
 
     // z-prepass
     BeginZPrepass();
-    for (const Object* object : m_renderQueue) {
-        DrawObjectDepth(object);
+    for (const MeshNode3d* mesh : m_meshQueue) {
+        DrawMeshNodeDepth(mesh);
     }
     EndZPrepass();
 
@@ -196,7 +193,7 @@ void RenderApi::Flush() {
         m_skybox->Draw(m_activeCamera->GetViewMatrix(), m_activeCamera->GetProjectionMatrix());
     }
 
-    m_renderQueue.clear();
+    m_meshQueue.clear();
 }
 
 void RenderApi::RenderMainPass() {
@@ -204,31 +201,18 @@ void RenderApi::RenderMainPass() {
     Frustum cameraFrustum{};
     cameraFrustum.ExtractFromMatrix(viewProj);
 
-    for (const Object* object : m_renderQueue) {
-        const Mesh* mesh = object->GetMesh();
-        const glm::vec3 worldCenter = glm::vec3(object->transform.GetModelMatrix() * glm::vec4(mesh->GetBoundsCenter(), 1.0f));
-        const float worldRadius = mesh->GetBoundsRadius() * std::max({ object->transform.Scale.x, object->transform.Scale.y, object->transform.Scale.z });
+    for (const MeshNode3d* node : m_meshQueue) {
+        const Mesh* mesh = node->GetMesh();
+        const glm::vec3 worldCenter = glm::vec3(node->GetModelMatrix() * glm::vec4(mesh->GetBoundsCenter(), 1.0f));
+        const float worldRadius = mesh->GetBoundsRadius() * std::max({ node->GetScale().x, node->GetScale().y, node->GetScale().z });
 
         if (!cameraFrustum.IntersectsSphere(worldCenter, worldRadius)) {
             m_stats.culled++;
             continue;
         }
 
-        DrawObject(object);
+        DrawMeshNode(node);
     }
-}
-
-void RenderApi::DrawObjectDepth(const Object *object) {
-    if (!object || !object->GetMesh()->IsUploaded()) {
-        std::cerr << "DrawObjectDepth called with null Object/Mesh" << std::endl;
-        return;
-    }
-
-    m_depthShader->Bind();
-    m_depthShader->SetMatrix4("u_Model", object->transform.GetModelMatrix());
-
-    object->GetMesh()->GetBuffer()->Bind();
-    glDrawElements(GL_TRIANGLES, object->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
 }
 
 void RenderApi::BeginZPrepass() {
@@ -266,11 +250,11 @@ void RenderApi::RunLightCulling() {
     m_clusterSystem->Cull(m_lightManager->GetPointLightSsbo(), m_lightManager->GetSpotLightSsbo());
 }
 
-void RenderApi::DrawObject(const Object* object) {
-    if (!object) throw std::runtime_error("DrawObject: null object");
-    if (!object->GetMesh()->IsUploaded()) throw std::runtime_error("DrawObject: mesh not uploaded to GPU");
+void RenderApi::DrawMeshNode(const MeshNode3d* node) {
+    if (!node) throw std::runtime_error("DrawObject: null object");
+    if (!node->GetMesh()->IsUploaded()) throw std::runtime_error("DrawObject: mesh not uploaded to GPU");
 
-    const Shader* shader = object->GetShader();
+    const Shader* shader = node->GetShader();
     shader->Bind();
 
     shader->SetInt("u_DebugMode", m_debugMode);
@@ -278,8 +262,8 @@ void RenderApi::DrawObject(const Object* object) {
 
     m_shadowRenderer->BindShadowUniforms(*shader);
 
-    shader->SetMatrix4("u_Model", object->transform.GetModelMatrix());
-    shader->SetMatrix4("u_NormalMatrix", glm::transpose(glm::inverse(object->transform.GetModelMatrix())));
+    shader->SetMatrix4("u_Model", node->GetModelMatrix());
+    shader->SetMatrix4("u_NormalMatrix", glm::transpose(glm::inverse(node->GetModelMatrix())));
 
     if (m_activeCamera) {
         shader->SetFloat("u_ZNear", m_activeCamera->GetNearPlane());
@@ -288,12 +272,25 @@ void RenderApi::DrawObject(const Object* object) {
 
     shader->SetVector2("u_ScreenSize", m_windows[0]->GetSize());
 
-    object->GetMaterial().Bind(*shader);
-    object->GetMesh()->GetBuffer()->Bind();
-    glDrawElements(GL_TRIANGLES, object->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
+    node->GetMaterial().Bind(*shader);
+    node->GetMesh()->GetBuffer()->Bind();
+    glDrawElements(GL_TRIANGLES, node->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
 
     m_stats.drawCalls++;
-    m_stats.triangles += object->GetMesh()->GetBuffer()->GetIndexCount() / 3;
+    m_stats.triangles += node->GetMesh()->GetBuffer()->GetIndexCount() / 3;
+}
+
+void RenderApi::DrawMeshNodeDepth(const MeshNode3d *node) const {
+    if (!node || !node->GetMesh()->IsUploaded()) {
+        std::cerr << "DrawObjectDepth called with null Object/Mesh" << std::endl;
+        return;
+    }
+
+    m_depthShader->Bind();
+    m_depthShader->SetMatrix4("u_Model", node->GetModelMatrix());
+
+    node->GetMesh()->GetBuffer()->Bind();
+    glDrawElements(GL_TRIANGLES, node->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
 }
 
 void RenderApi::DrawMesh(const Mesh &mesh, const Shader& shader) {
@@ -345,6 +342,5 @@ void RenderApi::DrawClusterVisualizer() {
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
-void RenderApi::SetSkybox(Skybox *skybox) { m_skybox = skybox; }
 void RenderApi::SetDebugMode(const int mode) { m_debugMode = mode; }
 void RenderApi::SetDebugCascade(const int cascade) { m_debugCascade = cascade; }

@@ -9,6 +9,8 @@
 #include "Renderer/Pipeline/LightManager.h"
 #include "Renderer/Pipeline/ShadowRenderer.h"
 #include "Window.h"
+#include "Nodes/MeshNode3d.h"
+#include "Nodes/Node3d.h"
 #include "Scene/Camera.h"
 #include "Nodes/Lights/DirectionalLight.h"
 #include "Renderer/Mesh.h"
@@ -58,6 +60,9 @@ public:
     void AddSpotLight(SpotLight* light);
     void RemoveSpotLight(SpotLight* light);
 
+    void SubmitMesh(MeshNode3d* node) { m_meshQueue.push_back(node); }
+    void SetSkybox(Skybox* skybox)    { m_skybox = skybox; }
+
     [[nodiscard]] ShaderStorageBuffer* GetLightGridSsbo()   const { return m_clusterSystem->GetLightGridSsbo(); }
     [[nodiscard]] ShaderStorageBuffer* GetGlobalCountSsbo() const { return m_clusterSystem->GetGlobalCountSsbo(); }
 
@@ -66,13 +71,10 @@ public:
     [[nodiscard]] uint32_t GetMaxShadowedPointLights()   const { return ShadowRenderer::MAX_SHADOWED_POINT_LIGHTS; }
     [[nodiscard]] const std::vector<ShadowedPointLightDebug>& GetShadowedPointLightsDebug() const { return m_shadowRenderer->GetShadowedPointLightsDebug(); }
 
-    void Submit(const Object* object);
     void Flush();
 
     void DrawMesh(const Mesh& mesh, const Shader& shader);
     void DrawClusterVisualizer();
-
-    void SetSkybox(Skybox* skybox);
 
     // Debug
     void SetDebugMode(int mode);
@@ -87,8 +89,8 @@ private:
     void InitGLResources(); // called once after GLAD is loaded
     void InitDepthPass();
 
-    void DrawObject(const Object* object);
-    void DrawObjectDepth(const Object* object);
+    void DrawMeshNode(const MeshNode3d* node);
+    void DrawMeshNodeDepth(const MeshNode3d* node) const;
     void BeginZPrepass();
     void EndZPrepass();
 
@@ -115,10 +117,9 @@ private:
     std::unique_ptr<ShadowRenderer> m_shadowRenderer;
 
     std::unique_ptr<UniformBuffer> m_cameraUbo;
-
     std::unique_ptr<Shader> m_depthShader;
 
-    std::vector<const Object*> m_renderQueue;
+    std::vector<MeshNode3d*> m_meshQueue;
 
     std::unique_ptr<Mesh>   m_debugClusterMesh;
     std::unique_ptr<Shader> m_debugClusterShader;

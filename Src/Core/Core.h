@@ -1,33 +1,48 @@
-//
-// #ifndef MANGORENDERING_CORE_H
-// #define MANGORENDERING_CORE_H
-//
-// #include "../Nodes/Node3d.h"
-// #include "Window.h"
-//
-// class Core {
-// public:
-//     explicit Core(Node3d* scene);
-//     ~Core();
-//
-//     void Init();
-//     void InitRenderer();
-//     void InitImGui() const;
-//
-//     static void BeginImGuiFrame();
-//     static void EndImGuiFrame();
-//
-//     void Process() const;
-//
-//     static void TickNodes(Node3d* node, float deltaTime);
-//     static void ProcessNodes(Node3d* node);
-//
-//     void ChangeScene(Node3d* scene);
-//
-// private:
-//     Node3d* m_currentScene {};
-//     Window* m_activeWindow {};
-// };
-//
-//
-// #endif //MANGORENDERING_CORE_H
+
+#ifndef MANGORENDERING_CORE_H
+#define MANGORENDERING_CORE_H
+
+#include "RenderApi.h"
+#include "Nodes/Node3d.h"
+#include "Window.h"
+#include "Nodes/RenderableNode3d.h"
+
+class Core {
+public:
+    explicit Core(Node3d* scene);
+    ~Core();
+
+    Core(const Core&)            = delete;
+    Core& operator=(const Core&) = delete;
+
+    void Init();
+    void Process();
+    void ChangeScene(Node3d* scene);
+    void RebuildNodeCache();
+
+    void SetActiveCamera(Camera* camera);
+
+    [[nodiscard]] RenderApi& GetRenderer() const { return *m_renderer; }
+
+private:
+    void InitRenderer();
+    void InitImGui() const;
+
+    static void BeginImGuiFrame();
+    static void EndImGuiFrame();
+
+    void BuildNodeCache(Node3d* node);
+
+    std::unique_ptr<RenderApi> m_renderer;
+    Node3d* m_currentScene = nullptr;
+    Window* m_activeWindow = nullptr;
+
+    std::vector<Node3d*> m_nodeCache;
+    std::vector<RenderableNode3d*> m_renderableCache;
+
+    Camera* m_activeCamera = nullptr;
+    bool m_mouseCaptured = true;
+};
+
+
+#endif //MANGORENDERING_CORE_H

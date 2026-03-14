@@ -46,7 +46,7 @@ void ShadowRenderer::RemoveDirectionalLight(DirectionalLight* light) {
     m_directionalLights.erase(it);
 }
 
-void ShadowRenderer::RenderDirectionalShadows(const Camera& camera, const std::vector<const Object*>& renderQueue, const glm::vec2& viewportSize) {
+void ShadowRenderer::RenderDirectionalShadows(const Camera& camera, const std::vector<MeshNode3d*>& renderQueue, const glm::vec2& viewportSize) {
     if (m_directionalLights.empty()) {
         return;
     }
@@ -68,12 +68,12 @@ void ShadowRenderer::RenderDirectionalShadows(const Camera& camera, const std::v
             glClear(GL_DEPTH_BUFFER_BIT);
             m_shadowDepthShader->SetMatrix4("u_LightSpaceMatrix", csm->GetLightSpaceMatrix(c));
 
-            for (const Object* object : renderQueue) {
-                if (!object->GetMaterial().GetCastShadows()) continue;
+            for (const MeshNode3d* node : renderQueue) {
+                if (!node->GetMaterial().GetCastShadows()) continue;
 
-                m_shadowDepthShader->SetMatrix4("u_Model", object->transform.GetModelMatrix());
-                object->GetMesh()->GetBuffer()->Bind();
-                glDrawElements(GL_TRIANGLES, object->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, nullptr);
+                m_shadowDepthShader->SetMatrix4("u_Model", node->GetModelMatrix());
+                node->GetMesh()->GetBuffer()->Bind();
+                glDrawElements(GL_TRIANGLES, node->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, nullptr);
                 m_shadowDrawCallCount++;
             }
 
@@ -85,7 +85,7 @@ void ShadowRenderer::RenderDirectionalShadows(const Camera& camera, const std::v
     glViewport(0, 0, static_cast<int>(viewportSize.x), static_cast<int>(viewportSize.y));
 }
 
-void ShadowRenderer::RenderPointLightShadows(const Camera& camera, const std::vector<PointLight*>& pointLights, const std::vector<const Object*>& renderQueue, const glm::vec2& viewportSize) {
+void ShadowRenderer::RenderPointLightShadows(const Camera& camera, const std::vector<PointLight*>& pointLights, const std::vector<MeshNode3d*>& renderQueue, const glm::vec2& viewportSize) {
     if (!m_pointShadowMap || !m_pointShadowDepthShader || pointLights.empty()) {
         return;
     }
@@ -150,20 +150,20 @@ void ShadowRenderer::RenderPointLightShadows(const Camera& camera, const std::ve
 
         m_pointShadowMap->BeginLight(slot);
 
-        for (const Object* object : renderQueue) {
-            if (!object->GetMaterial().GetCastShadows()) continue;
+        for (const MeshNode3d* node : renderQueue) {
+            if (!node->GetMaterial().GetCastShadows()) continue;
 
-            const Mesh* mesh = object->GetMesh();
-            const glm::vec3 worldCenter = glm::vec3(object->transform.GetModelMatrix() * glm::vec4(mesh->GetBoundsCenter(), 1.0f));
-            const float worldRadius = mesh->GetBoundsRadius() * std::max({ object->transform.Scale.x, object->transform.Scale.y, object->transform.Scale.z });
+            const Mesh* mesh = node->GetMesh();
+            const glm::vec3 worldCenter = glm::vec3(node->GetModelMatrix() * glm::vec4(mesh->GetBoundsCenter(), 1.0f));
+            const float worldRadius = mesh->GetBoundsRadius() * std::max({ node->GetScale().x, node->GetScale().y, node->GetScale().z });
 
             if (glm::length(worldCenter - L->GetPosition()) > lightRadius + worldRadius) {
                 continue;
             }
 
-            m_pointShadowDepthShader->SetMatrix4("u_Model", object->transform.GetModelMatrix());
-            object->GetMesh()->GetBuffer()->Bind();
-            glDrawElements(GL_TRIANGLES, object->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
+            m_pointShadowDepthShader->SetMatrix4("u_Model", node->GetModelMatrix());
+            node->GetMesh()->GetBuffer()->Bind();
+            glDrawElements(GL_TRIANGLES, node->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
             m_shadowDrawCallCount++;
         }
     }

@@ -4,11 +4,9 @@
 
 #include <array>
 #include <memory>
-#include <vector>
 
-#include "../Buffers/Framebuffer.h"
+#include "Renderer/Buffers/Framebuffer.h"
 #include "Nodes/CameraNode3d.h"
-#include "Scene/Camera.h"
 
 class CascadedShadowMap {
 public:

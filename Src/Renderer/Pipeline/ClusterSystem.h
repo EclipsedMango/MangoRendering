@@ -8,7 +8,6 @@
 #include "Nodes/CameraNode3d.h"
 #include "Renderer/Shader.h"
 #include "Renderer/Buffers/ShaderStorageBuffer.h"
-#include "Scene/Camera.h"
 
 class ClusterSystem {
 public:

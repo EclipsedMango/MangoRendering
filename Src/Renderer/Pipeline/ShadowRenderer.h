@@ -8,7 +8,6 @@
 #include "Renderer/Shader.h"
 #include "Renderer/Shadows/CascadedShadowMap.h"
 #include "Renderer/Shadows/PointLightShadowMap.h"
-#include "Scene/Camera.h"
 #include "Renderer/Lights/DirectionalLight.h"
 #include "Renderer/Lights/PointLight.h"
 #include "Renderer/Buffers/ShaderStorageBuffer.h"

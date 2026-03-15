@@ -50,8 +50,6 @@ add_executable(MangoRendering Src/main.cpp
         Src/Renderer/Meshes/Mesh.cpp
         Src/Renderer/Shader.h
         Src/Renderer/Shader.cpp
-        Src/Scene/Camera.cpp
-        Src/Scene/Camera.h
         Src/Renderer/Materials/Texture.cpp
         Src/Renderer/Materials/Texture.h
         Src/Renderer/Buffers/UniformBuffer.cpp

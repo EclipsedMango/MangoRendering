@@ -98,7 +98,15 @@ add_executable(MangoRendering Src/main.cpp
         Src/Nodes/MeshNode3d.cpp
         Src/Nodes/MeshNode3d.h
         Src/Nodes/RenderableNode3d.cpp
-        Src/Nodes/RenderableNode3d.h)
+        Src/Nodes/RenderableNode3d.h
+        Src/Nodes/Lights/LightNode3d.cpp
+        Src/Nodes/Lights/LightNode3d.h
+        Src/Nodes/Lights/DirectionalLightNode3d.cpp
+        Src/Nodes/Lights/DirectionalLightNode3d.h
+        Src/Nodes/Lights/PointLightNode3d.cpp
+        Src/Nodes/Lights/PointLightNode3d.h
+        Src/Nodes/Lights/SpotLightNode3d.cpp
+        Src/Nodes/Lights/SpotLightNode3d.h)
 
 target_link_libraries(MangoRendering SDL3::SDL3 glad_gl imgui ${CMAKE_DL_LIBS} nlohmann_json::nlohmann_json)
 target_include_directories(MangoRendering PRIVATE ${CMAKE_SOURCE_DIR}/Src include ${glm_SOURCE_DIR} ${stb_SOURCE_DIR} ${tinygltf_SOURCE_DIR})

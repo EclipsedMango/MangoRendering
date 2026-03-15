@@ -384,11 +384,15 @@
 // }
 
 #include <iostream>
+#include <random>
+
 #include "Core/Core.h"
 #include "Nodes/MeshNode3d.h"
 #include "Renderer/Mesh.h"
 #include "Renderer/Shader.h"
 #include "Nodes/Lights/DirectionalLight.h"
+#include "Nodes/Lights/DirectionalLightNode3d.h"
+#include "Nodes/Lights/PointLightNode3d.h"
 
 int main() {
     // build scene
@@ -456,11 +460,33 @@ int main() {
     cube2->SetPosition({0, -2.5f, -2});
     scene->AddChild(cube2);
 
+    DirectionalLightNode3d* sun = new DirectionalLightNode3d({0.5f, -0.6f, -0.5f}, {0.9f, 0.65f, 0.32f}, 0.1f);
+    scene->AddChild(sun);
+
+    PointLightNode3d* pointLight = new PointLightNode3d({-5, 2, 0}, {1.0f, 0.2f, 0.1f}, 1.5f, 15.0f);
+    pointLight->SetAttenuation(1.0f, 0.22f, 0.20f);
+    scene->AddChild(pointLight);
+
+    // random
+    std::mt19937 rng(42);
+    auto randFloat = [&](const float min, const float max) {
+        return std::uniform_real_distribution(min, max)(rng);
+    };
+
+    constexpr int NUM_LIGHTS = 10;
+    for (int i = 0; i < NUM_LIGHTS; i++) {
+        PointLightNode3d* light = new PointLightNode3d(
+            { randFloat(-30, 30), randFloat(0, 8), randFloat(-30, 30) },
+            { randFloat(0.1f, 1.0f), randFloat(0.1f, 1.0f), randFloat(0.1f, 1.0f) },
+            randFloat(0.1f, 1.0f),
+            randFloat(8.0f, 20.0f)
+        );
+        light->SetAttenuation(1.0f, 0.22f, 0.20f);
+        scene->AddChild(light);
+    }
+
     Camera* camera = new Camera({0, 0, 3}, 75.0f, 500.0f / 500.0f, 0.1f, 200.0f);
     core.SetActiveCamera(camera);
-
-    DirectionalLight* dirLight = new DirectionalLight({0.5f, -0.6f, -0.5f}, {0.9f, 0.65f, 0.32f}, 0.1f);
-    core.GetRenderer().AddDirectionalLight(dirLight);
 
     core.RebuildNodeCache();
     core.Process();
@@ -468,7 +494,6 @@ int main() {
     delete mesh;
     delete shader;
     delete camera;
-    delete dirLight;
 
     return 0;
 }

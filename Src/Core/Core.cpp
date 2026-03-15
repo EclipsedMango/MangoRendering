@@ -7,6 +7,9 @@
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl3.h"
 #include "RenderApi.h"
+#include "Nodes/Lights/DirectionalLightNode3d.h"
+#include "Nodes/Lights/PointLightNode3d.h"
+#include "Nodes/Lights/SpotLightNode3d.h"
 
 Core::Core(Node3d* scene) : m_currentScene(scene) {}
 
@@ -64,15 +67,49 @@ void Core::BuildNodeCache(Node3d *node) {
         m_renderableCache.push_back(renderable);
     }
 
+    if (auto* light = dynamic_cast<LightNode3d*>(node)) {
+        m_lightCache.push_back(light);
+    }
+
     for (const auto child : node->GetChildren()) {
         BuildNodeCache(child);
+    }
+}
+
+void Core::RegisterLight(LightNode3d *light) const {
+    if (auto* d = dynamic_cast<DirectionalLightNode3d*>(light)) {
+        m_renderer->AddDirectionalLight(d->GetLight());
+    } else if (auto* p = dynamic_cast<PointLightNode3d*>(light)) {
+        m_renderer->AddPointLight(p->GetLight());
+    } else if (auto* s = dynamic_cast<SpotLightNode3d*>(light)) {
+        m_renderer->AddSpotLight(s->GetLight());
+    }
+}
+
+void Core::UnregisterLight(LightNode3d *light) const {
+    if (auto* d = dynamic_cast<DirectionalLightNode3d*>(light)) {
+        m_renderer->RemoveDirectionalLight(d->GetLight());
+    } else if (auto* p = dynamic_cast<PointLightNode3d*>(light)) {
+        m_renderer->RemovePointLight(p->GetLight());
+    } else if (auto* s = dynamic_cast<SpotLightNode3d*>(light)) {
+        m_renderer->RemoveSpotLight(s->GetLight());
     }
 }
 
 void Core::RebuildNodeCache() {
     m_nodeCache.clear();
     m_renderableCache.clear();
+
+    for (auto* light : m_lightCache) {
+        UnregisterLight(light);
+    }
+    m_lightCache.clear();
+
     BuildNodeCache(m_currentScene);
+
+    for (auto* light : m_lightCache) {
+        RegisterLight(light);
+    }
 }
 
 void Core::SetActiveCamera(Camera *camera) {
@@ -140,6 +177,11 @@ void Core::Process() {
         }
 
         BeginImGuiFrame();
+
+        ImGui::Begin("Stats");
+        ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+        ImGui::Text("Frame Time: %.3f ms", 1000.0f / ImGui::GetIO().Framerate);
+        ImGui::End();
 
         m_renderer->ClearColour({0.16f, 0.16f, 0.16f, 1.0f});
         for (auto* renderable : m_renderableCache) {

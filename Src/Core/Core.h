@@ -6,6 +6,7 @@
 #include "Nodes/Node3d.h"
 #include "Window.h"
 #include "Nodes/RenderableNode3d.h"
+#include "Nodes/Lights/LightNode3d.h"
 
 class Core {
 public:
@@ -33,12 +34,16 @@ private:
 
     void BuildNodeCache(Node3d* node);
 
+    void RegisterLight(LightNode3d* light) const;
+    void UnregisterLight(LightNode3d* light) const;
+
     std::unique_ptr<RenderApi> m_renderer;
     Node3d* m_currentScene = nullptr;
     Window* m_activeWindow = nullptr;
 
     std::vector<Node3d*> m_nodeCache;
     std::vector<RenderableNode3d*> m_renderableCache;
+    std::vector<LightNode3d*> m_lightCache;
 
     Camera* m_activeCamera = nullptr;
     bool m_mouseCaptured = true;

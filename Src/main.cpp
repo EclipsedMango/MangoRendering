@@ -466,6 +466,16 @@ int main() {
     pointLight->SetAttenuation(1.0f, 0.22f, 0.20f);
     scene->AddChild(pointLight);
 
+    SkyboxNode3d* skybox = new SkyboxNode3d({
+        "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/px.png",
+        "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/nx.png",
+        "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/py.png",
+        "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/ny.png",
+        "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/pz.png",
+        "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/nz.png",
+    });
+    scene->AddChild(skybox);
+
     // random
     std::mt19937 rng(42);
     auto randFloat = [&](const float min, const float max) {

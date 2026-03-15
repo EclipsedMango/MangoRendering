@@ -47,6 +47,11 @@ void Core::Notification(Node3d *node, const NodeNotification notification) {
                 RegisterLight(l);
             }
 
+            if (auto* s = dynamic_cast<SkyboxNode3d*>(node)) {
+                m_activeSkybox = s;
+                m_renderer->SetSkybox(s);
+            }
+
             break;
         }
 
@@ -59,6 +64,12 @@ void Core::Notification(Node3d *node, const NodeNotification notification) {
             if (auto* l = dynamic_cast<LightNode3d*>(node)) {
                 UnregisterLight(l);
             }
+
+            if (auto* s = dynamic_cast<SkyboxNode3d*>(node)) {
+                m_activeSkybox = nullptr;
+                m_renderer->SetSkybox(nullptr);
+            }
+
             break;
         }
 

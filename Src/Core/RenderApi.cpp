@@ -190,7 +190,7 @@ void RenderApi::Flush() {
     RenderMainPass();
 
     if (m_skybox) {
-        m_skybox->Draw(m_activeCamera->GetViewMatrix(), m_activeCamera->GetProjectionMatrix());
+        m_skybox->GetSkybox().Draw(m_activeCamera->GetViewMatrix(), m_activeCamera->GetProjectionMatrix());
     }
 
     m_meshQueue.clear();

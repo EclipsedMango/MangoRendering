@@ -8,6 +8,7 @@
 #include "Window.h"
 #include "Nodes/CameraNode3d.h"
 #include "Nodes/RenderableNode3d.h"
+#include "Nodes/SkyboxNode3d.h"
 #include "Nodes/Lights/LightNode3d.h"
 
 class Core : public TreeListener {
@@ -49,6 +50,7 @@ private:
 
     std::vector<Node3d*> m_nodeCache;
     std::vector<RenderableNode3d*> m_renderableCache;
+    SkyboxNode3d* m_activeSkybox = nullptr;
 
     CameraNode3d* m_activeCamera = nullptr;
     bool m_mouseCaptured = true;

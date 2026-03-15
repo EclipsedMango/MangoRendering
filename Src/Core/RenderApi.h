@@ -11,6 +11,7 @@
 #include "Window.h"
 #include "Nodes/CameraNode3d.h"
 #include "Nodes/MeshNode3d.h"
+#include "Nodes/SkyboxNode3d.h"
 #include "Renderer/Lights/DirectionalLight.h"
 #include "Renderer/Meshes/Mesh.h"
 #include "Renderer/Shader.h"
@@ -59,7 +60,7 @@ public:
     void RemoveSpotLight(SpotLight* light);
 
     void SubmitMesh(MeshNode3d* node) { m_meshQueue.push_back(node); }
-    void SetSkybox(Skybox* skybox)    { m_skybox = skybox; }
+    void SetSkybox(SkyboxNode3d* skybox)    { m_skybox = skybox; }
 
     [[nodiscard]] ShaderStorageBuffer* GetLightGridSsbo()   const { return m_clusterSystem->GetLightGridSsbo(); }
     [[nodiscard]] ShaderStorageBuffer* GetGlobalCountSsbo() const { return m_clusterSystem->GetGlobalCountSsbo(); }
@@ -108,7 +109,7 @@ private:
     std::vector<std::unique_ptr<Window>> m_windows;
 
     CameraNode3d* m_activeCamera = nullptr;
-    Skybox* m_skybox       = nullptr;
+    SkyboxNode3d* m_skybox = nullptr;
 
     std::unique_ptr<ClusterSystem> m_clusterSystem;
     std::unique_ptr<LightManager> m_lightManager;

@@ -108,7 +108,9 @@ add_executable(MangoRendering Src/main.cpp
         Src/Nodes/CameraNode3d.cpp
         Src/Nodes/CameraNode3d.h
         Src/Core/Input.cpp
-        Src/Core/Input.h)
+        Src/Core/Input.h
+        Src/Nodes/SkyboxNode3d.cpp
+        Src/Nodes/SkyboxNode3d.h)
 
 target_link_libraries(MangoRendering SDL3::SDL3 glad_gl imgui ${CMAKE_DL_LIBS} nlohmann_json::nlohmann_json)
 target_include_directories(MangoRendering PRIVATE ${CMAKE_SOURCE_DIR}/Src include ${glm_SOURCE_DIR} ${stb_SOURCE_DIR} ${tinygltf_SOURCE_DIR})

@@ -281,8 +281,9 @@ void RenderApi::DrawMeshNode(const MeshNode3d* node) {
     }
 
     shader->SetVector2("u_ScreenSize", m_windows[0]->GetSize());
+    shader->SetVector3("u_CameraPos", m_activeCamera->GetPosition());
 
-    node->GetMaterial().Bind(*shader);
+    node->GetActiveMaterial().Bind(*shader);
     node->GetMesh()->GetBuffer()->Bind();
     glDrawElements(GL_TRIANGLES, node->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
 

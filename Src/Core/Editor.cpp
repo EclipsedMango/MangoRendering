@@ -222,7 +222,7 @@ void Editor::DrawInspector() const {
     // mesh node
     if (auto* mesh = dynamic_cast<MeshNode3d*>(m_selectedNode)) {
         if (ImGui::CollapsingHeader("Material", ImGuiTreeNodeFlags_DefaultOpen)) {
-            auto& mat = mesh->GetMaterial();
+            auto& mat = mesh->GetActiveMaterial();
 
             glm::vec4 color = mat.GetAlbedoColor();
             if (ImGui::ColorEdit4("Albedo", &color.x)) mat.SetAlbedoColor(color);

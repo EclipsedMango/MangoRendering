@@ -13,15 +13,23 @@ public:
 
     void SubmitToRenderer(RenderApi& renderer) override;
 
+    void SetMaterial(const std::shared_ptr<Material> &material) { m_material = material; }
+    void SetMaterialOverride(const std::shared_ptr<Material> &material) { m_materialOverride = material; }
+    void ClearMaterialOverride() { m_materialOverride = nullptr; }
+
     [[nodiscard]] Mesh* GetMesh() const { return m_mesh; }
     [[nodiscard]] Shader* GetShader() const { return m_shader; }
-    [[nodiscard]] Material& GetMaterial() { return m_material; }
-    [[nodiscard]] const Material& GetMaterial() const { return m_material; }
+    [[nodiscard]] Material& GetActiveMaterial() { return m_materialOverride ? *m_materialOverride : *m_material; }
+    [[nodiscard]] const Material& GetActiveMaterial() const { return m_materialOverride ? *m_materialOverride : *m_material; }
+
+    std::shared_ptr<Material> GetMaterialPtr() { return m_material; }
 
 private:
     Mesh* m_mesh = nullptr;
     Shader* m_shader = nullptr;
-    Material m_material;
+
+    std::shared_ptr<Material> m_material;
+    std::shared_ptr<Material> m_materialOverride;
 };
 
 

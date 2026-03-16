@@ -209,17 +209,79 @@ float ShadowWithBlend(vec3 fragPos, float fragDepthVS, vec3 normal, vec3 lightDi
     return shadow;
 }
 
-vec3 CalculateLighting(vec3 norm, vec3 fragPos, float fragDepthVS, LightGrid grid) {
+vec3 F_Schlick(in vec3 f0, in float f90, in float u) {
+    return f0 + (f90- f0) * pow(1.f- u, 5.f);
+}
+
+float V_SmithGGXCorrelated(float NdotL, float NdotV, float alphaG) {
+    // original formulation of G_SmithGGX Correlated
+    // lambda_v = (-1 + sqrt(alphaG2 * (1-NdotL2) / NdotL2 + 1)) * 0.5f;
+    // lambda_l = (-1 + sqrt(alphaG2 * (1-NdotV2) / NdotV2 + 1)) * 0.5f;
+    // G_SmithGGXCorrelated = 1 / (1 + lambda_v + lambda_l);
+    // V_SmithGGXCorrelated = G_SmithGGXCorrelated / (4.0f * NdotL * NdotV);
+
+    // this is the optimize version
+    float alphaG2 = alphaG * alphaG;
+
+    // caution: the "NdotL *" and "NdotV *" are explicitely inversed, this is not a mistake.
+    float Lambda_GGXV = NdotL * sqrt((-NdotV * alphaG2 + NdotV) * NdotV + alphaG2);
+    float Lambda_GGXL = NdotV * sqrt((-NdotL * alphaG2 + NdotL) * NdotL + alphaG2);
+
+    return 0.5f / (Lambda_GGXV + Lambda_GGXL);
+}
+
+// trowbridge-reitz NDF
+float D_GGX(float NdotH, float m) {
+    // divide by PI is apply later
+    float m2 = m * m;
+    float f = (NdotH * m2- NdotH) * NdotH + 1;
+    return m2 / (f * f);
+}
+
+vec3 EvaluateBRDF(vec3 albedo, float metallic, float roughness, vec3 N, vec3 V, vec3 L) {
+    vec3 H = normalize(V + L);
+
+    float NdotL = max(dot(N, L), 0.0);
+    float NdotV = max(dot(N, V), 1e-4);
+    float NdotH = max(dot(N, H), 0.0);
+    float LdotH = max(dot(L, H), 0.0);
+
+    float alpha = roughness * roughness;
+
+    vec3 f0 = mix(vec3(0.04), albedo, metallic);
+    float f90 = clamp(50.0 * dot(f0, vec3(0.33)), 0.0, 1.0);
+
+    // specular
+    float D = D_GGX(NdotH, alpha) / 3.14159265;
+    float Vis = V_SmithGGXCorrelated(NdotL, NdotV, alpha);
+    vec3  F = F_Schlick(f0, f90, LdotH);
+    vec3 specular = D * Vis * F;
+
+    // diffuse - disney
+    float FL = pow(1.0 - NdotL, 5.0);
+    float FV = pow(1.0 - NdotV, 5.0);
+    float Fd90 = 0.5 + 2.0 * LdotH * LdotH * roughness;
+    float Fd = mix(1.0, Fd90, FL) * mix(1.0, Fd90, FV);
+    vec3 diffuse = (Fd * albedo / 3.14159265) * (1.0 - metallic);
+
+    return (diffuse + specular) * NdotL;
+}
+
+
+vec3 CalculateLighting(vec3 norm, vec3 fragPos, float fragDepthVS, LightGrid grid, vec3 V, vec3 albedo, float metallic, float roughness) {
     vec3 totalLighting = vec3(0.0);
 
+    // directional lights
     for (int i = 0; i < u_LightCounts.x; i++) {
         vec3 L = normalize(-u_DirLights[i].direction.xyz);
-        float diff = max(dot(norm, L), 0.0);
 
         float shadow = ShadowWithBlend(fragPos, fragDepthVS, norm, L);
-        totalLighting += (1.0 - shadow) * diff * u_DirLights[i].color.rgb * u_DirLights[i].color.w;
+        vec3 brdf = EvaluateBRDF(albedo, metallic, roughness, norm, V, L);
+
+        totalLighting += (1.0 - shadow) * brdf * u_DirLights[i].color.rgb * u_DirLights[i].color.w;
     }
 
+    // point lights
     for (uint i = 0; i < grid.pointCount; i++) {
         uint lightIndex = globalLightIndexList[grid.offset + i];
         PointLight light = pointLights[lightIndex];
@@ -230,33 +292,37 @@ vec3 CalculateLighting(vec3 norm, vec3 fragPos, float fragDepthVS, LightGrid gri
 
         if (distance > radius) continue;
 
-        vec3 lightDir = toLight / max(distance, 1e-5);
-        float diff = max(dot(norm, lightDir), 0.0);
+        vec3 L = toLight / max(distance, 1e-5);
 
         float attenuation = 1.0 / (light.attenuation.x + light.attenuation.y * distance + light.attenuation.z * (distance * distance));
-        float edge = EdgeFade(distance, radius);
+        float edge   = EdgeFade(distance, radius);
         float shadow = PointShadow(fragPos, norm, lightIndex, light);
+        vec3  brdf   = EvaluateBRDF(albedo, metallic, roughness, norm, V, L);
 
-        totalLighting += (1.0 - shadow) * diff * light.color.rgb * light.color.w * attenuation * edge;
+        totalLighting += (1.0 - shadow) * brdf * light.color.rgb * light.color.w * attenuation * edge;
     }
 
+    // spot lights
     for (uint i = 0; i < grid.spotCount; i++) {
         uint lightIndex = globalLightIndexList[grid.offset + grid.pointCount + i];
         SpotLight light = spotLights[lightIndex];
 
-        vec3 lightDir = normalize(light.position.xyz - fragPos);
-        float distance = length(light.position.xyz - fragPos);
+        vec3  toLight  = light.position.xyz - fragPos;
+        float distance = length(toLight);
 
         if (distance > light.position.w) continue;
 
-        float diff = max(dot(norm, lightDir), 0.0);
+        vec3 L = normalize(toLight);
+
         float attenuation = 1.0 / (1.0 + light.params.z * distance + light.params.w * (distance * distance));
 
-        float theta = dot(lightDir, normalize(-light.direction.xyz));
-        float epsilon = light.params.x - light.params.y;
+        float theta          = dot(L, normalize(-light.direction.xyz));
+        float epsilon        = light.params.x - light.params.y;
         float intensityFactor = clamp((theta - light.params.y) / epsilon, 0.0, 1.0);
 
-        totalLighting += diff * light.color.rgb * light.color.w * attenuation * intensityFactor;
+        vec3 brdf = EvaluateBRDF(albedo, metallic, roughness, norm, V, L);
+
+        totalLighting += brdf * light.color.rgb * light.color.w * attenuation * intensityFactor;
     }
 
     return totalLighting;

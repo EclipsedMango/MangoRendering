@@ -38,6 +38,7 @@ uniform bool u_HasDisplacement;
 uniform float u_ZNear;
 uniform float u_ZFar;
 uniform vec2 u_ScreenSize;
+uniform vec3 u_CameraPos;
 uniform int u_DebugMode;
 uniform int u_DebugCascade;
 
@@ -49,6 +50,51 @@ layout (std140, binding = 0) uniform CameraData {
 const uint GRID_SIZE_X = 16;
 const uint GRID_SIZE_Y = 9;
 const uint GRID_SIZE_Z = 24;
+
+//void handleDebugModes() {
+//    // debug modes
+//    if (u_DebugMode == 1) {
+//        FragColor = vec4(norm * 0.5 + 0.5, 1.0);
+//        return;
+//    }
+//    if (u_DebugMode == 2) {
+//        uint totalLights = grid.pointCount + grid.spotCount;
+//        FragColor = totalLights == 0 ? vec4(0.0, 0.0, 0.1, 1.0) : vec4(Heatmap(float(totalLights) / 8.0), 1.0);
+//        return;
+//    }
+//    if (u_DebugMode == 3) {
+//        FragColor = vec4(Heatmap(float(z) / float(GRID_SIZE_Z)), 1.0);
+//        return;
+//    }
+//    if (u_DebugMode == 4) {
+//        FragColor = vec4(float(x) / float(GRID_SIZE_X), float(y) / float(GRID_SIZE_Y), 0.5, 1.0);
+//        return;
+//    }
+//    if (u_DebugMode == 5) {
+//        vec2 uv = gl_FragCoord.xy / u_ScreenSize;
+//        float depth = texture(u_ShadowMap, vec3(uv, float(u_DebugCascade))).r;
+//        FragColor = vec4(vec3(depth), 1.0);
+//        return;
+//    }
+//    if (u_DebugMode == 6) {
+//        int cascade = SelectCascade(viewDepth);
+//        FragColor = vec4(Heatmap(float(cascade) / float(u_CascadeCount - 1)), 1.0);
+//        return;
+//    }
+//    if (u_DebugMode == 7) {
+//        int cascade = SelectCascade(viewDepth);
+//        vec4 lightSpace = u_LightSpaceMatrix[cascade] * vec4(v_FragPos, 1.0);
+//        vec3 projCoords = lightSpace.xyz / lightSpace.w;
+//        projCoords = projCoords * 0.5 + 0.5;
+//        FragColor = vec4(projCoords, 1.0);
+//        return;
+//    }
+//    if (u_DebugMode == 8) {
+//        float shadowFactor = ShadowWithBlend(v_FragPos, viewDepth, norm, normalize(-u_DirLights[0].direction.xyz));
+//        FragColor = vec4(vec3(shadowFactor), 1.0);
+//        return;
+//    }
+//}
 
 void main() {
     vec3 norm = normalize(v_Normal);
@@ -68,61 +114,23 @@ void main() {
     uint clusterIndex = x + y * GRID_SIZE_X + z * GRID_SIZE_X * GRID_SIZE_Y;
     LightGrid grid = lightGrid[clusterIndex];
 
-    if (u_DebugMode == 1) {
-        FragColor = vec4(norm * 0.5 + 0.5, 1.0);
-        return;
-    }
-
-    if (u_DebugMode == 2) {
-        uint totalLights = grid.pointCount + grid.spotCount;
-        FragColor = totalLights == 0 ? vec4(0.0, 0.0, 0.1, 1.0) : vec4(Heatmap(float(totalLights) / 8.0), 1.0);
-        return;
-    }
-
-    if (u_DebugMode == 3) {
-        FragColor = vec4(Heatmap(float(z) / float(GRID_SIZE_Z)), 1.0);
-        return;
-    }
-
-    if (u_DebugMode == 4) {
-        FragColor = vec4(float(x) / float(GRID_SIZE_X), float(y) / float(GRID_SIZE_Y), 0.5, 1.0);
-        return;
-    }
-
-    if (u_DebugMode == 5) {
-        vec2 uv = gl_FragCoord.xy / u_ScreenSize;
-        float depth = texture(u_ShadowMap, vec3(uv, float(u_DebugCascade))).r;
-        FragColor = vec4(vec3(depth), 1.0);
-        return;
-    }
-
-    if (u_DebugMode == 6) {
-        int cascade = SelectCascade(viewDepth);
-        FragColor = vec4(Heatmap(float(cascade) / float(u_CascadeCount - 1)), 1.0);
-        return;
-    }
-
-    if (u_DebugMode == 7) {
-        int cascade = SelectCascade(viewDepth);
-        vec4 lightSpace = u_LightSpaceMatrix[cascade] * vec4(v_FragPos, 1.0);
-        vec3 projCoords = lightSpace.xyz / lightSpace.w;
-        projCoords = projCoords * 0.5 + 0.5;
-        FragColor = vec4(projCoords, 1.0);
-        return;
-    }
-
-    if (u_DebugMode == 8) {
-        float shadowFactor = ShadowWithBlend(v_FragPos, viewDepth, norm, normalize(-u_DirLights[0].direction.xyz));
-        FragColor = vec4(vec3(shadowFactor), 1.0);
-        return;
-    }
+//    handleDebugModes();
 
     vec2 uv = v_TexCoord * u_UVScale + u_UVOffset;
-    vec4 albedo = u_HasDiffuse ? texture(u_Diffuse, uv) * u_AlbedoColor : u_AlbedoColor;
 
-    vec3 totalLighting = CalculateLighting(norm, v_FragPos, viewDepth, grid);
+    vec4  albedo    = u_HasDiffuse           ? texture(u_Diffuse,           uv) * u_AlbedoColor : u_AlbedoColor;
+    float metallic  = u_HasMetallic          ? texture(u_Metallic,          uv).r * u_MetallicValue  : u_MetallicValue;
+    float roughness = u_HasRoughness         ? texture(u_Roughness,         uv).r * u_RoughnessValue : u_RoughnessValue;
+    float ao        = u_HasAmbientOcclusion  ? texture(u_AmbientOcclusion,  uv).r * u_AOStrength     : u_AOStrength;
 
-    vec3 ambient = vec3(0.05) * u_AOStrength;
+    // clamp roughness to avoid precision issues at zero
+    roughness = max(roughness, 0.045);
+
+    vec3 V = normalize(u_CameraPos - v_FragPos);
+
+    vec3 totalLighting = CalculateLighting(norm, v_FragPos, viewDepth, grid, V, albedo.rgb, metallic, roughness);
+
+    vec3 ambient = vec3(0.05) * albedo.rgb * ao;
     totalLighting += ambient;
 
     vec3 emission = u_HasEmissive ? texture(u_Emissive, uv).rgb * u_EmissionColor * u_EmissionStrength : u_EmissionColor * u_EmissionStrength;
@@ -131,5 +139,5 @@ void main() {
     float exposure = 2.0;
     totalLighting = ACESFilmic(totalLighting * exposure);
 
-    FragColor = vec4(totalLighting * albedo.rgb, albedo.a);
+    FragColor = vec4(totalLighting, albedo.a);
 }

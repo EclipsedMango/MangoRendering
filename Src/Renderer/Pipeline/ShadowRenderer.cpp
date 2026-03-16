@@ -70,7 +70,7 @@ void ShadowRenderer::RenderDirectionalShadows(const CameraNode3d& camera, const 
             m_shadowDepthShader->SetMatrix4("u_LightSpaceMatrix", csm->GetLightSpaceMatrix(c));
 
             for (const MeshNode3d* node : renderQueue) {
-                if (!node->GetMaterial().GetCastShadows()) continue;
+                if (!node->GetActiveMaterial().GetCastShadows()) continue;
 
                 m_shadowDepthShader->SetMatrix4("u_Model", node->GetWorldMatrix());
                 node->GetMesh()->GetBuffer()->Bind();
@@ -152,7 +152,7 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
         m_pointShadowMap->BeginLight(slot);
 
         for (const MeshNode3d* node : renderQueue) {
-            if (!node->GetMaterial().GetCastShadows()) continue;
+            if (!node->GetActiveMaterial().GetCastShadows()) continue;
 
             const Mesh* mesh = node->GetMesh();
             const glm::vec3 worldCenter = glm::vec3(node->GetModelMatrix() * glm::vec4(mesh->GetBoundsCenter(), 1.0f));

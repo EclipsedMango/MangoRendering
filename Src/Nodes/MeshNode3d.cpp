@@ -4,7 +4,7 @@
 
 #include "Core/RenderApi.h"
 
-MeshNode3d::MeshNode3d(Mesh* mesh, Shader* shader) : m_mesh(mesh), m_shader(shader) {
+MeshNode3d::MeshNode3d(Mesh* mesh, Shader* shader) : m_mesh(mesh), m_shader(shader),  m_material(std::make_shared<Material>()) {
     if (m_mesh == nullptr) {
         throw std::runtime_error("MeshNode3d created with null mesh");
     }

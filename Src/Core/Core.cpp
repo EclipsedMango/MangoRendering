@@ -86,7 +86,7 @@ void Core::InitRenderer() {
     RenderApi::InitSDL();
 
     m_renderer     = std::make_unique<RenderApi>();
-    m_activeWindow = m_renderer->CreateWindow("Mango", {500, 500}, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
+    m_activeWindow = m_renderer->CreateWindow("Mango", {1280, 720}, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
 
     std::cout << "Vendor: "   << glGetString(GL_VENDOR)   << std::endl;
     std::cout << "Renderer: " << glGetString(GL_RENDERER)  << std::endl;
@@ -94,6 +94,8 @@ void Core::InitRenderer() {
 
     SDL_GL_SetSwapInterval(0);
     SDL_SetWindowRelativeMouseMode(m_activeWindow->GetSDLWindow(), true);
+
+    m_defaultShader = std::make_unique<Shader>("../Assets/Shaders/test.vert", "../Assets/Shaders/test.frag");
 }
 
 void Core::InitImGui() const {
@@ -111,7 +113,6 @@ void Core::BeginImGuiFrame() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
-    ImGuizmo::BeginFrame();
 
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos);

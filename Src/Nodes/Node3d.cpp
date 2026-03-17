@@ -1,6 +1,8 @@
 
 #include "Node3d.h"
 
+#include <iostream>
+
 #include "Core/TreeListener.h"
 
 Node3d::Node3d() : m_id(++s_nextId) {}

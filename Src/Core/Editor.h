@@ -44,6 +44,8 @@ private:
     float m_moveSpeed = 5.0f;
     float m_mouseSensitivity = 0.08f;
 
+    bool m_scrollToSelected = false;
+
     enum class State { Editing, Playing, Paused };
 
     Core m_core;

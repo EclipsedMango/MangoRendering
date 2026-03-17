@@ -41,7 +41,9 @@ void Editor::Run() {
         lastTime = now;
 
         m_core.PollEvents();
+
         Core::BeginImGuiFrame();
+        DrawGizmo();
 
         if (m_state == State::Playing) {
             m_core.StepFrame(deltaTime);
@@ -55,9 +57,20 @@ void Editor::Run() {
         DrawInspector();
         DrawContentBrowser();
 
-        m_core.RenderScene();
+        if (m_selectedNode && m_selectedNode != m_core.GetScene()) {
+            if (Input::IsKeyJustPressed(SDL_SCANCODE_DELETE)) {
+                auto children = m_selectedNode->GetChildren();
+                if (!children.empty()) {
+                    for (const auto child : children) {
+                        m_selectedNode->RemoveChild(child);
+                    }
+                }
 
-        DrawGizmo();
+                m_core.GetScene()->RemoveChild(m_selectedNode);
+            }
+        }
+
+        m_core.RenderScene();
         Core::EndImGuiFrame();
         m_core.SwapBuffers();
     }
@@ -121,7 +134,6 @@ void Editor::UpdateEditorCamera(const float dt) {
     }
 }
 
-
 void Editor::DrawMenuBar() {
     if (!ImGui::BeginMainMenuBar()) return;
 
@@ -173,6 +185,113 @@ void Editor::DrawMenuBar() {
 
 void Editor::DrawSceneTree(Node3d* node) {
     ImGui::Begin("Scene Tree");
+
+    if (ImGui::Button("+ Add Node")) {
+        ImGui::OpenPopup("AddNodePopup");
+    }
+
+    ImGui::Separator();
+
+    // Modal popup
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(260, 320), ImGuiCond_Appearing);
+
+    if (ImGui::BeginPopupModal("AddNodePopup", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar)) {
+        ImGui::Text("Select a node type:");
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        struct NodeEntry { const char* label; const char* category; };
+        static constexpr NodeEntry entries[] = {
+            { "Node3d",              "Base"  },
+            { "MeshNode3d",          "3D"    },
+            { "CameraNode3d",        "3D"    },
+            { "DirectionalLight",    "Light" },
+            { "PointLight",          "Light" },
+        };
+
+        static int hovered = -1;
+        const char* lastCategory = nullptr;
+
+        for (int i = 0; i < IM_ARRAYSIZE(entries); ++i) {
+            // category header
+            if (!lastCategory || strcmp(entries[i].category, lastCategory) != 0) {
+                if (lastCategory) ImGui::Spacing();
+                ImGui::TextDisabled("%s", entries[i].category);
+                ImGui::Separator();
+                lastCategory = entries[i].category;
+            }
+
+            const bool isHov = (hovered == i);
+            if (isHov) {
+                ImGui::PushStyleColor(ImGuiCol_Header,        ImVec4(0.26f, 0.59f, 0.98f, 0.35f));
+                ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.26f, 0.59f, 0.98f, 0.45f));
+            }
+
+            if (ImGui::Selectable(entries[i].label, isHov, ImGuiSelectableFlags_AllowDoubleClick)) {
+                Node3d* root = m_core.GetScene();
+                switch (i) {
+                    case 0: {
+                        auto* n = new Node3d();
+                        n->SetName("Node3d");
+                        root->AddChild(n);
+                        m_selectedNode = n;
+                        m_scrollToSelected = true;
+                        break;
+                    }
+                    case 1: {
+                        auto* n = new MeshNode3d(m_core.GetDefaultShader());
+                        n->SetName("MeshNode3d");
+                        root->AddChild(n);
+                        m_selectedNode = n;
+                        m_scrollToSelected = true;
+                        break;
+                    }
+                    case 2: {
+                        const glm::vec2 ws = m_core.GetActiveWindow()->GetSize();
+                        const float aspect = (ws.y != 0.0f) ? (ws.x / ws.y) : 1.0f;
+                        auto* n = new CameraNode3d(glm::vec3(0, 0, 5), 75.0f, aspect);
+                        n->SetName("CameraNode3d");
+                        root->AddChild(n);
+                        m_selectedNode = n;
+                        m_scrollToSelected = true;
+                        break;
+                    }
+                    case 3: {
+                        auto* n = new DirectionalLightNode3d({-64.0, 128.0, 0.0}, {1.0, 1.0, 1.0}, 0.25);
+                        n->SetName("DirectionalLight");
+                        root->AddChild(n);
+                        m_selectedNode = n;
+                        m_scrollToSelected = true;
+                        break;
+                    }
+                    case 4: {
+                        auto* n = new PointLightNode3d({0, 0, 0}, {1.0, 1.0, 1.0}, 1.0);
+                        n->SetName("PointLight");
+                        root->AddChild(n);
+                        m_selectedNode = n;
+                        m_scrollToSelected = true;
+                        break;
+                    }
+                }
+                // m_selectedNode = root->GetChildren().back();
+                hovered = -1;
+                ImGui::CloseCurrentPopup();
+            }
+        }
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        if (ImGui::Button("Cancel", ImVec2(-1, 0))) {
+            hovered = -1;
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
+
+    // scene tree
     std::function<void(Node3d*)> drawNode = [&](Node3d* n) {
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
         if (n == m_selectedNode)      flags |= ImGuiTreeNodeFlags_Selected;
@@ -180,6 +299,11 @@ void Editor::DrawSceneTree(Node3d* node) {
 
         const bool open = ImGui::TreeNodeEx(n, flags, "%s", n->GetName().c_str());
         if (ImGui::IsItemClicked()) m_selectedNode = n;
+
+        if (n == m_selectedNode && m_scrollToSelected) {
+            ImGui::SetScrollHereY(0.5f);
+            m_scrollToSelected = false;
+        }
 
         if (open) {
             for (auto* child : n->GetChildren()) drawNode(child);
@@ -363,6 +487,8 @@ void Editor::DrawContentBrowser() {
 }
 
 void Editor::DrawGizmo() {
+    ImGuizmo::BeginFrame();
+
     if (!m_selectedNode || m_state == State::Playing || !m_editorCamera) return;
 
     const glm::vec2 winSize = m_core.GetActiveWindow()->GetSize();

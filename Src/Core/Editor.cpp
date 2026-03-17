@@ -16,7 +16,7 @@ Editor::Editor(Node3d* scene) : m_core(scene) {
     m_core.Init();
 
     const glm::vec2 winSize = m_core.GetActiveWindow()->GetSize();
-    const float aspect = (winSize.y != 0.0f) ? (winSize.x / winSize.y) : 1.0f;
+    const float aspect = winSize.y != 0.0f ? winSize.x / winSize.y : 1.0f;
 
     m_editorCamera = std::make_unique<CameraNode3d>(glm::vec3(0, 2, 6), 75.0f, aspect);
 
@@ -42,6 +42,10 @@ void Editor::Run() {
 
         m_core.PollEvents();
 
+        if (Input::IsKeyJustPressed(SDL_SCANCODE_DELETE)) {
+            DeleteSelectedNodes();
+        }
+
         Core::BeginImGuiFrame();
         DrawGizmo();
 
@@ -56,19 +60,6 @@ void Editor::Run() {
         DrawSceneTree(m_core.GetScene());
         DrawInspector();
         DrawContentBrowser();
-
-        if (m_selectedNode && m_selectedNode != m_core.GetScene()) {
-            if (Input::IsKeyJustPressed(SDL_SCANCODE_DELETE)) {
-                auto children = m_selectedNode->GetChildren();
-                if (!children.empty()) {
-                    for (const auto child : children) {
-                        m_selectedNode->RemoveChild(child);
-                    }
-                }
-
-                m_core.GetScene()->RemoveChild(m_selectedNode);
-            }
-        }
 
         m_core.RenderScene();
         Core::EndImGuiFrame();
@@ -192,8 +183,8 @@ void Editor::DrawSceneTree(Node3d* node) {
 
     ImGui::Separator();
 
-    // Modal popup
-    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    // modal popup
+    const ImVec2 center = ImGui::GetMainViewport()->GetCenter();
     ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSize(ImVec2(260, 320), ImGuiCond_Appearing);
 
@@ -204,16 +195,14 @@ void Editor::DrawSceneTree(Node3d* node) {
 
         struct NodeEntry { const char* label; const char* category; };
         static constexpr NodeEntry entries[] = {
-            { "Node3d",              "Base"  },
-            { "MeshNode3d",          "3D"    },
-            { "CameraNode3d",        "3D"    },
-            { "DirectionalLight",    "Light" },
-            { "PointLight",          "Light" },
+            { "Node3d", "Base" },
+            { "MeshNode3d", "3D" },
+            { "CameraNode3d", "3D" },
+            { "DirectionalLight", "Light" },
+            { "PointLight", "Light" },
         };
 
-        static int hovered = -1;
         const char* lastCategory = nullptr;
-
         for (int i = 0; i < IM_ARRAYSIZE(entries); ++i) {
             // category header
             if (!lastCategory || strcmp(entries[i].category, lastCategory) != 0) {
@@ -223,60 +212,50 @@ void Editor::DrawSceneTree(Node3d* node) {
                 lastCategory = entries[i].category;
             }
 
-            const bool isHov = (hovered == i);
-            if (isHov) {
-                ImGui::PushStyleColor(ImGuiCol_Header,        ImVec4(0.26f, 0.59f, 0.98f, 0.35f));
-                ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.26f, 0.59f, 0.98f, 0.45f));
-            }
-
-            if (ImGui::Selectable(entries[i].label, isHov, ImGuiSelectableFlags_AllowDoubleClick)) {
+            if (ImGui::Selectable(entries[i].label)) {
                 Node3d* root = m_core.GetScene();
+                Node3d* created = nullptr;
+
                 switch (i) {
                     case 0: {
-                        auto* n = new Node3d();
-                        n->SetName("Node3d");
-                        root->AddChild(n);
-                        m_selectedNode = n;
-                        m_scrollToSelected = true;
+                        created = new Node3d();
+                        created->SetName("Node3d");
                         break;
                     }
                     case 1: {
-                        auto* n = new MeshNode3d(m_core.GetDefaultShader());
-                        n->SetName("MeshNode3d");
-                        root->AddChild(n);
-                        m_selectedNode = n;
-                        m_scrollToSelected = true;
+                        created = new MeshNode3d(std::make_shared<CubeMesh>(), m_core.GetDefaultShader());
+                        created->SetName("MeshNode3d");
                         break;
                     }
                     case 2: {
                         const glm::vec2 ws = m_core.GetActiveWindow()->GetSize();
                         const float aspect = (ws.y != 0.0f) ? (ws.x / ws.y) : 1.0f;
-                        auto* n = new CameraNode3d(glm::vec3(0, 0, 5), 75.0f, aspect);
-                        n->SetName("CameraNode3d");
-                        root->AddChild(n);
-                        m_selectedNode = n;
-                        m_scrollToSelected = true;
+                        created = new CameraNode3d(glm::vec3(0, 0, 5), 75.0f, aspect);
+                        created->SetName("CameraNode3d");
                         break;
                     }
                     case 3: {
-                        auto* n = new DirectionalLightNode3d({-64.0, 128.0, 0.0}, {1.0, 1.0, 1.0}, 0.25);
-                        n->SetName("DirectionalLight");
-                        root->AddChild(n);
-                        m_selectedNode = n;
-                        m_scrollToSelected = true;
+                        created = new DirectionalLightNode3d({-64.0, 128.0, 0.0}, {1.0, 1.0, 1.0}, 0.25);
+                        created->SetName("DirectionalLight");
                         break;
                     }
                     case 4: {
-                        auto* n = new PointLightNode3d({0, 0, 0}, {1.0, 1.0, 1.0}, 1.0);
-                        n->SetName("PointLight");
-                        root->AddChild(n);
-                        m_selectedNode = n;
-                        m_scrollToSelected = true;
+                        created = new PointLightNode3d({0, 0, 0}, {1.0, 1.0, 1.0}, 1.0);
+                        created->SetName("PointLight");
                         break;
                     }
+                    default: break;
                 }
-                // m_selectedNode = root->GetChildren().back();
-                hovered = -1;
+
+                if (created) {
+                    root->AddChild(created);
+                    m_lastSelectedNode = created;
+                    m_scrollToSelected = true;
+
+                    m_selection.Clear();
+                    m_selection.SetItemSelected(created->GetId(), true);
+                }
+
                 ImGui::CloseCurrentPopup();
             }
         }
@@ -284,66 +263,95 @@ void Editor::DrawSceneTree(Node3d* node) {
         ImGui::Spacing();
         ImGui::Separator();
         if (ImGui::Button("Cancel", ImVec2(-1, 0))) {
-            hovered = -1;
             ImGui::CloseCurrentPopup();
         }
 
         ImGui::EndPopup();
     }
 
-    // scene tree
+    const int totalNodes = CountNodesRecursive(node);
+
+    constexpr ImGuiMultiSelectFlags msFlags =
+        ImGuiMultiSelectFlags_ClearOnEscape |
+        ImGuiMultiSelectFlags_BoxSelect1d;
+
+    ImGuiMultiSelectIO* msIO = ImGui::BeginMultiSelect(msFlags, m_selection.Size, totalNodes);
+    m_selection.ApplyRequests(msIO);
+
+    // Tree drawing
     std::function<void(Node3d*)> drawNode = [&](Node3d* n) {
+        const ImGuiID sid = n->GetId();
+
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
-        if (n == m_selectedNode)      flags |= ImGuiTreeNodeFlags_Selected;
-        if (n->GetChildren().empty()) flags |= ImGuiTreeNodeFlags_Leaf;
 
-        const bool open = ImGui::TreeNodeEx(n, flags, "%s", n->GetName().c_str());
-        if (ImGui::IsItemClicked()) m_selectedNode = n;
+        if (n->GetChildren().empty()) {
+            flags |= ImGuiTreeNodeFlags_Leaf;
+        }
 
-        if (n == m_selectedNode && m_scrollToSelected) {
+        if (m_selection.Contains(sid)) {
+            flags |= ImGuiTreeNodeFlags_Selected;
+        }
+
+        ImGui::SetNextItemSelectionUserData(sid);
+
+        ImGui::PushID(static_cast<int>(sid));
+        const bool open = ImGui::TreeNodeEx("##node", flags, "%s", n->GetName().c_str());
+        ImGui::PopID();
+
+        if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
+            m_lastSelectedNode = n;
+        }
+
+        if (n == m_lastSelectedNode && m_scrollToSelected) {
             ImGui::SetScrollHereY(0.5f);
             m_scrollToSelected = false;
         }
 
         if (open) {
-            for (auto* child : n->GetChildren()) drawNode(child);
+            for (Node3d* child : n->GetChildren()) {
+                drawNode(child);
+            }
+
             ImGui::TreePop();
         }
     };
 
     drawNode(node);
+
+    msIO = ImGui::EndMultiSelect();
+    m_selection.ApplyRequests(msIO);
     ImGui::End();
 }
 
 void Editor::DrawInspector() const {
     ImGui::Begin("Inspector");
 
-    if (!m_selectedNode) {
+    if (!m_lastSelectedNode) {
         ImGui::TextDisabled("No node selected");
         ImGui::End();
         return;
     }
 
     char nameBuf[256];
-    strncpy(nameBuf, m_selectedNode->GetName().c_str(), sizeof(nameBuf));
+    strncpy(nameBuf, m_lastSelectedNode->GetName().c_str(), sizeof(nameBuf));
     nameBuf[sizeof(nameBuf) - 1] = '\0';
-    if (ImGui::InputText("Name", nameBuf, sizeof(nameBuf))) m_selectedNode->SetName(nameBuf);
+    if (ImGui::InputText("Name", nameBuf, sizeof(nameBuf))) m_lastSelectedNode->SetName(nameBuf);
 
     ImGui::Separator();
 
     // transform
     if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
-        glm::vec3 pos = m_selectedNode->GetPosition();
-        glm::vec3 rot = m_selectedNode->GetRotationEuler();
-        glm::vec3 scl = m_selectedNode->GetScale();
+        glm::vec3 pos = m_lastSelectedNode->GetPosition();
+        glm::vec3 rot = m_lastSelectedNode->GetRotationEuler();
+        glm::vec3 scl = m_lastSelectedNode->GetScale();
 
-        if (ImGui::DragFloat3("Position", &pos.x, 0.1f)) m_selectedNode->SetPosition(pos);
-        if (ImGui::DragFloat3("Rotation", &rot.x, 0.5f)) m_selectedNode->SetRotationEuler(rot);
-        if (ImGui::DragFloat3("Scale",    &scl.x, 0.1f)) m_selectedNode->SetScale(scl);
+        if (ImGui::DragFloat3("Position", &pos.x, 0.1f)) m_lastSelectedNode->SetPosition(pos);
+        if (ImGui::DragFloat3("Rotation", &rot.x, 0.5f)) m_lastSelectedNode->SetRotationEuler(rot);
+        if (ImGui::DragFloat3("Scale",    &scl.x, 0.1f)) m_lastSelectedNode->SetScale(scl);
     }
 
     // mesh node
-    if (auto* mesh = dynamic_cast<MeshNode3d*>(m_selectedNode)) {
+    if (auto* mesh = dynamic_cast<MeshNode3d*>(m_lastSelectedNode)) {
         if (ImGui::CollapsingHeader("Mesh", ImGuiTreeNodeFlags_DefaultOpen)) {
             const char* primitiveNames[] = { "Cube", "Plane", "Quad", "Sphere", "Cylinder", "Capsule" };
 
@@ -443,7 +451,7 @@ void Editor::DrawInspector() const {
     }
 
     // point light node
-    if (auto* pl = dynamic_cast<PointLightNode3d*>(m_selectedNode)) {
+    if (auto* pl = dynamic_cast<PointLightNode3d*>(m_lastSelectedNode)) {
         if (ImGui::CollapsingHeader("Point Light", ImGuiTreeNodeFlags_DefaultOpen)) {
             glm::vec4 color = glm::vec4(pl->GetColor(), 1.0f);
             if (ImGui::ColorEdit4("Color", &color.x)) pl->SetColor(color);
@@ -466,7 +474,7 @@ void Editor::DrawInspector() const {
     }
 
     // directional light node
-    if (auto* dl = dynamic_cast<DirectionalLightNode3d*>(m_selectedNode)) {
+    if (auto* dl = dynamic_cast<DirectionalLightNode3d*>(m_lastSelectedNode)) {
         if (ImGui::CollapsingHeader("Directional Light", ImGuiTreeNodeFlags_DefaultOpen)) {
             glm::vec4 color = glm::vec4(dl->GetColor(), 1.0f);
             if (ImGui::ColorEdit4("Color", &color.x)) dl->SetColor(color);
@@ -489,7 +497,7 @@ void Editor::DrawContentBrowser() {
 void Editor::DrawGizmo() {
     ImGuizmo::BeginFrame();
 
-    if (!m_selectedNode || m_state == State::Playing || !m_editorCamera) return;
+    if (!m_lastSelectedNode || m_state == State::Playing || !m_editorCamera) return;
 
     const glm::vec2 winSize = m_core.GetActiveWindow()->GetSize();
     ImGuizmo::SetRect(0, 0, winSize.x, winSize.y);
@@ -497,7 +505,7 @@ void Editor::DrawGizmo() {
 
     glm::mat4 view  = m_editorCamera->GetViewMatrix();
     glm::mat4 proj  = m_editorCamera->GetProjectionMatrix();
-    glm::mat4 world = m_selectedNode->GetWorldMatrix();
+    glm::mat4 world = m_lastSelectedNode->GetWorldMatrix();
     glm::mat4 delta = glm::mat4(1.0f);
 
     ImGuizmo::Manipulate(
@@ -512,7 +520,7 @@ void Editor::DrawGizmo() {
     if (!ImGuizmo::IsUsing()) return;
 
     glm::mat4 localMatrix = world;
-    if (const Node3d* parent = m_selectedNode->GetParent())
+    if (const Node3d* parent = m_lastSelectedNode->GetParent())
         localMatrix = glm::inverse(parent->GetWorldMatrix()) * world;
 
     glm::vec3 scale = {
@@ -527,9 +535,9 @@ void Editor::DrawGizmo() {
         glm::vec3(localMatrix[2]) / scale.z
     };
 
-    m_selectedNode->SetPosition(glm::vec3(localMatrix[3]));
-    m_selectedNode->SetRotation(glm::quat_cast(rotMat));
-    m_selectedNode->SetScale(scale);
+    m_lastSelectedNode->SetPosition(glm::vec3(localMatrix[3]));
+    m_lastSelectedNode->SetRotation(glm::quat_cast(rotMat));
+    m_lastSelectedNode->SetScale(scale);
 }
 
 void Editor::OnPlay() {
@@ -562,4 +570,68 @@ void Editor::OnStop() {
     m_rmbLook = false;
     SDL_SetWindowRelativeMouseMode(m_core.GetActiveWindow()->GetSDLWindow(), false);
     Input::SetMouseDeltaEnabled(false);
+}
+
+void Editor::DeleteSelectedNodes() {
+    if (!m_lastSelectedNode || m_lastSelectedNode == m_core.GetScene()) {
+        return;
+    }
+
+    std::vector<uint32_t> idsToDelete;
+    idsToDelete.reserve(static_cast<size_t>(m_selection.Size));
+
+    ImGuiID selId = 0;
+    void* it = nullptr;
+    while (m_selection.GetNextSelectedItem(&it, &selId)) {
+        idsToDelete.push_back(static_cast<uint32_t>(selId));
+    }
+
+    for (const uint32_t id : idsToDelete) {
+        Node3d* n = FindNodeById(m_core.GetScene(), id);
+        if (!n || n == m_core.GetScene()) {
+            continue;
+        }
+
+        if (n == m_lastSelectedNode) {
+            m_lastSelectedNode = nullptr;
+        }
+
+        // n->QueueFree();
+
+        if (Node3d* p = n->GetParent()) p->RemoveChild(n);
+        delete n;
+    }
+
+    m_selection.Clear();
+}
+
+Node3d* Editor::FindNodeById(Node3d *root, uint32_t id) {
+    if (!root) {
+        return nullptr;
+    }
+
+    if (root->GetId() == id) {
+        return root;
+    }
+
+    for (Node3d* c : root->GetChildren()) {
+        if (Node3d* r = FindNodeById(c, id)) {
+            return r;
+        }
+    }
+
+    return nullptr;
+}
+
+int Editor::CountNodesRecursive(const Node3d *root) {
+    if (!root) {
+        return 0;
+    }
+
+    int count = 1;
+    for (Node3d* c : root->GetChildren()) {
+        count += CountNodesRecursive(c);
+    }
+
+    return count;
 }

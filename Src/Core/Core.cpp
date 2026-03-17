@@ -13,13 +13,13 @@
 #include "Nodes/Lights/SpotLightNode3d.h"
 #include <algorithm>
 
-#include "ImGuizmo.h"
-
 Core::Core(Node3d* scene) : m_currentScene(scene) {}
 
 Core::~Core() {
     delete m_currentScene;
     m_currentScene = nullptr;
+
+    m_defaultShader.reset();
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL3_Shutdown();

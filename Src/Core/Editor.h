@@ -33,6 +33,11 @@ private:
     void OnPause();
     void OnStop();
 
+    void DeleteSelectedNodes();
+
+    [[nodiscard]] static Node3d* FindNodeById(Node3d* root, uint32_t id);
+    [[nodiscard]] static int CountNodesRecursive(const Node3d* root);
+
     void UpdateEditorCamera(float dt);
 
     // cameras
@@ -50,7 +55,9 @@ private:
 
     Core m_core;
     State m_state = State::Editing;
-    Node3d* m_selectedNode = nullptr;
+
+    ImGuiSelectionBasicStorage m_selection;
+    Node3d* m_lastSelectedNode = nullptr;
 
     ImGuizmo::OPERATION m_gizmoOp = ImGuizmo::TRANSLATE;
     ImGuizmo::MODE m_gizmoMode = ImGuizmo::WORLD;

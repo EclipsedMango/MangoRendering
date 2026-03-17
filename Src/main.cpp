@@ -18,8 +18,8 @@ int main() {
 
     Editor editor(scene);
 
-    auto cubeMesh = std::make_shared<CubeMesh>();
-    auto planeMesh = std::make_shared<PlaneMesh>(1.0f, 1.0f, 4, 4);
+    const auto cubeMesh = std::make_shared<CubeMesh>();
+    const auto planeMesh = std::make_shared<PlaneMesh>(1.0f, 1.0f, 4, 4);
 
     auto texture = std::make_shared<Texture>("../Assets/Textures/face.png");
     auto teddyTexture = std::make_shared<Texture>("../Assets/Textures/Cubemaps/sky_16_2k/sky_16_2k.png");
@@ -38,7 +38,6 @@ int main() {
     MeshNode3d* floor = new MeshNode3d(planeMesh, shader);
     floor->SetPosition({0, -5, 0});
     floor->SetScale({100, 0.5f, 100});
-    floor->GetActiveMaterial().SetDiffuse(texture);
     scene->AddChild(floor);
 
     MeshNode3d* cube1 = new MeshNode3d(cubeMesh, shader);

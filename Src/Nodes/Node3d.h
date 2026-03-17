@@ -35,7 +35,7 @@ public:
     void SetRotationEuler(const glm::vec3 degrees) { m_transform.SetEuler(degrees); }
     void SetScale(const glm::vec3 scale) { m_transform.Scale = scale; }
 
-    [[nodiscard]] uint64_t GetId() const { return m_id; }
+    [[nodiscard]] uint32_t GetId() const { return m_id; }
 
     [[nodiscard]] Node3d* GetParent() const { return m_parent; }
     [[nodiscard]] const std::vector<Node3d*>& GetChildren() const { return m_children; }
@@ -52,8 +52,8 @@ public:
     [[nodiscard]] glm::mat4 GetWorldMatrix() const { return m_worldMatrix; }
 
 private:
-    uint64_t m_id;
-    inline static std::atomic<uint64_t> s_nextId = 1;
+    uint32_t m_id;
+    inline static std::atomic<uint32_t> s_nextId = 1;
 
     std::string m_name = "Node3d";
     TreeListener* m_treeListener = nullptr;

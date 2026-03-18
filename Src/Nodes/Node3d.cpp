@@ -1,7 +1,8 @@
 
 #include "Node3d.h"
 
-#include <iostream>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include "Core/TreeListener.h"
 
@@ -40,8 +41,7 @@ void Node3d::Process(float deltaTime) {
 }
 
 void Node3d::UpdateWorldTransform(const glm::mat4 &parentWorld) {
-    m_worldMatrix = parentWorld * GetModelMatrix();
-
+    m_worldMatrix = parentWorld * GetLocalMatrix();
     for (auto* child : m_children) {
         child->UpdateWorldTransform(m_worldMatrix);
     }
@@ -49,6 +49,67 @@ void Node3d::UpdateWorldTransform(const glm::mat4 &parentWorld) {
 
 void Node3d::SetRoot() {
     m_is_root = true;
+}
+
+void Node3d::SetLocalTransform(const glm::mat4 &mat) {
+    m_position = glm::vec3(mat[3]);
+
+    m_scale = {
+        glm::length(glm::vec3(mat[0])),
+        glm::length(glm::vec3(mat[1])),
+        glm::length(glm::vec3(mat[2]))
+    };
+
+    constexpr float eps = 1e-4f;
+    const glm::mat3 rotMat(
+        m_scale.x > eps ? glm::vec3(mat[0]) / m_scale.x : glm::vec3(1,0,0),
+        m_scale.y > eps ? glm::vec3(mat[1]) / m_scale.y : glm::vec3(0,1,0),
+        m_scale.z > eps ? glm::vec3(mat[2]) / m_scale.z : glm::vec3(0,0,1)
+    );
+
+    m_rotation = glm::normalize(glm::quat_cast(rotMat));
+    m_localDirty = true;
+}
+
+void Node3d::SetPosition(const glm::vec3 &position) {
+    m_position = position;
+    m_localDirty = true;
+}
+
+void Node3d::SetScale(const glm::vec3 &scale) {
+    constexpr float eps = 1e-4f;
+    m_scale = {
+        std::abs(scale.x) < eps ? eps : scale.x,
+        std::abs(scale.y) < eps ? eps : scale.y,
+        std::abs(scale.z) < eps ? eps : scale.z
+    };
+    m_localDirty = true;
+}
+
+void Node3d::SetRotation(const glm::quat &rotation) {
+    m_rotation = glm::normalize(rotation);
+    m_localDirty = true;
+}
+
+void Node3d::SetRotationEuler(const glm::vec3 &degrees) {
+    SetRotation(glm::quat(glm::radians(degrees)));
+}
+
+glm::vec3 Node3d::GetRotationEuler() const {
+    return glm::degrees(glm::eulerAngles(GetRotation()));
+}
+
+glm::mat4 Node3d::GetLocalMatrix() {
+    if (m_localDirty) {
+        m_localMatrix = glm::translate(
+            glm::mat4(1.0f), m_position) *
+            glm::mat4_cast(m_rotation) *
+            glm::scale(glm::mat4(1.0f),
+            m_scale
+        );
+        m_localDirty = false;
+    }
+    return m_localMatrix;
 }
 
 void Node3d::PropagateEnterTree(TreeListener *listener) {

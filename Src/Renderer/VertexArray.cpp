@@ -52,5 +52,9 @@ void VertexArray::Setup(const std::vector<Vertex>& vertices, const std::vector<u
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), reinterpret_cast<void*>(offsetof(Vertex, texCoord)));
 
+    // Tangent (vec4, w = bitangent sign)
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), reinterpret_cast<void*>(offsetof(Vertex, tangent)));
+
     glBindVertexArray(0);
 }

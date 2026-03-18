@@ -19,14 +19,18 @@ public:
     [[nodiscard]] Core& GetCore() { return m_core; }
 
     void SetGameCamera(CameraNode3d* camera) { m_gameCamera = camera; }
+    void OpenTexturePreview(const Texture* tex, const char* label);
 
 private:
     // panels
     void DrawMenuBar();
     void DrawSceneTree(Node3d* node);
-    void DrawInspector() const;
+    void DrawInspector();
+    void DrawMaterialInspector(Material& mat);
     void DrawContentBrowser();
     void DrawGizmo();
+
+    void DrawTexturePreviewPopup();
 
     // helpers
     void OnPlay();
@@ -58,6 +62,9 @@ private:
 
     ImGuiSelectionBasicStorage m_selection;
     Node3d* m_lastSelectedNode = nullptr;
+
+    const Texture* m_previewTex = nullptr;
+    std::string m_previewLabel;
 
     ImGuizmo::OPERATION m_gizmoOp = ImGuizmo::TRANSLATE;
     ImGuizmo::MODE m_gizmoMode = ImGuizmo::WORLD;

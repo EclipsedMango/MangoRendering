@@ -25,6 +25,9 @@ void Material::Bind(const Shader &shader) const {
     shader.SetVector2("u_UVScale", m_uvScale);
     shader.SetVector2("u_UVOffset", m_uvOffset);
 
+    const bool packed = m_metallic && m_roughness && m_metallic == m_roughness;
+    shader.SetBool("u_HasMetallicRoughnessPacked", packed);
+
     if (m_diffuse) {
         m_diffuse->Bind(0);
         shader.SetInt("u_Diffuse", 0);
@@ -41,15 +44,14 @@ void Material::Bind(const Shader &shader) const {
         shader.SetBool("u_HasNormal", false);
     }
 
+
     if (m_metallic) {
         m_metallic->Bind(2);
         shader.SetInt("u_Metallic", 2);
-        shader.SetBool("u_HasMetallic", true);
-    } else {
-        shader.SetBool("u_HasMetallic", false);
+        shader.SetBool("u_HasMetallic", !packed); // suppress unpacked path
     }
 
-    if (m_roughness) {
+    if (!packed && m_roughness) {
         m_roughness->Bind(3);
         shader.SetInt("u_Roughness", 3);
         shader.SetBool("u_HasRoughness", true);

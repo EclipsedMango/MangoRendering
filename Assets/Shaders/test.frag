@@ -4,6 +4,7 @@
 in vec3 v_Normal;
 in vec2 v_TexCoord;
 in vec3 v_FragPos;
+in mat3 v_TBN;
 
 out vec4 FragColor;
 
@@ -31,6 +32,7 @@ uniform bool u_HasDiffuse;
 uniform bool u_HasNormal;
 uniform bool u_HasMetallic;
 uniform bool u_HasRoughness;
+uniform bool u_HasMetallicRoughnessPacked;
 uniform bool u_HasAmbientOcclusion;
 uniform bool u_HasEmissive;
 uniform bool u_HasDisplacement;
@@ -97,7 +99,17 @@ const uint GRID_SIZE_Z = 24;
 //}
 
 void main() {
-    vec3 norm = normalize(v_Normal);
+    vec2 uv = v_TexCoord * u_UVScale + u_UVOffset;
+
+    vec3 norm;
+    if (u_HasNormal) {
+        vec3 normalSample = texture(u_Normal, uv).rgb * 2.0 - 1.0;
+        normalSample.xy *= u_NormalStrength;
+        norm = normalize(v_TBN * normalSample);
+    } else {
+        norm = normalize(v_Normal);
+    }
+
     float viewDepth = -(u_View * vec4(v_FragPos, 1.0)).z;
 
     uint x = uint(gl_FragCoord.x / (u_ScreenSize.x / float(GRID_SIZE_X)));
@@ -116,12 +128,20 @@ void main() {
 
 //    handleDebugModes();
 
-    vec2 uv = v_TexCoord * u_UVScale + u_UVOffset;
+    vec4  albedo = u_HasDiffuse ? texture(u_Diffuse, uv) * u_AlbedoColor : u_AlbedoColor;
+    float ao = u_HasAmbientOcclusion ? texture(u_AmbientOcclusion, uv).r * u_AOStrength : u_AOStrength;
 
-    vec4  albedo    = u_HasDiffuse           ? texture(u_Diffuse,           uv) * u_AlbedoColor : u_AlbedoColor;
-    float metallic  = u_HasMetallic          ? texture(u_Metallic,          uv).r * u_MetallicValue  : u_MetallicValue;
-    float roughness = u_HasRoughness         ? texture(u_Roughness,         uv).r * u_RoughnessValue : u_RoughnessValue;
-    float ao        = u_HasAmbientOcclusion  ? texture(u_AmbientOcclusion,  uv).r * u_AOStrength     : u_AOStrength;
+    float metallic  = 0.0;
+    float roughness = 0.0;
+
+    if (u_HasMetallicRoughnessPacked) {
+        vec3 mr = texture(u_Metallic, uv).rgb; // both textures are the same binding
+        roughness = mr.g * u_RoughnessValue;
+        metallic = mr.b * u_MetallicValue;
+    } else {
+        metallic = u_HasMetallic ? texture(u_Metallic, uv).r * u_MetallicValue : u_MetallicValue;
+        roughness = u_HasRoughness ? texture(u_Roughness, uv).r * u_RoughnessValue : u_RoughnessValue;
+    }
 
     // clamp roughness to avoid precision issues at zero
     roughness = max(roughness, 0.045);

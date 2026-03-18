@@ -155,7 +155,7 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
             if (!node->GetActiveMaterial().GetCastShadows()) continue;
 
             const Mesh* mesh = node->GetMesh();
-            const glm::vec3 worldCenter = glm::vec3(node->GetModelMatrix() * glm::vec4(mesh->GetBoundsCenter(), 1.0f));
+            const glm::vec3 worldCenter = glm::vec3(node->GetWorldMatrix() * glm::vec4(mesh->GetBoundsCenter(), 1.0f));
             const float worldRadius = mesh->GetBoundsRadius() * std::max({ node->GetScale().x, node->GetScale().y, node->GetScale().z });
 
             if (glm::length(worldCenter - L->GetPosition()) > lightRadius + worldRadius) {

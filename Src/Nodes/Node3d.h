@@ -6,7 +6,8 @@
 #include <string>
 #include <vector>
 
-#include "Transform.h"
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 enum class NodeNotification;
 class TreeListener;
@@ -30,10 +31,11 @@ public:
     void SetRoot();
     void SetName(const std::string& name) { m_name = name; }
     void SetVisible(const bool visible) { m_visible = visible; }
-    void SetPosition(const glm::vec3 position) { m_transform.Position = position; }
-    void SetRotation(const glm::quat rotation) { m_transform.Rotation = rotation; }
-    void SetRotationEuler(const glm::vec3 degrees) { m_transform.SetEuler(degrees); }
-    void SetScale(const glm::vec3 scale) { m_transform.Scale = scale; }
+    void SetLocalTransform(const glm::mat4& mat);
+    void SetPosition(const glm::vec3& position);
+    void SetScale(const glm::vec3& scale);
+    void SetRotation(const glm::quat& rotation);
+    void SetRotationEuler(const glm::vec3& degrees);
 
     [[nodiscard]] uint32_t GetId() const { return m_id; }
 
@@ -43,12 +45,11 @@ public:
     [[nodiscard]] bool IsRoot() const { return m_is_root; }
     [[nodiscard]] std::string GetName() const { return m_name; }
     [[nodiscard]] bool IsVisible() const { return m_visible; }
-    [[nodiscard]] glm::vec3 GetPosition() const { return m_transform.Position; }
-    [[nodiscard]] glm::quat GetRotation() const { return m_transform.Rotation; }
-    [[nodiscard]] glm::vec3 GetRotationEuler() const { return m_transform.GetEuler(); }
-    [[nodiscard]] glm::vec3 GetScale() const { return m_transform.Scale; }
-    [[nodiscard]] glm::mat4 GetModelMatrix() const { return m_transform.GetModelMatrix(); }
-    [[nodiscard]] Transform GetTransform() const { return m_transform; }
+    [[nodiscard]] glm::vec3 GetPosition() const { return m_position; }
+    [[nodiscard]] glm::vec3 GetScale() const { return m_scale; }
+    [[nodiscard]] glm::quat GetRotation() const { return m_rotation; }
+    [[nodiscard]] glm::vec3 GetRotationEuler() const;
+    [[nodiscard]] glm::mat4 GetLocalMatrix();
     [[nodiscard]] glm::mat4 GetWorldMatrix() const { return m_worldMatrix; }
 
 private:
@@ -61,8 +62,14 @@ private:
     Node3d* m_parent = nullptr;
     std::vector<Node3d*> m_children;
 
+    glm::vec3 m_position = glm::vec3(0.0f);
+    glm::quat m_rotation = glm::quat(1, 0, 0, 0);
+    glm::vec3 m_scale = glm::vec3(1.0f);
+
+    glm::mat4 m_localMatrix = glm::mat4(1.0f); // rebuilt from TRS on demand
     glm::mat4 m_worldMatrix = glm::mat4(1.0f);
-    Transform m_transform;
+    bool m_localDirty = false;
+
     bool m_visible = true;
     bool m_is_root = false;
 };

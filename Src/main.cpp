@@ -25,15 +25,11 @@ int main() {
     auto teddyTexture = std::make_shared<Texture>("../Assets/Textures/Cubemaps/sky_16_2k/sky_16_2k.png");
     Shader* shader = new Shader("../Assets/Shaders/test.vert", "../Assets/Shaders/test.frag");
 
-    Node3d* teddy = GltfLoader::Load("../Assets/Models/teddy.glb", shader);
-    for (auto& children : teddy->GetChildren()) {
-        if (const auto meshNode = dynamic_cast<MeshNode3d*>(children)) {
-            meshNode->GetActiveMaterial().SetDiffuse(teddyTexture);
-        }
-    }
+    // Node3d* teddy = GltfLoader::Load("../Assets/Models/teddy.glb", shader);
+    // scene->AddChild(teddy);
 
-    teddy->SetPosition({0, 0, 0});
-    scene->AddChild(teddy);
+    Node3d* house = GltfLoader::Load("../Assets/Models/stylised_sky_player_home_dioroma.glb", shader);
+    scene->AddChild(house);
 
     MeshNode3d* floor = new MeshNode3d(planeMesh, shader);
     floor->SetPosition({0, -5, 0});

@@ -20,7 +20,6 @@
 #include "Renderer/Lights/PointLight.h"
 #include "Renderer/Lights/SpotLight.h"
 #include "Renderer/Shadows/CascadedShadowMap.h"
-#include "Renderer/Skybox.h"
 
 struct RenderStats {
     uint32_t drawCalls       = 0;
@@ -44,20 +43,21 @@ public:
     RenderApi& operator=(RenderApi&&)      = delete;
 
     Window* CreateWindow(const char* title, glm::vec2 size, Uint32 flags);
-    void ClearColour(const glm::vec4& colour);
-    void HandleResizeEvent(const SDL_Event& event);
+
+    static void ClearColour(const glm::vec4& colour);
+    void HandleResizeEvent(const SDL_Event& event) const;
 
     void SetActiveCamera(CameraNode3d* camera);
-    void UploadCameraData();
+    void UploadCameraData() const;
 
-    void AddDirectionalLight(DirectionalLight* light);
-    void RemoveDirectionalLight(DirectionalLight* light);
+    void AddDirectionalLight(DirectionalLight* light) const;
+    void RemoveDirectionalLight(DirectionalLight* light) const;
 
-    void AddPointLight(PointLight* light);
-    void RemovePointLight(PointLight* light);
+    void AddPointLight(PointLight* light) const;
+    void RemovePointLight(PointLight* light) const;
 
-    void AddSpotLight(SpotLight* light);
-    void RemoveSpotLight(SpotLight* light);
+    void AddSpotLight(SpotLight* light) const;
+    void RemoveSpotLight(SpotLight* light) const;
 
     void SubmitMesh(MeshNode3d* node) { m_meshQueue.push_back(node); }
     void SetSkybox(SkyboxNode3d* skybox)    { m_skybox = skybox; }
@@ -72,7 +72,7 @@ public:
 
     void Flush();
 
-    void DrawMesh(const Mesh& mesh, const Shader& shader);
+    static void DrawMesh(const Mesh& mesh, const Shader& shader);
     void DrawClusterVisualizer();
 
     // Debug
@@ -90,11 +90,12 @@ private:
 
     void DrawMeshNode(const MeshNode3d* node);
     void DrawMeshNodeDepth(const MeshNode3d* node) const;
-    void BeginZPrepass();
-    void EndZPrepass();
 
-    void RebuildClusters();
-    void RunLightCulling();
+    static void BeginZPrepass();
+    static void EndZPrepass();
+
+    void RebuildClusters() const;
+    void RunLightCulling() const;
     void RenderMainPass();
     void RenderTransparentPass();
 

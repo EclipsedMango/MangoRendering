@@ -85,12 +85,12 @@ void Core::Notification(Node3d *node, const NodeNotification notification) {
 void Core::InitRenderer() {
     RenderApi::InitSDL();
 
-    m_renderer     = std::make_unique<RenderApi>();
+    m_renderer = std::make_unique<RenderApi>();
     m_activeWindow = m_renderer->CreateWindow("Mango", {1280, 720}, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
 
-    std::cout << "Vendor: "   << glGetString(GL_VENDOR)   << std::endl;
-    std::cout << "Renderer: " << glGetString(GL_RENDERER)  << std::endl;
-    std::cout << "Version: "  << glGetString(GL_VERSION)   << std::endl;
+    std::cout << "Vendor: " << glGetString(GL_VENDOR) << std::endl;
+    std::cout << "Renderer: " << glGetString(GL_RENDERER) << std::endl;
+    std::cout << "Version: " << glGetString(GL_VERSION) << std::endl;
 
     SDL_GL_SetSwapInterval(0);
     SDL_SetWindowRelativeMouseMode(m_activeWindow->GetSDLWindow(), true);
@@ -119,9 +119,9 @@ void Core::BeginImGuiFrame() {
     ImGui::SetNextWindowSize(viewport->WorkSize);
     ImGui::SetNextWindowViewport(viewport->ID);
 
-    const ImGuiWindowFlags host_flags =
+    constexpr ImGuiWindowFlags host_flags =
         ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
-        ImGuiWindowFlags_NoResize   | ImGuiWindowFlags_NoMove     |
+        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus |
         ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoDocking;
 
@@ -145,7 +145,7 @@ void Core::SwapBuffers() const {
     m_activeWindow->SwapBuffers();
 }
 
-bool Core::PollEvents() {
+bool Core::PollEvents() const {
     Input::BeginFrame();
 
     SDL_Event event;
@@ -181,7 +181,7 @@ void Core::RenderScene() const {
         l->SyncLight();
     }
 
-    m_renderer->ClearColour({0.16f, 0.16f, 0.16f, 1.0f});
+    RenderApi::ClearColour({0.16f, 0.16f, 0.16f, 1.0f});
     for (auto* renderable : m_renderableCache) {
         renderable->SubmitToRenderer(*m_renderer);
     }
@@ -210,8 +210,8 @@ void Core::Process() {
 
     while (m_activeWindow->IsOpen()) {
         const uint64_t cpuFrameStart = SDL_GetTicksNS();
-        const uint64_t now           = SDL_GetTicksNS();
-        const float deltaTime        = (now - lastTime) / 1e9f;
+        const uint64_t now = SDL_GetTicksNS();
+        const float deltaTime = (now - lastTime) / 1e9f;
         lastTime = now;
 
         PollEvents();

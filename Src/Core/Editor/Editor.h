@@ -2,10 +2,12 @@
 #ifndef MANGORENDERING_EDITOR_H
 #define MANGORENDERING_EDITOR_H
 
-#include "Core.h"
+#include "../Core.h"
 #include "Nodes/Node3d.h"
 #include "imgui.h"
 #include "ImGuizmo.h"
+#include "InspectorPanel.h"
+#include "SceneTreePanel.h"
 
 class Editor {
 public:
@@ -19,28 +21,17 @@ public:
     [[nodiscard]] Core& GetCore() { return m_core; }
 
     void SetGameCamera(CameraNode3d* camera) { m_gameCamera = camera; }
-    void OpenTexturePreview(const Texture* tex, const char* label);
 
 private:
     // panels
     void DrawMenuBar();
-    void DrawSceneTree(Node3d* node);
-    void DrawInspector();
-    void DrawMaterialInspector(Material& mat);
     void DrawContentBrowser();
     void DrawGizmo();
-
-    void DrawTexturePreviewPopup();
 
     // helpers
     void OnPlay();
     void OnPause();
     void OnStop();
-
-    void DeleteSelectedNodes();
-
-    [[nodiscard]] static Node3d* FindNodeById(Node3d* root, uint32_t id);
-    [[nodiscard]] static int CountNodesRecursive(const Node3d* root);
 
     void UpdateEditorCamera(float dt);
 
@@ -53,18 +44,12 @@ private:
     float m_moveSpeed = 5.0f;
     float m_mouseSensitivity = 0.08f;
 
-    bool m_scrollToSelected = false;
-
     enum class State { Editing, Playing, Paused };
 
     Core m_core;
+    InspectorPanel m_inspector;
+    SceneTreePanel m_sceneTree;
     State m_state = State::Editing;
-
-    ImGuiSelectionBasicStorage m_selection;
-    Node3d* m_lastSelectedNode = nullptr;
-
-    const Texture* m_previewTex = nullptr;
-    std::string m_previewLabel;
 
     ImGuizmo::OPERATION m_gizmoOp = ImGuizmo::TRANSLATE;
     ImGuizmo::MODE m_gizmoMode = ImGuizmo::WORLD;

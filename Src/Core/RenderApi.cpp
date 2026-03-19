@@ -105,7 +105,7 @@ void RenderApi::ClearColour(const glm::vec4 &colour) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-void RenderApi::HandleResizeEvent(const SDL_Event &event) {
+void RenderApi::HandleResizeEvent(const SDL_Event &event) const {
     if (event.type != SDL_EVENT_WINDOW_RESIZED) {
         return;
     }
@@ -138,7 +138,7 @@ void RenderApi::SetActiveCamera(CameraNode3d* camera) {
     RebuildClusters();
 }
 
-void RenderApi::UploadCameraData() {
+void RenderApi::UploadCameraData() const {
     if (!m_activeCamera || !m_cameraUbo) {
         return;
     }
@@ -150,20 +150,20 @@ void RenderApi::UploadCameraData() {
     m_cameraUbo->SetData(&proj, sizeof(glm::mat4), sizeof(glm::mat4));
 }
 
-void RenderApi::AddDirectionalLight(DirectionalLight *light) {
+void RenderApi::AddDirectionalLight(DirectionalLight *light) const {
     m_lightManager->AddDirectionalLight(light);
     m_shadowRenderer->AddDirectionalLight(light);
 }
 
-void RenderApi::RemoveDirectionalLight(DirectionalLight *light) {
+void RenderApi::RemoveDirectionalLight(DirectionalLight *light) const {
     m_lightManager->RemoveDirectionalLight(light);
     m_shadowRenderer->RemoveDirectionalLight(light);
 }
 
-void RenderApi::AddPointLight(PointLight* light)    { m_lightManager->AddPointLight(light); }
-void RenderApi::RemovePointLight(PointLight* light) { m_lightManager->RemovePointLight(light); }
-void RenderApi::AddSpotLight(SpotLight* light)      { m_lightManager->AddSpotLight(light); }
-void RenderApi::RemoveSpotLight(SpotLight* light)   { m_lightManager->RemoveSpotLight(light); }
+void RenderApi::AddPointLight(PointLight* light) const { m_lightManager->AddPointLight(light); }
+void RenderApi::RemovePointLight(PointLight* light) const { m_lightManager->RemovePointLight(light); }
+void RenderApi::AddSpotLight(SpotLight* light) const { m_lightManager->AddSpotLight(light); }
+void RenderApi::RemoveSpotLight(SpotLight* light) const { m_lightManager->RemoveSpotLight(light); }
 
 void RenderApi::Flush() {
     m_stats = {};
@@ -306,7 +306,7 @@ void RenderApi::EndZPrepass() {
     // transparent objs go here with glDepthMask(GL_FALSE) and glDepthFunc(GL_LESS)
 }
 
-void RenderApi::RebuildClusters() {
+void RenderApi::RebuildClusters() const {
     if (!m_clusterSystem || !m_activeCamera) {
         std::cerr << "RebuildClusters: no cluster system or active camera\n";
         return;
@@ -315,7 +315,7 @@ void RenderApi::RebuildClusters() {
     m_clusterSystem->Rebuild(*m_activeCamera, m_windows[0]->GetSize());
 }
 
-void RenderApi::RunLightCulling() {
+void RenderApi::RunLightCulling() const {
     if (!m_clusterSystem || !m_activeCamera) {
         std::cerr << "RunLightCulling: no cluster system or active camera\n";
         return;

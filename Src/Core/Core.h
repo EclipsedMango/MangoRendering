@@ -25,7 +25,7 @@ public:
 
     void Notification(Node3d* node, NodeNotification notification) override;
 
-    bool PollEvents(); // returns false when window should close
+    bool PollEvents() const; // returns false when window should close
     void RenderScene() const;
     void SwapBuffers() const;
     void StepFrame(float deltaTime);

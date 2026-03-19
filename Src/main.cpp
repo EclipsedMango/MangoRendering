@@ -3,7 +3,7 @@
 #include <random>
 
 #include "Core/Core.h"
-#include "Core/Editor.h"
+#include "Core/Editor/Editor.h"
 #include "Nodes/MeshNode3d.h"
 #include "Renderer/Meshes/Mesh.h"
 #include "Renderer/Shader.h"
@@ -25,8 +25,9 @@ int main() {
     auto teddyTexture = std::make_shared<Texture>("../Assets/Textures/Cubemaps/sky_16_2k/sky_16_2k.png");
     Shader* shader = new Shader("../Assets/Shaders/test.vert", "../Assets/Shaders/test.frag");
 
-    // Node3d* teddy = GltfLoader::Load("../Assets/Models/teddy.glb", shader);
-    // scene->AddChild(teddy);
+    Node3d* teddy = GltfLoader::Load("../Assets/Models/teddy.glb", shader);
+    teddy->SetPosition({0, 0, 5});
+    scene->AddChild(teddy);
 
     Node3d* house = GltfLoader::Load("../Assets/Models/stylised_sky_player_home_dioroma.glb", shader);
     scene->AddChild(house);

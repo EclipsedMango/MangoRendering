@@ -7,6 +7,7 @@
 #include "glad/gl.h"
 #include "glm/gtc/matrix_transform.hpp"
 #include "../Lights/GpuLights.h"
+#include "Core/RenderApi.h"
 #include "Renderer/Buffers/ShaderStorageBuffer.h"
 
 ShadowRenderer::ShadowRenderer() {
@@ -31,7 +32,7 @@ void ShadowRenderer::AddDirectionalLight(DirectionalLight* light) {
     }
 
     m_directionalLights.push_back(light);
-    m_cascadedShadowMaps.push_back(new CascadedShadowMap(CSM_RESOLUTION, CSM_RESOLUTION, light->GetDirection()));
+    m_cascadedShadowMaps.push_back(new CascadedShadowMap(light->GetDirection()));
 }
 
 void ShadowRenderer::RemoveDirectionalLight(DirectionalLight* light) {
@@ -54,8 +55,6 @@ void ShadowRenderer::RenderDirectionalShadows(const CameraNode3d& camera, const 
     glEnable(GL_DEPTH_TEST);
     glDepthMask(GL_TRUE);
     glDepthFunc(GL_LESS);
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
 
     m_shadowDepthShader->Bind();
 
@@ -70,9 +69,23 @@ void ShadowRenderer::RenderDirectionalShadows(const CameraNode3d& camera, const 
             m_shadowDepthShader->SetMatrix4("u_LightSpaceMatrix", csm->GetLightSpaceMatrix(c));
 
             for (const MeshNode3d* node : renderQueue) {
-                if (!node->GetActiveMaterial().GetCastShadows()) continue;
+                const Material& mat = node->GetActiveMaterial();
+                if (!mat.GetCastShadows()) continue;
+
+                RenderApi::ApplyMaterialCull(mat);
+
+                m_shadowDepthShader->SetBool("u_AlphaScissor", mat.GetBlendMode() == BlendMode::AlphaScissor);
+                m_shadowDepthShader->SetFloat("u_AlphaScissorThreshold", mat.GetAlphaScissorThreshold());
+                m_shadowDepthShader->SetBool("u_HasDiffuse", mat.GetDiffuse() != nullptr);
+                m_shadowDepthShader->SetBool("u_AlphaDitherShadow", mat.GetBlendMode() == BlendMode::AlphaBlend);
+
+                if (mat.GetDiffuse()) {
+                    mat.GetDiffuse()->Bind(0);
+                    m_shadowDepthShader->SetInt("u_Diffuse", 0);
+                }
 
                 m_shadowDepthShader->SetMatrix4("u_Model", node->GetWorldMatrix());
+
                 node->GetMesh()->GetBuffer()->Bind();
                 glDrawElements(GL_TRIANGLES, node->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, nullptr);
                 m_shadowDrawCallCount++;
@@ -82,6 +95,7 @@ void ShadowRenderer::RenderDirectionalShadows(const CameraNode3d& camera, const 
         }
     }
 
+    glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     glViewport(0, 0, static_cast<int>(viewportSize.x), static_cast<int>(viewportSize.y));
 }
@@ -95,10 +109,10 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
 
     std::vector<GPUPointShadowMeta> meta(pointLights.size());
     for (auto& [slot, farPlane, bias, pad] : meta) {
-        slot     = 0xFFFFFFFFu;
+        slot = 0xFFFFFFFFu;
         farPlane = 1.0f;
-        bias     = 0.002f;
-        pad      = 0.0f;
+        bias = 0.002f;
+        pad = 0.0f;
     }
 
     std::vector<ShadowCandidate> candidates;
@@ -116,8 +130,6 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
     glEnable(GL_DEPTH_TEST);
     glDepthMask(GL_TRUE);
     glDepthFunc(GL_LESS);
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_FRONT);
 
     m_pointShadowDepthShader->Bind();
 
@@ -152,7 +164,8 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
         m_pointShadowMap->BeginLight(slot);
 
         for (const MeshNode3d* node : renderQueue) {
-            if (!node->GetActiveMaterial().GetCastShadows()) continue;
+            const Material& mat = node->GetActiveMaterial();
+            if (!mat.GetCastShadows()) continue;
 
             const Mesh* mesh = node->GetMesh();
             const glm::vec3 worldCenter = glm::vec3(node->GetWorldMatrix() * glm::vec4(mesh->GetBoundsCenter(), 1.0f));
@@ -160,6 +173,18 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
 
             if (glm::length(worldCenter - L->GetPosition()) > lightRadius + worldRadius) {
                 continue;
+            }
+
+            RenderApi::ApplyMaterialCull(node->GetActiveMaterial());
+
+            m_pointShadowDepthShader->SetBool("u_AlphaScissor", mat.GetBlendMode() == BlendMode::AlphaScissor);
+            m_pointShadowDepthShader->SetFloat("u_AlphaScissorThreshold", mat.GetAlphaScissorThreshold());
+            m_pointShadowDepthShader->SetBool("u_HasDiffuse", mat.GetDiffuse() != nullptr);
+            m_pointShadowDepthShader->SetBool("u_AlphaDitherShadow", mat.GetBlendMode() == BlendMode::AlphaBlend);
+
+            if (mat.GetDiffuse()) {
+                mat.GetDiffuse()->Bind(0);
+                m_pointShadowDepthShader->SetInt("u_Diffuse", 0);
             }
 
             m_pointShadowDepthShader->SetMatrix4("u_Model", node->GetWorldMatrix());
@@ -172,6 +197,7 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
     PointLightShadowMap::End();
     m_pointShadowMetaSsbo->SetData(meta.data(), meta.size() * sizeof(GPUPointShadowMeta), 0);
 
+    glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     glViewport(0, 0, static_cast<int>(viewportSize.x), static_cast<int>(viewportSize.y));
 }
@@ -186,24 +212,21 @@ void ShadowRenderer::BindShadowUniforms(const Shader& shader) const {
             shader.SetMatrix4("u_LightSpaceMatrix[" + idx + "]", csm->GetLightSpaceMatrix(c));
             shader.SetFloat("u_CascadeSplits["      + idx + "]", splits[c]);
             shader.SetFloat("u_CascadeWorldUnits["  + idx + "]", csm->GetWorldUnitsPerTexel(c));
+
+            const int slot = CSM_TEXTURE_SLOT_BASE + c;
+            glActiveTexture(GL_TEXTURE0 + slot);
+            glBindTexture(GL_TEXTURE_2D, csm->GetCascadeTexture(c));
+            shader.SetInt("u_ShadowMap" + idx, slot);
         }
 
-        shader.SetInt("u_ShadowMap",    7 + static_cast<int>(i));
         shader.SetInt("u_CascadeCount", CascadedShadowMap::NUM_CASCADES);
     }
 
-    shader.SetInt("u_PointShadowMap", 15);
-}
-
-void ShadowRenderer::BindCSMTextures() const {
-    for (size_t i = 0; i < m_cascadedShadowMaps.size(); i++) {
-        glActiveTexture(GL_TEXTURE7 + static_cast<GLenum>(i));
-        glBindTexture(GL_TEXTURE_2D_ARRAY, m_cascadedShadowMaps[i]->GetTextureArray());
-    }
+    shader.SetInt("u_PointShadowMap", POINT_SHADOW_SLOT);
 }
 
 void ShadowRenderer::BindPointShadowTexture() const {
-    glActiveTexture(GL_TEXTURE15);
+    glActiveTexture(GL_TEXTURE0 + POINT_SHADOW_SLOT);
     glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, m_pointShadowMap->GetTexture());
 }
 

@@ -13,29 +13,32 @@
 #include "Renderer/Buffers/ShaderStorageBuffer.h"
 
 struct ShadowedPointLightDebug {
-    uint32_t  lightIndex      = 0;
-    uint32_t  slot            = 0;
-    float     score           = 0.0f;
-    float     radius          = 0.0f;
-    float     farPlane        = 0.0f;
-    glm::vec3 position        { 0.0f };
-    float     distanceToCamera = 0.0f;
+    uint32_t lightIndex = 0;
+    uint32_t slot = 0;
+    float score = 0.0f;
+    float radius = 0.0f;
+    float farPlane = 0.0f;
+    glm::vec3 position { 0.0f };
+    float distanceToCamera = 0.0f;
 };
 
 class ShadowRenderer {
 public:
-    static constexpr uint32_t CSM_RESOLUTION             = 2048;
-    static constexpr uint32_t MAX_SHADOWED_POINT_LIGHTS  = 8;
-    static constexpr uint32_t POINT_SHADOW_RES           = 1024;
-    static constexpr uint32_t MAX_DIR_LIGHTS             = 1;
+    static constexpr uint32_t MAX_SHADOWED_POINT_LIGHTS = 8;
+    static constexpr uint32_t POINT_SHADOW_RES = 1024;
+    static constexpr uint32_t MAX_DIR_LIGHTS = 1;
+
+    // texture slots 7, 8, 9, 10 are reserved for CSM, point light cube maps start at 15.
+    static constexpr int CSM_TEXTURE_SLOT_BASE = 7;
+    static constexpr int POINT_SHADOW_SLOT = 15;
 
     ShadowRenderer();
     ~ShadowRenderer();
 
-    ShadowRenderer(const ShadowRenderer&)            = delete;
+    ShadowRenderer(const ShadowRenderer&) = delete;
     ShadowRenderer& operator=(const ShadowRenderer&) = delete;
-    ShadowRenderer(ShadowRenderer&&)                 = delete;
-    ShadowRenderer& operator=(ShadowRenderer&&)      = delete;
+    ShadowRenderer(ShadowRenderer&&) = delete;
+    ShadowRenderer& operator=(ShadowRenderer&&) = delete;
 
     // light registration
     void AddDirectionalLight(DirectionalLight* light);
@@ -48,14 +51,11 @@ public:
     // binds shadow uniforms onto whatever shader is currently in use for the main pass
     void BindShadowUniforms(const Shader& shader) const;
 
-    // binds the CSM texture arrays starting at GL_TEXTURE7
-    void BindCSMTextures() const;
-
     // binds the point shadow cube array at GL_TEXTURE15
     void BindPointShadowTexture() const;
 
-    [[nodiscard]] const std::vector<CascadedShadowMap*>&       GetCascadedShadowMaps()        const { return m_cascadedShadowMaps; }
-    [[nodiscard]] const std::vector<ShadowedPointLightDebug>&  GetShadowedPointLightsDebug()  const { return m_shadowedPointLightsDebug; }
+    [[nodiscard]] const std::vector<CascadedShadowMap*>& GetCascadedShadowMaps() const { return m_cascadedShadowMaps; }
+    [[nodiscard]] const std::vector<ShadowedPointLightDebug>&  GetShadowedPointLightsDebug() const { return m_shadowedPointLightsDebug; }
     [[nodiscard]] uint32_t GetShadowDrawCallCount() const { return m_shadowDrawCallCount; }
     [[nodiscard]] uint32_t GetShadowedPointLightCount() const { return static_cast<uint32_t>(m_shadowedPointLightsDebug.size()); }
 
@@ -65,7 +65,7 @@ public:
 private:
     struct ShadowCandidate {
         uint32_t index;
-        float    score;
+        float score;
     };
 
     void EnsurePointShadowMetaBuffer(size_t pointLightCount);
@@ -73,12 +73,12 @@ private:
     static void BuildPointShadowFaceMatrices(const glm::vec3& lightPos, float nearPlane, float farPlane, glm::mat4 outVP[6]);
 
     // directional shadow resources
-    std::unique_ptr<Shader>              m_shadowDepthShader;
-    std::vector<DirectionalLight*>       m_directionalLights;
-    std::vector<CascadedShadowMap*>      m_cascadedShadowMaps;   // parallel to m_directionalLights
+    std::unique_ptr<Shader> m_shadowDepthShader;
+    std::vector<DirectionalLight*> m_directionalLights;
+    std::vector<CascadedShadowMap*> m_cascadedShadowMaps;   // parallel to m_directionalLights
 
     // point shadow resources
-    std::unique_ptr<Shader>              m_pointShadowDepthShader;
+    std::unique_ptr<Shader> m_pointShadowDepthShader;
     std::unique_ptr<PointLightShadowMap> m_pointShadowMap;
     std::unique_ptr<ShaderStorageBuffer> m_pointShadowMetaSsbo;  // binding 8
 

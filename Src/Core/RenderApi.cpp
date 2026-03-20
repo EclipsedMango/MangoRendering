@@ -93,13 +93,22 @@ void RenderApi::InitGLResources() {
     // camera UBO
     m_cameraUbo = std::make_unique<UniformBuffer>(2 * sizeof(glm::mat4), 0);
 
-    m_clusterSystem  = std::make_unique<ClusterSystem>();
+    m_clusterSystem = std::make_unique<ClusterSystem>();
     m_shadowRenderer = std::make_unique<ShadowRenderer>();
-    m_lightManager   = std::make_unique<LightManager>();
+    m_lightManager = std::make_unique<LightManager>();
 }
 
 void RenderApi::InitDepthPass() {
     m_depthShader = std::make_unique<Shader>("../Assets/Shaders/depth_only.vert", "../Assets/Shaders/depth_only.frag");
+}
+
+void RenderApi::ApplyMaterialCull(const Material &mat) {
+    if (mat.GetDoubleSided()) {
+        glDisable(GL_CULL_FACE);
+    } else {
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_BACK);
+    }
 }
 
 void RenderApi::ClearColour(const glm::vec4 &colour) {
@@ -210,10 +219,8 @@ void RenderApi::Flush() {
 
     // shadow pass
     glEnable(GL_POLYGON_OFFSET_FILL);
-    glPolygonOffset(2.5f, 4.0f);
-    glCullFace(GL_FRONT);
+    glPolygonOffset(1.5f, 2.0f);
     m_shadowRenderer->RenderDirectionalShadows(*m_activeCamera, opaqueQueue, m_windows[0]->GetSize());
-    glCullFace(GL_BACK);
     glDisable(GL_POLYGON_OFFSET_FILL);
     m_shadowRenderer->RenderPointLightShadows(*m_activeCamera, m_lightManager->GetPointLights(), opaqueQueue, m_windows[0]->GetSize());
 
@@ -228,8 +235,6 @@ void RenderApi::Flush() {
 
     // light culling
     RunLightCulling();
-
-    m_shadowRenderer->BindCSMTextures();
     m_shadowRenderer->BindPointShadowTexture();
 
     m_meshQueue = opaqueQueue;
@@ -341,13 +346,15 @@ void RenderApi::DrawMeshNode(const MeshNode3d* node) {
     if (!node) throw std::runtime_error("DrawObject: null object");
     if (!node->GetMesh()->IsUploaded()) throw std::runtime_error("DrawObject: mesh not uploaded to GPU");
 
+    const Material& mat = node->GetActiveMaterial();
+    ApplyMaterialCull(mat);
+
     const Shader* shader = node->GetShader();
     shader->Bind();
+    m_shadowRenderer->BindShadowUniforms(*shader);
 
     shader->SetInt("u_DebugMode", m_debugMode);
     shader->SetInt("u_DebugCascade", m_debugCascade);
-
-    m_shadowRenderer->BindShadowUniforms(*shader);
 
     shader->SetMatrix4("u_Model", node->GetWorldMatrix());
     shader->SetMatrix4("u_NormalMatrix", glm::transpose(glm::inverse(node->GetWorldMatrix())));
@@ -360,15 +367,15 @@ void RenderApi::DrawMeshNode(const MeshNode3d* node) {
     shader->SetVector2("u_ScreenSize", m_windows[0]->GetSize());
     shader->SetVector3("u_CameraPos", m_activeCamera->GetPosition());
 
-    node->GetActiveMaterial().Bind(*shader);
+    mat.Bind(*shader);
 
     if (m_hasIbl) {
-        m_ibl.irradiance->Bind(10);
-        m_ibl.prefiltered->Bind(11);
-        m_ibl.brdfLut->Bind(12);
-        shader->SetInt("u_IrradianceMap", 10);
-        shader->SetInt("u_PrefilteredEnvMap", 11);
-        shader->SetInt("u_BrdfLut", 12);
+        m_ibl.irradiance->Bind(20);
+        m_ibl.prefiltered->Bind(21);
+        m_ibl.brdfLut->Bind(22);
+        shader->SetInt("u_IrradianceMap", 20);
+        shader->SetInt("u_PrefilteredEnvMap", 21);
+        shader->SetInt("u_BrdfLut", 22);
         shader->SetInt("u_MaxPrefilteredMipLevel", IBLPrecomputer::PREFILTER_MIP_LEVELS);
         shader->SetBool("u_HasIbl", true);
 
@@ -392,10 +399,12 @@ void RenderApi::DrawMeshNodeDepth(const MeshNode3d *node) const {
         return;
     }
 
+    const Material& mat = node->GetActiveMaterial();
+    ApplyMaterialCull(mat);
+
     m_depthShader->Bind();
     m_depthShader->SetMatrix4("u_Model", node->GetWorldMatrix());
 
-    const Material& mat = node->GetActiveMaterial();
     m_depthShader->SetBool("u_AlphaScissor", mat.GetBlendMode() == BlendMode::AlphaScissor);
     m_depthShader->SetFloat("u_AlphaScissorThreshold", mat.GetAlphaScissorThreshold());
     m_depthShader->SetBool("u_HasDiffuse", mat.GetDiffuse() != nullptr);

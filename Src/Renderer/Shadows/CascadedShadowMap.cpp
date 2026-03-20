@@ -5,18 +5,21 @@
 #include <glad/gl.h>
 #include <glm/gtc/matrix_transform.hpp>
 
-CascadedShadowMap::CascadedShadowMap(uint32_t width, uint32_t height, const glm::vec3& lightDirection) : m_width(width), m_height(height), m_lightDirection(glm::normalize(lightDirection)) {
-    m_fb = std::make_unique<Framebuffer>(width, height, FramebufferType::DepthArray, NUM_CASCADES);
+CascadedShadowMap::CascadedShadowMap(const glm::vec3& lightDirection) : m_lightDirection(glm::normalize(lightDirection)) {
+    for (int i = 0; i < NUM_CASCADES; i++) {
+        const uint32_t res = CASCADE_RESOLUTIONS[i];
+        m_cascadeFbs[i] = std::make_unique<Framebuffer>(res, res, FramebufferType::DepthOnly);
+    }
 }
 
 void CascadedShadowMap::Update(const CameraNode3d& camera) {
     const float near = camera.GetNearPlane();
-    const float far  = camera.GetFarPlane();
+    const float far = camera.GetFarPlane();
 
     std::array<float, NUM_CASCADES + 1> splits {};
     splits[0] = near;
     for (int i = 1; i < NUM_CASCADES; i++) {
-        const float ratio    = static_cast<float>(i) / static_cast<float>(NUM_CASCADES);
+        const float ratio = static_cast<float>(i) / static_cast<float>(NUM_CASCADES);
         const float logSplit = near * powf(far / near, ratio);
         const float linSplit = near + (far - near) * ratio;
         splits[i] = glm::mix(logSplit, linSplit, m_lambda);
@@ -29,8 +32,7 @@ void CascadedShadowMap::Update(const CameraNode3d& camera) {
 
     for (int i = 0; i < NUM_CASCADES; i++) {
         const glm::mat4 inv = glm::inverse(
-            glm::perspective(camera.GetFov(), camera.GetAspectRatio(), splits[i], splits[i + 1])
-            * camera.GetViewMatrix()
+            glm::perspective(camera.GetFov(), camera.GetAspectRatio(), splits[i], splits[i + 1]) * camera.GetViewMatrix()
         );
 
         glm::vec4 corners[8];
@@ -53,16 +55,16 @@ void CascadedShadowMap::Update(const CameraNode3d& camera) {
             radius = std::max(radius, glm::length(glm::vec3(c) - center));
         }
 
+        const float res = static_cast<float>(CASCADE_RESOLUTIONS[i]);
+        const float worldUnitsPerTexel = 2.0f * radius / res;
+        m_worldUnitsPerTexel[i] = worldUnitsPerTexel;
+
         glm::vec3 up(0,1,0);
         if (std::abs(glm::dot(m_lightDirection, up)) > 0.99f) {
             up = glm::vec3(0,0,1);
         }
 
         glm::mat4 lightViewRot = glm::lookAt(glm::vec3(0.0f), m_lightDirection, up);
-
-        float worldUnitsPerTexel = 2.0f * radius / static_cast<float>(m_width);
-        m_worldUnitsPerTexel[i] = worldUnitsPerTexel;
-
         glm::vec3 centerLS = glm::vec3(lightViewRot * glm::vec4(center, 1.0f));
         centerLS.x = std::floor(centerLS.x / worldUnitsPerTexel) * worldUnitsPerTexel;
         centerLS.y = std::floor(centerLS.y / worldUnitsPerTexel) * worldUnitsPerTexel;
@@ -77,7 +79,7 @@ void CascadedShadowMap::Update(const CameraNode3d& camera) {
             maxZ = std::max(maxZ, z);
         }
 
-        constexpr float zMult = 3.0f;
+        constexpr float zMult = 1.5f;
         if (minZ < 0) minZ *= zMult; else minZ /= zMult;
         if (maxZ < 0) maxZ /= zMult; else maxZ *= zMult;
 
@@ -86,7 +88,9 @@ void CascadedShadowMap::Update(const CameraNode3d& camera) {
 }
 
 void CascadedShadowMap::BeginRender(const int index) const {
-    m_fb->BindLayer(static_cast<uint32_t>(index));
+    m_cascadeFbs[index]->Bind();
+    const uint32_t res = CASCADE_RESOLUTIONS[index];
+    glViewport(0, 0, static_cast<GLsizei>(res), static_cast<GLsizei>(res));
     glClear(GL_DEPTH_BUFFER_BIT);
 }
 

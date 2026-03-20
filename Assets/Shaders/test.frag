@@ -37,7 +37,8 @@ uniform bool u_HasMetallicRoughnessPacked;
 uniform bool u_HasAmbientOcclusion;
 uniform bool u_HasEmissive;
 uniform bool u_HasDisplacement;
-uniform bool  u_AlphaScissor;
+uniform bool u_AlphaScissor;
+uniform bool u_DoubleSided;
 
 uniform float u_ZNear;
 uniform float u_ZFar;
@@ -110,6 +111,11 @@ void main() {
         norm = normalize(v_TBN * normalSample);
     } else {
         norm = normalize(v_Normal);
+    }
+
+    // correct lighting for two sided materials (foliage/cards)
+    if (u_DoubleSided && !gl_FrontFacing) {
+        norm = -norm;
     }
 
     float viewDepth = -(u_View * vec4(v_FragPos, 1.0)).z;

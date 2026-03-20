@@ -2,7 +2,10 @@
 #define LIGHTING_GLSL
 
 // shadows
-uniform sampler2DArray u_ShadowMap;
+uniform sampler2D u_ShadowMap0;
+uniform sampler2D u_ShadowMap1;
+uniform sampler2D u_ShadowMap2;
+uniform sampler2D u_ShadowMap3;
 uniform mat4 u_LightSpaceMatrix[4];
 uniform float u_CascadeSplits[4];
 uniform float u_CascadeWorldUnits[4];
@@ -74,6 +77,24 @@ struct LightGrid {
 layout (std430, binding = 6) readonly buffer LightGridBuffer {
     LightGrid lightGrid[];
 };
+
+float SampleShadowMap(int cascade, vec2 uv) {
+    switch (cascade) {
+        case 0: return texture(u_ShadowMap0, uv).r;
+        case 1: return texture(u_ShadowMap1, uv).r;
+        case 2: return texture(u_ShadowMap2, uv).r;
+        default: return texture(u_ShadowMap3, uv).r;
+    }
+}
+
+float TexelSize(int cascade) {
+    switch (cascade) {
+        case 0: return 1.0 / 4096.0;
+        case 1: return 1.0 / 2048.0;
+        case 2: return 1.0 / 1024.0;
+        default: return 1.0 / 512.0;
+    }
+}
 
 vec3 Heatmap(float t) {
     t = clamp(t, 0.0, 1.0);
@@ -169,10 +190,9 @@ float EdgeFade(float dist, float radius) {
 }
 
 float ShadowCalculation(vec3 fragPos, int cascade, vec3 normal, vec3 lightDirWS) {
-    float texelWU  = u_CascadeWorldUnits[cascade];
-    vec3 offsetPos = fragPos + normal * texelWU * 0.1;
+    float texelWU = u_CascadeWorldUnits[cascade];
 
-    vec4 fragPosLightSpace = u_LightSpaceMatrix[cascade] * vec4(offsetPos, 1.0);
+    vec4 fragPosLightSpace = u_LightSpaceMatrix[cascade] * vec4(fragPos, 1.0);
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     projCoords = projCoords * 0.5 + 0.5;
 
@@ -185,17 +205,25 @@ float ShadowCalculation(vec3 fragPos, int cascade, vec3 normal, vec3 lightDirWS)
     float cosTheta = clamp(dot(normal, lightDirWS), 0.0001, 1.0);
     float tanTheta = sqrt(1.0 - cosTheta * cosTheta) / cosTheta;
 
-    float texel = 1.0 / float(textureSize(u_ShadowMap, 0).x);
-    float bias = max(1.0 * texel * tanTheta, 0.25 * texel);
+    float texel = TexelSize(cascade);
+    float cascadeScale = u_CascadeSplits[cascade] / u_CascadeSplits[0];
+    float NdotL = clamp(dot(normal, lightDirWS), 0.0, 1.0);
+    float bias = max(0.0005 * (1.0 - NdotL), 0.0001);
 
-    float diskRadius = 2.5 * texel;
+    float wuPerTexel = u_CascadeWorldUnits[cascade];
+
+    float filterRadiusWU = 0.02; // 2 cm
+
+    float diskRadius = (filterRadiusWU / wuPerTexel) * texel;
+    diskRadius = clamp(diskRadius, 0.25 * texel, 2.0 * texel);
+
     float angle = Hash12(gl_FragCoord.xy) * 6.28318530718;
     mat2 R = Rotate2D(angle);
 
     float shadow = 0.0;
     for (int i = 0; i < 16; i++) {
         vec2 offset = (R * poissonDisk[i]) * diskRadius;
-        float pcfDepth = texture(u_ShadowMap, vec3(projCoords.xy + offset, float(cascade))).r;
+        float pcfDepth = SampleShadowMap(cascade, projCoords.xy + offset);
         shadow += (currentDepth - bias) > pcfDepth ? 1.0 : 0.0;
     }
 

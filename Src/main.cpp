@@ -39,8 +39,10 @@ int main() {
     scene->AddChild(floor);
 
     MeshNode3d* cube1 = new MeshNode3d(cubeMesh, shader);
-    cube1->SetPosition({0, -2.5f, 2});
+    cube1->SetPosition({0, -4.9, 2});
+    cube1->SetScale({0.2f, 0.2f, 0.2f});
     cube1->GetActiveMaterial().SetMetallicValue(1.0);
+    cube1->GetActiveMaterial().SetRoughnessValue(0.5);
     scene->AddChild(cube1);
 
     MeshNode3d* sphere = new MeshNode3d(sphereMesh, shader);

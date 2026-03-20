@@ -26,6 +26,7 @@ void Material::Bind(const Shader &shader) const {
     shader.SetFloat("u_AlphaScissorThreshold", m_alphaScissorThreshold);
     shader.SetVector2("u_UVScale", m_uvScale);
     shader.SetVector2("u_UVOffset", m_uvOffset);
+    shader.SetBool("u_DoubleSided", m_doubleSided);
 
     const bool packed = m_metallic && m_roughness && m_metallic == m_roughness;
     shader.SetBool("u_HasMetallicRoughnessPacked", packed);

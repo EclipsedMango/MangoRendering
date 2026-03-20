@@ -71,6 +71,8 @@ public:
     static uint32_t GetMaxShadowedPointLights() { return ShadowRenderer::MAX_SHADOWED_POINT_LIGHTS; }
     [[nodiscard]] const std::vector<ShadowedPointLightDebug>& GetShadowedPointLightsDebug() const { return m_shadowRenderer->GetShadowedPointLightsDebug(); }
 
+    static void ApplyMaterialCull(const Material& mat);
+
     void Flush();
 
     static void DrawMesh(const Mesh& mesh, const Shader& shader);

@@ -153,16 +153,19 @@ int Shader::GetUniformLocation(const std::string& name) const {
     }
 #endif
 
-    if (m_uniformCache.contains(name)) {
-        return m_uniformCache[name];
+    if (const auto it = m_uniformCache.find(name); it != m_uniformCache.end()) {
+        return it->second; // may be -1
     }
 
     const int location = glGetUniformLocation(m_id, name.c_str());
-    if (location == -1) {
-        std::cout << "Warning: Uniform '" << name << "' not found." << std::endl;
-    }
-
     m_uniformCache[name] = location;
+
+#ifndef NDEBUG
+    if (location == -1) {
+        std::cout << "Warning: Uniform '" << name << "' not found.\n";
+    }
+#endif
+
     return location;
 }
 

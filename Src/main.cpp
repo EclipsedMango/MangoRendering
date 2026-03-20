@@ -55,14 +55,15 @@ int main() {
     PointLightNode3d* pointLight = new PointLightNode3d({2, 2, -2}, {0.6f, 0.7f, 0.9f}, 1.0f, 15.0f);
     scene->AddChild(pointLight);
 
-    SkyboxNode3d* skybox = new SkyboxNode3d({
-        "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/px.png",
-        "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/nx.png",
-        "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/py.png",
-        "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/ny.png",
-        "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/pz.png",
-        "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/nz.png",
-    });
+    // SkyboxNode3d* skybox = new SkyboxNode3d({
+    //     "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/px.png",
+    //     "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/nx.png",
+    //     "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/py.png",
+    //     "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/ny.png",
+    //     "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/pz.png",
+    //     "../Assets/Textures/Cubemaps/sky_16_2k/sky_16_cubemap_2k/nz.png",
+    // });
+    SkyboxNode3d* skybox = new SkyboxNode3d("../Assets/Textures/Cubemaps/kloppenheim_06_puresky_1k.hdr");
     scene->AddChild(skybox);
 
     // random

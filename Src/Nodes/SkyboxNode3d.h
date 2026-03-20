@@ -11,6 +11,7 @@
 class SkyboxNode3d : public Node3d {
 public:
     explicit SkyboxNode3d(std::vector<std::string> faces);
+    explicit SkyboxNode3d(const std::string& hdrPath);
     ~SkyboxNode3d() override = default;
 
     [[nodiscard]] const Skybox& GetSkybox() const { return m_skybox; }

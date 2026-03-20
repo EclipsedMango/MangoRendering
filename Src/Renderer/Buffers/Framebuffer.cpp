@@ -62,6 +62,13 @@ void Framebuffer::Create() {
         glTextureParameteri(m_depthAttachment, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glNamedFramebufferTexture(m_fbo, GL_DEPTH_ATTACHMENT, m_depthAttachment, 0);
 
+    } else if (m_type == FramebufferType::ColorOnly) {
+        glCreateTextures(GL_TEXTURE_2D, 1, &m_colorAttachment);
+        glTextureStorage2D(m_colorAttachment, 1, GL_RGB16F, m_width, m_height);
+        glTextureParameteri(m_colorAttachment, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTextureParameteri(m_colorAttachment, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glNamedFramebufferTexture(m_fbo, GL_COLOR_ATTACHMENT0, m_colorAttachment, 0);
+
     } else if (m_type == FramebufferType::DepthOnly) {
         // depth texture (sampled in shadow shader)
         glCreateTextures(GL_TEXTURE_2D, 1, &m_depthAttachment);

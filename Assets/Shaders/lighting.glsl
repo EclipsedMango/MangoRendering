@@ -15,6 +15,8 @@ uniform samplerCube u_PrefilteredEnvMap;
 uniform sampler2D u_BrdfLut;
 uniform int u_MaxPrefilteredMipLevel;
 uniform bool u_HasIbl;
+uniform float u_IblDiffuseIntensity;
+uniform float u_IblSpecularIntensity;
 
 struct DirectionalLight {
     vec4 direction;
@@ -289,12 +291,12 @@ vec3 EvaluateIBL(vec3 albedo, float metallic, float roughness, vec3 N, vec3 V, f
 
     // diffuse
     vec3 kD = (1.0 - F) * (1.0 - metallic);
-    vec3 irradiance = texture(u_IrradianceMap, N).rgb;
+    vec3 irradiance = texture(u_IrradianceMap, N).rgb * u_IblDiffuseIntensity;;
     vec3 diffuse = kD * irradiance * albedo;
 
     // specular, sample prefiltered env map at correct mip for roughness
     float mipLevel = roughness * float(u_MaxPrefilteredMipLevel);
-    vec3 prefilteredColor = textureLod(u_PrefilteredEnvMap, R, mipLevel).rgb;
+    vec3 prefilteredColor = textureLod(u_PrefilteredEnvMap, R, mipLevel).rgb * u_IblSpecularIntensity;
     vec2 brdf = texture(u_BrdfLut, vec2(NdotV, roughness)).rg;
     vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
@@ -350,8 +352,8 @@ vec3 CalculateLighting(vec3 norm, vec3 fragPos, float fragDepthVS, LightGrid gri
 
         float attenuation = 1.0 / (1.0 + light.params.z * distance + light.params.w * (distance * distance));
 
-        float theta          = dot(L, normalize(-light.direction.xyz));
-        float epsilon        = light.params.x - light.params.y;
+        float theta = dot(L, normalize(-light.direction.xyz));
+        float epsilon = light.params.x - light.params.y;
         float intensityFactor = clamp((theta - light.params.y) / epsilon, 0.0, 1.0);
 
         vec3 brdf = EvaluateBRDF(albedo, metallic, roughness, norm, V, L);

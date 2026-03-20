@@ -22,6 +22,8 @@ public:
 
     void Unbind() const;
 
+    static Texture* LoadHDR(const std::string& path);
+
     [[nodiscard]] GLuint GetGLHandle()  const { return m_id; }
     [[nodiscard]] int GetWidth() const { return m_width; }
     [[nodiscard]] int GetHeight() const { return m_height; }
@@ -29,6 +31,8 @@ public:
     [[nodiscard]] bool IsCubemap()  const { return m_target == GL_TEXTURE_CUBE_MAP; }
 
 private:
+    Texture() = default;
+
     unsigned int m_id = 0;
     GLenum m_target = GL_TEXTURE_2D;
     int m_width = 0;

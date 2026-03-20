@@ -11,6 +11,7 @@
 class Skybox {
 public:
     explicit Skybox(std::vector<std::string>& faces);
+    explicit Skybox(const std::string& hdrPath, int faceSize = 512);
     ~Skybox();
 
     Skybox(const Skybox&) = delete;
@@ -23,8 +24,6 @@ private:
     Texture* m_texture = nullptr;
     Shader* m_shader = nullptr;
     VertexArray* m_vao = nullptr;
-
-    static VertexArray* CreateCubeVao();
 };
 
 

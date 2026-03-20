@@ -33,6 +33,8 @@ RenderApi::~RenderApi() {
     m_cameraUbo.reset();
     m_debugClusterMesh.reset();
     m_debugClusterShader.reset();
+    m_ibl = {};
+    m_skybox = nullptr;
 
     m_windows.clear(); // destroys the window and GL context
 
@@ -369,6 +371,10 @@ void RenderApi::DrawMeshNode(const MeshNode3d* node) {
         shader->SetInt("u_BrdfLut", 12);
         shader->SetInt("u_MaxPrefilteredMipLevel", IBLPrecomputer::PREFILTER_MIP_LEVELS);
         shader->SetBool("u_HasIbl", true);
+
+        // TODO: make these values changable, or move to the skybox or something / env node idk
+        shader->SetFloat("u_IblDiffuseIntensity", 0.5f);
+        shader->SetFloat("u_IblSpecularIntensity", 0.5f);
     } else {
         shader->SetBool("u_HasIbl", false);
     }

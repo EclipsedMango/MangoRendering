@@ -36,6 +36,8 @@ void Editor::Run() {
         const float deltaTime = (now - lastTime) / 1e9f;
         lastTime = now;
 
+        uint64_t cpuStart = SDL_GetTicksNS();
+
         m_core.PollEvents();
 
         if (Input::IsKeyJustPressed(SDL_SCANCODE_DELETE)) {
@@ -59,6 +61,10 @@ void Editor::Run() {
 
         m_core.RenderScene();
         Core::EndImGuiFrame();
+
+        uint64_t cpuEnd = SDL_GetTicksNS();
+        m_cpuTime = static_cast<float>(cpuEnd - cpuStart) / 1000000.0f;
+
         m_core.SwapBuffers();
     }
 }
@@ -125,7 +131,7 @@ void Editor::DrawMenuBar() {
     if (!ImGui::BeginMainMenuBar()) return;
 
     const float fps = ImGui::GetIO().Framerate;
-    ImGui::Text("FPS: %.0f (%.2f ms)", fps, 1000.0f / fps);
+    ImGui::Text("FPS: %.0f (%.2f ms) | CPU: %.2f ms", fps, 1000.0f / fps, m_cpuTime);
 
     if (ImGui::BeginMenu("File")) {
         if (ImGui::MenuItem("New Scene"))  { /* TODO */ }

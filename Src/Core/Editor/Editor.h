@@ -53,6 +53,8 @@ private:
 
     ImGuizmo::OPERATION m_gizmoOp = ImGuizmo::TRANSLATE;
     ImGuizmo::MODE m_gizmoMode = ImGuizmo::WORLD;
+
+    float m_cpuTime = 0.0f;
 };
 
 

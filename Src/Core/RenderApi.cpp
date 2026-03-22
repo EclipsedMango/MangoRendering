@@ -102,6 +102,7 @@ void RenderApi::InitDepthPass() {
     m_depthShader = std::make_unique<Shader>("../Assets/Shaders/depth_only.vert", "../Assets/Shaders/depth_only.frag");
 }
 
+// expects shaders and materials to be bound already
 void RenderApi::SubmitToGpu(const MeshNode3d *node, const Shader *shader) {
     shader->SetMatrix4("u_Model", node->GetWorldMatrix());
     shader->SetMatrix4("u_NormalMatrix", glm::transpose(glm::inverse(node->GetWorldMatrix())));

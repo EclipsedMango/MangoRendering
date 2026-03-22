@@ -7,6 +7,27 @@ CameraNode3d::CameraNode3d(const glm::vec3 position, const float fov, const floa
     SetPosition(position);
     UpdateVectors();
     SetName("CameraNode3d");
+
+    AddProperty("fov",
+        [this]() -> PropertyValue { return m_fov; },
+        [this](const PropertyValue& v) { m_fov = std::get<float>(v); }
+    );
+    AddProperty("near_plane",
+        [this]() -> PropertyValue { return m_nearPlane; },
+        [this](const PropertyValue& v) { SetNearPlane(std::get<float>(v)); }
+    );
+    AddProperty("far_plane",
+        [this]() -> PropertyValue { return m_farPlane; },
+        [this](const PropertyValue& v) { SetFarPlane(std::get<float>(v)); }
+    );
+    AddProperty("yaw",
+        [this]() -> PropertyValue { return m_yaw; },
+        [this](const PropertyValue& v) { SetYaw(std::get<float>(v)); }
+    );
+    AddProperty("pitch",
+        [this]() -> PropertyValue { return m_pitch; },
+        [this](const PropertyValue& v) { SetPitch(std::get<float>(v)); }
+    );
 }
 
 glm::mat4 CameraNode3d::GetViewMatrix() const {

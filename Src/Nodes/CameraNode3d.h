@@ -9,26 +9,26 @@ public:
     CameraNode3d(glm::vec3 position, float fov, float aspectRatio);
     ~CameraNode3d() override = default;
 
-    void SetNearPlane(const float nearPlane)           { m_nearPlane = nearPlane; }
-    void SetFarPlane(const float farPlane)             { m_farPlane = farPlane; }
+    void SetNearPlane(const float nearPlane) { m_nearPlane = nearPlane; }
+    void SetFarPlane(const float farPlane) { m_farPlane = farPlane; }
     void SetAspectRatio(const float aspectRatio) { m_aspectRatio = aspectRatio; }
-    void SetYaw(const float yaw)                       { m_yaw = yaw; UpdateVectors(); }
-    void SetPitch(const float pitch)                   { m_pitch = pitch; UpdateVectors(); }
+    void SetYaw(const float yaw) { m_yaw = yaw; UpdateVectors(); }
+    void SetPitch(const float pitch) { m_pitch = pitch; UpdateVectors(); }
 
     void Process(float deltaTime) override {}
 
     [[nodiscard]] glm::mat4 GetViewMatrix() const;
     [[nodiscard]] glm::mat4 GetProjectionMatrix() const;
 
-    [[nodiscard]] glm::vec3 GetFront() const     { return m_front; }
-    [[nodiscard]] glm::vec3 GetRight() const     { return m_right; }
-    [[nodiscard]] glm::vec3 GetUp() const        { return m_up; }
-    [[nodiscard]] float GetNearPlane() const     { return m_nearPlane; }
-    [[nodiscard]] float GetFarPlane() const      { return m_farPlane; }
-    [[nodiscard]] float GetAspectRatio() const   { return m_aspectRatio; }
-    [[nodiscard]] float GetYaw() const           { return m_yaw; }
-    [[nodiscard]] float GetPitch() const         { return m_pitch; }
-    [[nodiscard]] float GetFov() const           { return glm::radians(m_fov); }
+    [[nodiscard]] glm::vec3 GetFront() const { return m_front; }
+    [[nodiscard]] glm::vec3 GetRight() const { return m_right; }
+    [[nodiscard]] glm::vec3 GetUp() const { return m_up; }
+    [[nodiscard]] float GetNearPlane() const { return m_nearPlane; }
+    [[nodiscard]] float GetFarPlane() const { return m_farPlane; }
+    [[nodiscard]] float GetAspectRatio() const { return m_aspectRatio; }
+    [[nodiscard]] float GetYaw() const { return m_yaw; }
+    [[nodiscard]] float GetPitch() const { return m_pitch; }
+    [[nodiscard]] float GetFov() const { return glm::radians(m_fov); }
 
     void Rotate(float yawDelta, float pitchDelta);
 

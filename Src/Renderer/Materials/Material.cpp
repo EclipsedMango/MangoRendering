@@ -6,22 +6,65 @@ Material::Material() {
         [this]() -> PropertyValue { return glm::vec3(GetAlbedoColor()); },
         [this](const PropertyValue& v) { SetAlbedoColor(glm::vec4(std::get<glm::vec3>(v), m_albedoColor.a)); }
     );
-    AddProperty("metallic",
+    AddProperty("diffuse",
+        [this]() -> PropertyValue { return m_diffuse; },
+        [this](const PropertyValue& v) { SetDiffuse(std::get<std::shared_ptr<Texture>>(v)); }
+    );
+
+    AddProperty("metallic_value",
         [this]() -> PropertyValue { return GetMetallicValue(); },
         [this](const PropertyValue& v) { SetMetallicValue(std::get<float>(v)); }
     );
-    AddProperty("roughness",
+    AddProperty("metallic",
+        [this]() -> PropertyValue { return m_metallic; },
+        [this](const PropertyValue& v) { SetMetallic(std::get<std::shared_ptr<Texture>>(v)); }
+    );
+
+    AddProperty("roughness_value",
         [this]() -> PropertyValue { return GetRoughnessValue(); },
         [this](const PropertyValue& v) { SetRoughnessValue(std::get<float>(v)); }
     );
+    AddProperty("roughness",
+        [this]() -> PropertyValue { return m_roughness; },
+        [this](const PropertyValue& v) { SetRoughness(std::get<std::shared_ptr<Texture>>(v)); }
+    );
+
+    AddProperty("ao_strength_value",
+        [this]() -> PropertyValue { return GetAOStrength(); },
+        [this](const PropertyValue& v) { SetAOStrength(std::get<float>(v)); }
+    );
+    AddProperty("ambient_occlusion",
+        [this]() -> PropertyValue { return m_ambientOcclusion; },
+        [this](const PropertyValue& v) { SetAmbientOcclusion(std::get<std::shared_ptr<Texture>>(v)); }
+    );
+
+    AddProperty("displacement_scale_value",
+        [this]() -> PropertyValue { return GetDisplacementScale(); },
+        [this](const PropertyValue& v) { SetDisplacementScale(std::get<float>(v)); }
+    );
+    AddProperty("displacement",
+        [this]() -> PropertyValue { return m_displacement; },
+        [this](const PropertyValue& v) { SetDisplacement(std::get<std::shared_ptr<Texture>>(v)); }
+    );
+
     AddProperty("normal_strength",
         [this]() -> PropertyValue { return GetNormalStrength(); },
         [this](const PropertyValue& v) { SetNormalStrength(std::get<float>(v)); }
     );
+    AddProperty("normal",
+        [this]() -> PropertyValue { return m_normal; },
+        [this](const PropertyValue& v) { SetNormal(std::get<std::shared_ptr<Texture>>(v)); }
+    );
+
     AddProperty("emission_strength",
         [this]() -> PropertyValue { return GetEmissionStrength(); },
         [this](const PropertyValue& v) { SetEmissionStrength(std::get<float>(v)); }
     );
+    AddProperty("emissive",
+        [this]() -> PropertyValue { return m_emissive; },
+        [this](const PropertyValue& v) { SetEmissive(std::get<std::shared_ptr<Texture>>(v)); }
+    );
+
     AddProperty("double_sided",
         [this]() -> PropertyValue { return GetDoubleSided(); },
         [this](const PropertyValue& v) { SetDoubleSided(std::get<bool>(v)); }

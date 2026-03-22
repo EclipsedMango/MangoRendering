@@ -11,6 +11,7 @@
 #include "glm/glm.hpp"
 
 class PropertyHolder;
+class Texture;
 
 using PropertyValue = std::variant<
     int,
@@ -19,6 +20,7 @@ using PropertyValue = std::variant<
     std::string,
     glm::vec2,
     glm::vec3,
+    std::shared_ptr<Texture>,
     std::shared_ptr<PropertyHolder>
 >;
 

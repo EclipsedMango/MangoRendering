@@ -5,6 +5,7 @@
 
 Mesh::Mesh(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices) : m_vertices(vertices), m_indices(indices) {
     Upload();
+    RegisterProperties();
 }
 
 void Mesh::Upload() {
@@ -33,10 +34,29 @@ void Mesh::Upload() {
 
 void Mesh::Regenerate(const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices) {
     m_vertices = vertices;
-    m_indices  = indices;
+    m_indices = indices;
     m_buffer.reset(); // destroy old GPU buffer
     m_buffer = std::make_unique<VertexArray>(m_vertices, m_indices);
     ComputeBounds();
+}
+
+void Mesh::RegisterProperties() {
+    AddProperty("vertex_count",
+        [this]() -> PropertyValue { return static_cast<int>(m_vertices.size()); },
+        [](const PropertyValue&) {}
+    );
+    AddProperty("index_count",
+        [this]() -> PropertyValue { return static_cast<int>(m_indices.size()); },
+        [](const PropertyValue&) {}
+    );
+    AddProperty("bounds_center",
+        [this]() -> PropertyValue { return m_boundsCenter; },
+        [](const PropertyValue&) {}
+    );
+    AddProperty("bounds_radius",
+        [this]() -> PropertyValue { return m_boundsRadius; },
+        [](const PropertyValue&) {}
+    );
 }
 
 void Mesh::ComputeBounds() {

@@ -29,6 +29,10 @@ public:
 
 private:
     void Init();
+    [[nodiscard]] std::string GetMeshTypeName() const;
+    void SetMeshByName(const std::string& name);
+
+    std::shared_ptr<PropertyHolder> m_meshSlot;
 
     Shader* m_shader = nullptr;
 

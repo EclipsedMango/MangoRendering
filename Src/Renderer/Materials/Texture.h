@@ -4,9 +4,10 @@
 #include <string>
 #include <vector>
 
+#include "Core/PropertyHolder.h"
 #include "glad/gl.h"
 
-class Texture {
+class Texture : public PropertyHolder {
 public:
     explicit Texture(const std::string& path, bool flipVertically = true);
     explicit Texture(const unsigned char* data, int width, int height, int channels);
@@ -32,6 +33,7 @@ public:
 
 private:
     Texture() = default;
+    void RegisterProperties();
 
     unsigned int m_id = 0;
     GLenum m_target = GL_TEXTURE_2D;

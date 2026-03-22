@@ -2,6 +2,7 @@
 #include "MeshNode3d.h"
 
 #include "Core/RenderApi.h"
+#include "Renderer/Meshes/PrimitiveMesh.h"
 
 // for inspector use
 MeshNode3d::MeshNode3d(Shader* shader) : m_shader(shader), m_material(std::make_shared<Material>()) {
@@ -19,12 +20,47 @@ void MeshNode3d::SubmitToRenderer(RenderApi& renderer) {
 
 void MeshNode3d::Init() {
     SetName("MeshNode3d");
-    AddProperty("visible",
-        [this]() -> PropertyValue { return IsVisible(); },
-        [this](const PropertyValue& v) { SetVisible(std::get<bool>(v)); }
+    m_meshSlot = std::make_shared<PropertyHolder>();
+
+    m_meshSlot->AddProperty("mesh_type",
+        [this]() -> PropertyValue { return GetMeshTypeName(); },
+        [this](const PropertyValue& v) { SetMeshByName(std::get<std::string>(v)); }
+    );
+    m_meshSlot->AddProperty("mesh",
+        [this]() -> PropertyValue {
+            if (!m_mesh) return std::shared_ptr<PropertyHolder>{};
+            return std::static_pointer_cast<PropertyHolder>(m_mesh);
+        },
+        [](const PropertyValue&) {}
+    );
+
+    AddProperty("mesh",
+        [this]() -> PropertyValue { return m_meshSlot; },
+        [](const PropertyValue&) {}
     );
     AddProperty("material",
         [this]() -> PropertyValue { return std::static_pointer_cast<PropertyHolder>(m_material); },
-        [this](const PropertyValue& v) {}
+        [](const PropertyValue&) {}
     );
+}
+
+std::string MeshNode3d::GetMeshTypeName() const {
+    if (!m_mesh) return "None";
+    if (dynamic_cast<CubeMesh*>(m_mesh.get())) return "Cube";
+    if (dynamic_cast<SphereMesh*>(m_mesh.get())) return "Sphere";
+    if (dynamic_cast<PlaneMesh*>(m_mesh.get())) return "Plane";
+    if (dynamic_cast<QuadMesh*>(m_mesh.get())) return "Quad";
+    if (dynamic_cast<CylinderMesh*>(m_mesh.get())) return "Cylinder";
+    if (dynamic_cast<CapsuleMesh*>(m_mesh.get())) return "Capsule";
+    return "Custom";
+}
+
+void MeshNode3d::SetMeshByName(const std::string& name) {
+    if (name == "Cube") m_mesh = std::make_shared<CubeMesh>();
+    else if (name == "Sphere") m_mesh = std::make_shared<SphereMesh>();
+    else if (name == "Plane") m_mesh = std::make_shared<PlaneMesh>();
+    else if (name == "Quad") m_mesh = std::make_shared<QuadMesh>();
+    else if (name == "Cylinder") m_mesh = std::make_shared<CylinderMesh>();
+    else if (name == "Capsule") m_mesh = std::make_shared<CapsuleMesh>();
+    else if (name == "None") m_mesh = nullptr;
 }

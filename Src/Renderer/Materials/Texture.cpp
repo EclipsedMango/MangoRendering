@@ -9,9 +9,9 @@
 
 static void GetFormats(const int channels, const std::string& label, GLenum& internalFormat, GLenum& format) {
     switch (channels) {
-        case 1: internalFormat = GL_R8;    format = GL_RED;  break;
-        case 2: internalFormat = GL_RG8;   format = GL_RG;   break;
-        case 3: internalFormat = GL_RGB8;  format = GL_RGB;  break;
+        case 1: internalFormat = GL_R8; format = GL_RED; break;
+        case 2: internalFormat = GL_RG8; format = GL_RG; break;
+        case 3: internalFormat = GL_RGB8; format = GL_RGB; break;
         case 4: internalFormat = GL_RGBA8; format = GL_RGBA; break;
         default: throw std::runtime_error("Unsupported channel count in texture: " + label);
     }
@@ -39,6 +39,7 @@ Texture::Texture(const std::string& path, const bool flipVertically) {
 
     stbi_image_free(data);
     m_target = GL_TEXTURE_2D;
+    RegisterProperties();
 }
 
 Texture::Texture(const unsigned char *data, int width, int height, int channels) {
@@ -71,6 +72,7 @@ Texture::Texture(const unsigned char *data, int width, int height, int channels)
     glGenerateMipmap(GL_TEXTURE_2D);
 
     m_target = GL_TEXTURE_2D;
+    RegisterProperties();
 }
 
 Texture::Texture(const int width, const int height, const GLenum internalFormat) {
@@ -88,6 +90,7 @@ Texture::Texture(const int width, const int height, const GLenum internalFormat)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,     GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    RegisterProperties();
 }
 
 Texture::Texture(const int width, const int height, const GLenum internalFormat, const int mipLevels) {
@@ -120,6 +123,7 @@ Texture::Texture(const int width, const int height, const GLenum internalFormat,
     }
 
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    RegisterProperties();
 }
 
 // expected face order:
@@ -174,6 +178,7 @@ Texture::Texture(const std::vector<std::string> &paths) {
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R,     GL_CLAMP_TO_EDGE);
 
     m_target = GL_TEXTURE_CUBE_MAP;
+    RegisterProperties();
 }
 
 Texture::~Texture() {
@@ -216,4 +221,11 @@ Texture * Texture::LoadHDR(const std::string &path) {
 
     stbi_image_free(data);
     return t;
+}
+
+void Texture::RegisterProperties() {
+    AddProperty("Width", [this]() -> PropertyValue { return m_width; }, [](const PropertyValue&){});
+    AddProperty("Height", [this]() -> PropertyValue { return m_height; }, [](const PropertyValue&){});
+    AddProperty("Channels", [this]() -> PropertyValue { return m_channels; }, [](const PropertyValue&){});
+    AddProperty("GL Handle", [this]() -> PropertyValue { return static_cast<int>(m_id); }, [](const PropertyValue&){});
 }

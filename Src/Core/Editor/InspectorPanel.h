@@ -17,7 +17,6 @@ public:
     ~InspectorPanel() = default;
 
     void DrawInspector(Node3d* selectedNode);
-    void DrawMaterialInspector(Material& mat);
     void OpenTexturePreview(const Texture* tex, const char* label);
 
 private:
@@ -25,8 +24,6 @@ private:
     void DrawPropertyValue(const std::string& name, PropertyHolder* holder);
 
     void DrawTexturePreviewPopup();
-    void TextureSlot(const char* label, const std::shared_ptr<Texture>& tex);
-    static void SectionHeader(const char* label);
 
     Editor* m_editor = nullptr;
     const Texture* m_previewTex = nullptr;

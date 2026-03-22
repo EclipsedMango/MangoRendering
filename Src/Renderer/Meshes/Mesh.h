@@ -3,9 +3,11 @@
 
 #include <memory>
 #include <vector>
-#include "Renderer/VertexArray.h"
 
-class Mesh {
+#include "Renderer/VertexArray.h"
+#include "Core/PropertyHolder.h"
+
+class Mesh : public PropertyHolder {
 public:
     Mesh(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
     virtual ~Mesh() = default;
@@ -26,9 +28,10 @@ public:
     [[nodiscard]] float GetBoundsRadius() const { return m_boundsRadius; }
 
 protected:
-    Mesh() = default;
+    Mesh() { RegisterProperties(); }
 
 private:
+    void RegisterProperties();
     void ComputeBounds();
 
     std::vector<Vertex> m_vertices;

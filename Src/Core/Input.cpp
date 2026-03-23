@@ -26,6 +26,16 @@ void Input::BeginFrame() {
 
 void Input::ProcessEvent(const SDL_Event& event) {
     switch (event.type) {
+        case SDL_EVENT_KEY_DOWN: {
+            m_current[event.key.scancode] = true;
+            break;
+        }
+
+        case SDL_EVENT_KEY_UP: {
+            m_current[event.key.scancode] = false;
+            break;
+        }
+
         case SDL_EVENT_MOUSE_MOTION: {
             m_mousePosition = {
                 static_cast<float>(event.motion.x),
@@ -88,6 +98,10 @@ bool Input::IsKeyHeld(const SDL_Scancode key) {
 
 bool Input::IsKeyJustPressed(const SDL_Scancode key) {
     return m_current[key] && !m_previous[key];
+}
+
+bool Input::IsKeyJustPressedWithMod(const SDL_Scancode key, const SDL_Keymod mod) {
+    return IsKeyJustPressed(key) && (SDL_GetModState() & mod);
 }
 
 bool Input::IsKeyJustReleased(const SDL_Scancode key) {

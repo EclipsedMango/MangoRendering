@@ -197,6 +197,48 @@ void SceneTreePanel::DeleteSelectedNodes() {
     m_selection.Clear();
 }
 
+void SceneTreePanel::DuplicateSelectedNodes() {
+    if (!m_lastSelectedNode || m_selection.Size == 0) {
+        return;
+    }
+
+    std::vector<uint32_t> idsToDuplicate;
+    idsToDuplicate.reserve(static_cast<size_t>(m_selection.Size));
+
+    ImGuiID selId = 0;
+    void* it = nullptr;
+    while (m_selection.GetNextSelectedItem(&it, &selId)) {
+        idsToDuplicate.push_back(static_cast<uint32_t>(selId));
+    }
+
+    m_selection.Clear();
+
+    std::vector<uint32_t> newIds;
+    newIds.reserve(idsToDuplicate.size());
+
+    for (const uint32_t id : idsToDuplicate) {
+        const Node3d* n = FindNodeById(m_editor->GetCore().GetScene(), id);
+        if (!n) {
+            continue;
+        }
+
+        Node3d* parent = n->GetParent();
+        if (!parent) {
+            continue;
+        }
+
+        Node3d* duplicate = n->Clone();
+        parent->AddChild(duplicate);
+        newIds.push_back(duplicate->GetId());
+    }
+
+    for (const uint32_t newId : newIds) {
+        m_selection.SetItemSelected(newId, true);
+        m_lastSelectedNode = FindNodeById(m_editor->GetCore().GetScene(), newId);
+        m_scrollToSelected = true;
+    }
+}
+
 Node3d * SceneTreePanel::FindNodeById(Node3d *root, const uint32_t id) {
     if (!root) {
         return nullptr;

@@ -230,7 +230,7 @@ void InspectorPanel::DrawPropertyValue(const std::string& name, PropertyHolder* 
             PropertyLabel(name.c_str());
             glm::vec3 v = val;
 
-            if (name == "albedo_color" || name == "emission_color") {
+            if (name == "albedo_color" || name == "emission_color" || name == "color") {
                 if (ImGui::ColorEdit3("##v", &v.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_PickerHueWheel)) {
                     holder->Set(name, v);
                 }

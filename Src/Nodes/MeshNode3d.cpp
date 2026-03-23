@@ -13,6 +13,29 @@ MeshNode3d::MeshNode3d(std::shared_ptr<Mesh> mesh, Shader* shader) : m_shader(sh
     Init();
 }
 
+Node3d * MeshNode3d::Clone() const {
+    MeshNode3d* clone = new MeshNode3d(m_mesh, m_shader);
+
+    clone->SetName(GetName());
+    clone->SetVisible(IsVisible());
+    clone->SetPosition(GetPosition());
+    clone->SetRotation(GetRotation());
+    clone->SetScale(GetScale());
+
+    if (m_material) {
+        clone->SetMaterial(m_material);
+    }
+    if (m_materialOverride) {
+        clone->SetMaterialOverride(m_materialOverride);
+    }
+
+    for (const Node3d* child : GetChildren()) {
+        clone->AddChild(child->Clone());
+    }
+
+    return clone;
+}
+
 void MeshNode3d::SubmitToRenderer(RenderApi& renderer) {
     if (!m_mesh || !IsVisible()) return;
     renderer.SubmitMesh(this);

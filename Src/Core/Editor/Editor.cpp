@@ -44,6 +44,10 @@ void Editor::Run() {
             m_sceneTree.DeleteSelectedNodes();
         }
 
+        if (Input::IsKeyJustPressedWithMod(SDL_SCANCODE_D, SDL_SCANCODE_LCTRL)) {
+            m_sceneTree.DuplicateSelectedNodes();
+        }
+
         Core::BeginImGuiFrame();
         DrawGizmo();
 
@@ -205,14 +209,16 @@ void Editor::DrawGizmo() {
         m_gizmoOp,
         m_gizmoMode,
         glm::value_ptr(world),
-        glm::value_ptr(delta)
+        glm::value_ptr(delta),
+        m_snapObjectMovement ? glm::value_ptr(glm::vec3(0.5)) : nullptr
     );
 
     if (!ImGuizmo::IsUsing()) return;
 
     glm::mat4 localMatrix = world;
-    if (const Node3d* parent = m_sceneTree.GetSelectedNode()->GetParent())
+    if (const Node3d* parent = m_sceneTree.GetSelectedNode()->GetParent()) {
         localMatrix = glm::inverse(parent->GetWorldMatrix()) * world;
+    }
 
     const glm::vec3 scale = {
         glm::length(glm::vec3(localMatrix[0])),

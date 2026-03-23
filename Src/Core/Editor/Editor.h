@@ -41,6 +41,7 @@ private:
 
     // flycam controls
     bool m_rmbLook = false;
+    bool m_snapObjectMovement = false;
     float m_moveSpeed = 5.0f;
     float m_mouseSensitivity = 0.08f;
 

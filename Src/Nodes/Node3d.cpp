@@ -153,3 +153,20 @@ void Node3d::PropagateExitTree() {
     m_treeListener->Notification(this, NodeNotification::ExitTree);
     m_treeListener = nullptr;
 }
+
+Node3d * Node3d::Clone() const {
+    Node3d* clone = new Node3d();
+
+    clone->m_name = m_name;
+    clone->m_visible = m_visible;
+    clone->m_position = m_position;
+    clone->m_rotation = m_rotation;
+    clone->m_scale = m_scale;
+    clone->m_localDirty = m_localDirty;
+
+    for (const Node3d* child : m_children) {
+        clone->AddChild(child->Clone());
+    }
+
+    return clone;
+}

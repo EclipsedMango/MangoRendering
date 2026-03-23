@@ -18,6 +18,7 @@ public:
 
     [[nodiscard]] static bool IsKeyHeld(SDL_Scancode key);
     [[nodiscard]] static bool IsKeyJustPressed(SDL_Scancode key);
+    [[nodiscard]] static bool IsKeyJustPressedWithMod(SDL_Scancode key, SDL_Keymod mod);
     [[nodiscard]] static bool IsKeyJustReleased(SDL_Scancode key);
 
     [[nodiscard]] static bool IsMouseButtonHeld(int button);

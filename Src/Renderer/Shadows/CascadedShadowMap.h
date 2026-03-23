@@ -12,7 +12,7 @@ class CascadedShadowMap {
 public:
     static constexpr int NUM_CASCADES = 4;
 
-    static constexpr std::array<uint32_t, NUM_CASCADES> CASCADE_RESOLUTIONS = { 4096, 2048, 1024, 512 };
+    static constexpr std::array<uint32_t, NUM_CASCADES> CASCADE_RESOLUTIONS = { 8192, 2048, 1024, 512 };
 
     explicit CascadedShadowMap(const glm::vec3& lightDirection);
     ~CascadedShadowMap() = default;

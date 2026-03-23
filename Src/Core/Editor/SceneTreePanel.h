@@ -18,6 +18,7 @@ public:
 
     void DrawSceneTree(Node3d* node);
     void DeleteSelectedNodes();
+    void DuplicateSelectedNodes();
 
 private:
     [[nodiscard]] static Node3d* FindNodeById(Node3d* root, uint32_t id);

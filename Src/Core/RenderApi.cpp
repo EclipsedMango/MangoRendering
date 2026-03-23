@@ -20,6 +20,7 @@ void RenderApi::InitSDL() {
 
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
 }
@@ -231,7 +232,7 @@ void RenderApi::Flush() {
 
     // shadow pass
     glEnable(GL_POLYGON_OFFSET_FILL);
-    glPolygonOffset(1.5f, 2.0f);
+    glPolygonOffset(2.5f, 3.0f);
     m_shadowRenderer->RenderDirectionalShadows(*m_activeCamera, opaqueQueue, m_windows[0]->GetSize());
     glDisable(GL_POLYGON_OFFSET_FILL);
     m_shadowRenderer->RenderPointLightShadows(*m_activeCamera, m_lightManager->GetPointLights(), opaqueQueue, m_windows[0]->GetSize());

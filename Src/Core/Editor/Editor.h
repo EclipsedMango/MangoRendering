@@ -24,6 +24,7 @@ public:
 
 private:
     // panels
+    void DrawViewport();
     void DrawMenuBar();
     void DrawContentBrowser();
     void DrawGizmo();
@@ -34,13 +35,25 @@ private:
     void OnStop();
 
     void UpdateEditorCamera(float dt);
+    void DrawWorldOBB(const glm::mat4& worldMatrix, const glm::vec3& localCenter, const glm::vec3& half, ImU32 color) const;
+
+    static void ExpandLocalAABB(Node3d* root, const Node3d* node, glm::mat4& rootWorldInv, glm::vec3& minB, glm::vec3& maxB);
+    void DrawWorldDirections();
+    bool WorldToScreen(const glm::vec3& worldPos, const glm::mat4& viewProj, ImVec2& out) const;
+
+    ImVec2 m_viewportPos = {0, 0};
+    ImVec2 m_viewportSize = {0, 0};
 
     // cameras
     std::unique_ptr<CameraNode3d> m_editorCamera;
     CameraNode3d* m_gameCamera = nullptr;
 
+    bool m_wasUsingGizmo = false;
+    std::vector<glm::vec3> m_gizmoInitialScales;
+
     // flycam controls
     bool m_rmbLook = false;
+    bool m_viewportHovered = false;
     bool m_snapObjectMovement = false;
     float m_moveSpeed = 5.0f;
     float m_mouseSensitivity = 0.08f;

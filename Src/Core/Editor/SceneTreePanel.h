@@ -3,6 +3,8 @@
 #define MANGORENDERING_SCENETREEPANEL_H
 
 #include <cstdint>
+#include <vector>
+
 #include "imgui.h"
 
 class Core;
@@ -15,6 +17,7 @@ public:
     ~SceneTreePanel() = default;
 
     [[nodiscard]] Node3d* GetSelectedNode() const { return m_lastSelectedNode; };
+    [[nodiscard]] std::vector<Node3d*> GetSelectedNodes();
 
     void DrawSceneTree(Node3d* node);
     void DeleteSelectedNodes();

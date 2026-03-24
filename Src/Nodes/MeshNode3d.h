@@ -12,7 +12,7 @@ public:
     explicit MeshNode3d(Shader* shader);
     MeshNode3d(std::shared_ptr<Mesh> mesh, Shader* shader);
 
-    [[nodiscard]] Node3d* Clone() const override;
+    [[nodiscard]] Node3d* Clone() override;
 
     void SubmitToRenderer(RenderApi& renderer) override;
 

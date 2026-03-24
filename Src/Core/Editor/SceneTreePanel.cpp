@@ -16,6 +16,24 @@
 
 SceneTreePanel::SceneTreePanel(Editor* editor) : m_editor(editor) {}
 
+std::vector<Node3d*> SceneTreePanel::GetSelectedNodes() {
+    std::vector<uint32_t> idsToDuplicate;
+    idsToDuplicate.reserve(static_cast<size_t>(m_selection.Size));
+
+    ImGuiID selId = 0;
+    void* it = nullptr;
+    while (m_selection.GetNextSelectedItem(&it, &selId)) {
+        idsToDuplicate.push_back(static_cast<uint32_t>(selId));
+    }
+
+    std::vector<Node3d*> selectedNodes;
+    for (const auto id : idsToDuplicate) {
+        selectedNodes.push_back(FindNodeById(m_editor->GetCore().GetScene(), id));
+    }
+
+    return selectedNodes;
+}
+
 void SceneTreePanel::DrawSceneTree(Node3d *node) {
     ImGui::Begin("Scene Tree");
 
@@ -217,7 +235,7 @@ void SceneTreePanel::DuplicateSelectedNodes() {
     newIds.reserve(idsToDuplicate.size());
 
     for (const uint32_t id : idsToDuplicate) {
-        const Node3d* n = FindNodeById(m_editor->GetCore().GetScene(), id);
+        Node3d* n = FindNodeById(m_editor->GetCore().GetScene(), id);
         if (!n) {
             continue;
         }
@@ -229,6 +247,8 @@ void SceneTreePanel::DuplicateSelectedNodes() {
 
         Node3d* duplicate = n->Clone();
         parent->AddChild(duplicate);
+        duplicate->UpdateWorldTransform(parent->GetWorldMatrix());
+
         newIds.push_back(duplicate->GetId());
     }
 

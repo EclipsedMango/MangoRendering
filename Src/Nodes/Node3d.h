@@ -25,7 +25,7 @@ public:
     void PropagateEnterTree(TreeListener* listener);
     void PropagateExitTree();
 
-    [[nodiscard]] virtual Node3d* Clone() const;
+    [[nodiscard]] virtual Node3d* Clone();
 
     virtual void PhysicsProcess(float deltaTime);
     virtual void Process(float deltaTime);

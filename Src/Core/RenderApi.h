@@ -78,6 +78,9 @@ public:
     static void DrawMesh(const Mesh& mesh, const Shader& shader);
     void DrawClusterVisualizer();
 
+    [[nodiscard]] GLuint GetFinalScreenBuffer() const { return m_sceneFbo->GetColorAttachment(); }
+    void ResizeSceneFbo(uint32_t w, uint32_t h) const;
+
     // Debug
     void SetDebugMode(int mode);
     void SetDebugCascade(int cascade);
@@ -130,6 +133,8 @@ private:
 
     IBLPrecomputer::Result m_ibl;
     bool m_hasIbl = false;
+
+    std::unique_ptr<Framebuffer> m_sceneFbo;
 
     std::unique_ptr<Mesh> m_debugClusterMesh;
     std::unique_ptr<Shader> m_debugClusterShader;

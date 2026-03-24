@@ -54,6 +54,10 @@ Window* RenderApi::CreateWindow(const char* title, const glm::vec2 size, const U
         InitGLResources();
     }
 
+    int w, h;
+    SDL_GetWindowSizeInPixels(window->GetSDLWindow(), &w, &h); // use local window
+    m_sceneFbo = std::make_unique<Framebuffer>(w, h, FramebufferType::ColorDepth);
+
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
@@ -201,6 +205,7 @@ void RenderApi::SetSkybox(SkyboxNode3d *skybox) {
 }
 
 void RenderApi::Flush() {
+    m_sceneFbo->Bind();
     m_stats = {};
 
     // partition into opaque and transparent
@@ -239,6 +244,9 @@ void RenderApi::Flush() {
 
     m_stats.shadowDrawCalls = m_shadowRenderer->GetShadowDrawCallCount();
 
+    m_sceneFbo->Bind();
+    ClearColour({0, 0, 0, 1});
+
     // z-prepass
     BeginZPrepass();
     for (const MeshNode3d* mesh : opaqueQueue) {
@@ -262,6 +270,8 @@ void RenderApi::Flush() {
 
     m_meshQueue.clear();
     m_transparentQueue.clear();
+
+    Framebuffer::Unbind();
 }
 
 void RenderApi::RenderMainPass() {
@@ -384,8 +394,6 @@ void RenderApi::EndZPrepass() {
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     glDepthMask(GL_FALSE);
     glDepthFunc(GL_LEQUAL);
-
-    // transparent objs go here with glDepthMask(GL_FALSE) and glDepthFunc(GL_LESS)
 }
 
 void RenderApi::RebuildClusters() const {
@@ -532,6 +540,12 @@ void RenderApi::DrawClusterVisualizer() {
     glDrawElementsInstanced(GL_LINES, m_debugClusterMesh->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, nullptr, NUM_CLUSTERS);
     glEnable(GL_CULL_FACE);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+}
+
+void RenderApi::ResizeSceneFbo(const uint32_t w, const uint32_t h) const {
+    if (m_sceneFbo && (m_sceneFbo->GetWidth() != w || m_sceneFbo->GetHeight() != h)) {
+        m_sceneFbo->Resize(w, h);
+    }
 }
 
 void RenderApi::SetDebugMode(const int mode) { m_debugMode = mode; }

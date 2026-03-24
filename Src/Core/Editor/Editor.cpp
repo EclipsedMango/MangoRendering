@@ -81,9 +81,13 @@ void Editor::Run() {
         const float deltaTime = (now - lastTime) / 1e9f;
         lastTime = now;
 
-        uint64_t cpuStart = SDL_GetTicksNS();
+        const uint64_t cpuStart = SDL_GetTicksNS();
 
         m_core.PollEvents();
+
+        if (Input::IsKeyJustPressed(SDL_SCANCODE_ESCAPE)) {
+            m_sceneTree.ClearSelection();
+        }
 
         if (Input::IsKeyJustPressed(SDL_SCANCODE_DELETE)) {
             m_sceneTree.DeleteSelectedNodes();
@@ -92,6 +96,8 @@ void Editor::Run() {
         if (Input::IsKeyJustPressedWithMod(SDL_SCANCODE_D, SDL_SCANCODE_LCTRL)) {
             m_sceneTree.DuplicateSelectedNodes();
         }
+
+        m_snapObjectMovement = Input::IsKeyHeld(SDL_SCANCODE_LCTRL) && !m_sceneTree.GetSelectedNodes().empty() && !Input::IsMouseButtonJustReleased(SDL_SCANCODE_LCTRL);
 
         Core::BeginImGuiFrame();
         if (m_rmbLook) {
@@ -114,7 +120,7 @@ void Editor::Run() {
         m_core.RenderScene();
         Core::EndImGuiFrame();
 
-        uint64_t cpuEnd = SDL_GetTicksNS();
+        const uint64_t cpuEnd = SDL_GetTicksNS();
         m_cpuTime = static_cast<float>(cpuEnd - cpuStart) / 1000000.0f;
 
         m_core.SwapBuffers();
@@ -246,7 +252,7 @@ void Editor::DrawGizmo() {
     ImGuizmo::SetDrawlist(ImGui::GetWindowDrawList());
     ImGuizmo::SetRect(m_viewportPos.x, m_viewportPos.y, m_viewportSize.x, m_viewportSize.y);
     ImGuizmo::Enable(!m_rmbLook);
-    ImGuizmo::SetGizmoSizeClipSpace(0.25f);
+    ImGuizmo::SetGizmoSizeClipSpace(0.2f);
 
     glm::mat4 view = m_editorCamera->GetViewMatrix();
     glm::mat4 proj = m_editorCamera->GetProjectionMatrix();
@@ -262,6 +268,18 @@ void Editor::DrawGizmo() {
     glm::mat4 pivotWorld = glm::translate(glm::mat4(1.0f), pivot);
     glm::mat4 delta = glm::mat4(1.0f);
 
+    constexpr glm::vec3 scaleTranslationSnap = glm::vec3(0.5f);
+    constexpr glm::vec3 rotationSnap = glm::vec3(45.0f);
+
+    const glm::vec3* snap = nullptr;
+    if (m_snapObjectMovement) {
+        if (m_gizmoOp == ImGuizmo::TRANSLATE || m_gizmoOp == ImGuizmo::SCALE) {
+            snap = &scaleTranslationSnap;
+        } else if (m_gizmoOp == ImGuizmo::ROTATE) {
+            snap = &rotationSnap;
+        }
+    }
+
     ImGuizmo::Manipulate(
         glm::value_ptr(view),
         glm::value_ptr(proj),
@@ -269,7 +287,7 @@ void Editor::DrawGizmo() {
         m_gizmoMode,
         glm::value_ptr(pivotWorld),
         glm::value_ptr(delta),
-        m_snapObjectMovement ? glm::value_ptr(glm::vec3(0.5f)) : nullptr
+        m_snapObjectMovement ? glm::value_ptr(*snap) : nullptr
     );
 
     const bool isUsing = ImGuizmo::IsUsing();

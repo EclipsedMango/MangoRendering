@@ -166,11 +166,6 @@ bool Core::PollEvents() const {
     }
 
     Input::EndFrame();
-
-    if (Input::IsKeyJustPressed(SDL_SCANCODE_ESCAPE)) {
-        m_activeWindow->Close();
-    }
-
     return m_activeWindow->IsOpen();
 }
 

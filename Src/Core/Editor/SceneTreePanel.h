@@ -16,6 +16,8 @@ public:
     explicit SceneTreePanel(Editor* editor);
     ~SceneTreePanel() = default;
 
+    void ClearSelection();
+
     [[nodiscard]] Node3d* GetSelectedNode() const { return m_lastSelectedNode; };
     [[nodiscard]] std::vector<Node3d*> GetSelectedNodes();
 

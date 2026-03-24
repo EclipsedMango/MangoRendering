@@ -16,6 +16,11 @@
 
 SceneTreePanel::SceneTreePanel(Editor* editor) : m_editor(editor) {}
 
+void SceneTreePanel::ClearSelection() {
+    m_selection.Clear();
+    m_lastSelectedNode = nullptr;
+}
+
 std::vector<Node3d*> SceneTreePanel::GetSelectedNodes() {
     std::vector<uint32_t> idsToDuplicate;
     idsToDuplicate.reserve(static_cast<size_t>(m_selection.Size));

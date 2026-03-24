@@ -89,10 +89,6 @@ void Editor::Run() {
             m_sceneTree.ClearSelection();
         }
 
-        if (Input::IsKeyJustPressed(SDL_SCANCODE_DELETE)) {
-            m_sceneTree.DeleteSelectedNodes();
-        }
-
         if (Input::IsKeyJustPressedWithMod(SDL_SCANCODE_D, SDL_SCANCODE_LCTRL)) {
             m_sceneTree.DuplicateSelectedNodes();
         }
@@ -116,6 +112,10 @@ void Editor::Run() {
         m_inspector.DrawInspector(m_sceneTree.GetSelectedNode());
         DrawContentBrowser();
         DrawViewport();
+
+        if (Input::IsKeyJustPressed(SDL_SCANCODE_DELETE)) {
+            m_sceneTree.DeleteSelectedNodes();
+        }
 
         m_core.RenderScene();
         Core::EndImGuiFrame();

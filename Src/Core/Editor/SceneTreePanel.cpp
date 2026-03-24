@@ -33,7 +33,9 @@ std::vector<Node3d*> SceneTreePanel::GetSelectedNodes() {
 
     std::vector<Node3d*> selectedNodes;
     for (const auto id : idsToDuplicate) {
-        selectedNodes.push_back(FindNodeById(m_editor->GetCore().GetScene(), id));
+        Node3d* selectedNode = FindNodeById(m_editor->GetCore().GetScene(), id);
+        if (!selectedNode) continue;
+        selectedNodes.push_back(selectedNode);
     }
 
     return selectedNodes;
@@ -161,6 +163,24 @@ void SceneTreePanel::DrawSceneTree(Node3d *node) {
         const bool open = ImGui::TreeNodeEx("##node", flags, "%s", n->GetName().c_str());
         ImGui::PopID();
 
+        if (ImGui::BeginPopupContextItem("node_ctx")) {
+            if (ImGui::MenuItem("Duplicate")) DuplicateSelectedNodes();
+            if (ImGui::MenuItem("Delete")) {
+                ImGuiID id = 0;
+                void* it2 = nullptr;
+                while (m_selection.GetNextSelectedItem(&it2, &id)) {
+                    m_pendingDeletes.push_back(id);
+                }
+            }
+            ImGui::Separator();
+            if (ImGui::BeginMenu("Add Child")) {
+                if (ImGui::MenuItem("Node3D")) { /* TODO */ }
+                if (ImGui::MenuItem("MeshNode")) { /* TODO */ }
+                ImGui::EndMenu();
+            }
+            ImGui::EndPopup();
+        }
+
         if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
             m_lastSelectedNode = n;
         }
@@ -183,6 +203,12 @@ void SceneTreePanel::DrawSceneTree(Node3d *node) {
 
     msIO = ImGui::EndMultiSelect();
     m_selection.ApplyRequests(msIO);
+
+    if (!m_pendingDeletes.empty()) {
+        DeleteSelectedNodes();
+        m_pendingDeletes.clear();
+    }
+
     ImGui::End();
 }
 

@@ -34,6 +34,8 @@ private:
     bool m_scrollToSelected = false;
     ImGuiSelectionBasicStorage m_selection;
     Node3d* m_lastSelectedNode = nullptr;
+
+    std::vector<uint32_t> m_pendingDeletes;
 };
 
 

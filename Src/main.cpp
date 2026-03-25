@@ -1,5 +1,6 @@
 
 #include "Core/Core.h"
+#include "Core/ResourceManager.h"
 #include "Core/Editor/Editor.h"
 #include "Nodes/MeshNode3d.h"
 #include "Renderer/Shader.h"
@@ -19,7 +20,7 @@ int main() {
 
     auto texture = std::make_shared<Texture>("../Assets/Textures/face.png");
     auto teddyTexture = std::make_shared<Texture>("../Assets/Textures/Cubemaps/sky_16_2k/sky_16_2k.png");
-    Shader* shader = new Shader("../Assets/Shaders/test.vert", "../Assets/Shaders/test.frag");
+    const auto shader = ResourceManager::Get().LoadShader("default", "../Assets/Shaders/test.vert", "../Assets/Shaders/test.frag");
 
     Node3d* teddy = GltfLoader::Load("../Assets/Models/teddy.glb", shader);
     teddy->SetPosition({0, 0, 5});
@@ -30,21 +31,24 @@ int main() {
     house->SetPosition({0, -4, -4});
     scene->AddChild(house);
 
-    MeshNode3d* cube1 = new MeshNode3d(cubeMesh, shader);
+    MeshNode3d* cube1 = new MeshNode3d(shader);
+    cube1->SetMeshByName("Cube");
     cube1->SetPosition({0, -4.9, 2});
     cube1->SetScale({0.2f, 0.2f, 0.2f});
     cube1->GetActiveMaterial().SetMetallicValue(1.0);
     cube1->GetActiveMaterial().SetRoughnessValue(0.5);
     scene->AddChild(cube1);
 
-    MeshNode3d* sphere = new MeshNode3d(sphereMesh, shader);
+    MeshNode3d* sphere = new MeshNode3d(shader);
+    sphere->SetMeshByName("Sphere");
     sphere->GetActiveMaterial().SetMetallicValue(0.75);
     sphere->GetActiveMaterial().SetRoughnessValue(0.25);
     sphere->SetPosition({0, 4, -2});
     scene->AddChild(sphere);
 
     for (int i = 0; i < 100; i++) {
-        MeshNode3d* cube = new MeshNode3d(cubeMesh, shader);
+        MeshNode3d* cube = new MeshNode3d(shader);
+        cube->SetMeshByName("Cube");
         cube->SetPosition({
             (i % 10) * 2.0f - 9.0f,
             -4.9f,
@@ -71,7 +75,6 @@ int main() {
 
     texture.reset();
     teddyTexture.reset();
-    delete shader;
 
     return 0;
 }

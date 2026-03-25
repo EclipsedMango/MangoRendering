@@ -1,7 +1,9 @@
 
 #include "CameraNode3d.h"
 
-#include "Core/Input.h"
+REGISTER_NODE_TYPE(CameraNode3d)
+
+CameraNode3d::CameraNode3d() : CameraNode3d(glm::vec3(0.0f), 60.0f, 16.0f / 9.0f) {}
 
 CameraNode3d::CameraNode3d(const glm::vec3 position, const float fov, const float aspectRatio) : m_fov(fov), m_aspectRatio(aspectRatio) {
     SetPosition(position);

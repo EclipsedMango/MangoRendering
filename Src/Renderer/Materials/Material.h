@@ -19,21 +19,23 @@ public:
 
     void SetName(const std::string& name);
     void SetAlbedoColor(const glm::vec4& color);
-    void SetMetallicValue(const float value);
-    void SetRoughnessValue(const float value);
-    void SetAOStrength(const float value);
-    void SetNormalStrength(const float value);
-    void SetEmissionStrength(const float value);
+    void SetMetallicValue(float value);
+    void SetRoughnessValue(float value);
+    void SetAOStrength(float value);
+    void SetNormalStrength(float value);
+    void SetEmissionStrength(float value);
     void SetEmissionColor(const glm::vec3& color);
-    void SetDisplacementScale(const float value);
-    void SetUseDisplacement(const bool value);
-    void SetCastShadows(const bool value);
-    void SetDoubleSided(const bool value);
-    void SetDirty(const bool value);
-    void SetBlendMode(const BlendMode mode);
-    void SetAlphaScissorThreshold(const float value);
+    void SetDisplacementScale(float value);
+    void SetUseDisplacement(bool value);
+    void SetCastShadows(bool value);
+    void SetDoubleSided(bool value);
+    void SetDirty(bool value);
+    void SetBlendMode(BlendMode mode);
+    void SetAlphaScissorThreshold(float value);
     void SetUVScale(const glm::vec2& scale);
     void SetUVOffset(const glm::vec2& offset);
+
+    [[nodiscard]] std::string GetPropertyHolderType() const override { return "Material"; }
 
     [[nodiscard]] std::string GetName() const { return m_name; }
     [[nodiscard]] glm::vec4 GetAlbedoColor() const { return m_albedoColor; }

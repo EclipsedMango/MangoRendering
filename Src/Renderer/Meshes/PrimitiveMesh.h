@@ -9,7 +9,7 @@ static constexpr float PRIM_PI = 3.14159265358979323846f;
 // ----- base -----
 class PrimitiveMesh : public Mesh {
 public:
-    virtual ~PrimitiveMesh() = default;
+    ~PrimitiveMesh() override = default;
 
 protected:
     PrimitiveMesh() = default;

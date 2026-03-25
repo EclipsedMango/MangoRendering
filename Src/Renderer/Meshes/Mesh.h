@@ -9,6 +9,9 @@
 
 class Mesh : public PropertyHolder {
 public:
+    // ONLY for internal use and serializing, use other constructors instead
+    Mesh() { RegisterProperties(); }
+
     Mesh(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
     virtual ~Mesh() = default;
 
@@ -18,6 +21,8 @@ public:
     void Upload();
     void Regenerate(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
 
+    [[nodiscard]] std::string GetPropertyHolderType() const override { return "Mesh"; }
+
     [[nodiscard]] bool IsUploaded() const { return m_buffer != nullptr; }
 
     [[nodiscard]] const std::vector<Vertex>& GetVertices() const { return m_vertices; }
@@ -26,9 +31,6 @@ public:
 
     [[nodiscard]] glm::vec3 GetBoundsCenter() const { return m_boundsCenter; }
     [[nodiscard]] float GetBoundsRadius() const { return m_boundsRadius; }
-
-protected:
-    Mesh() { RegisterProperties(); }
 
 private:
     void RegisterProperties();

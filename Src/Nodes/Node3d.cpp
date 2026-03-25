@@ -6,6 +6,8 @@
 
 #include "Core/TreeListener.h"
 
+REGISTER_NODE_TYPE(Node3d)
+
 Node3d::Node3d() : m_id(++s_nextId) {
     AddProperty("name",
         [this]{ return GetName(); },

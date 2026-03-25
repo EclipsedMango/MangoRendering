@@ -146,7 +146,7 @@ std::shared_ptr<Material> BuildMaterial(const tinygltf::Model& model, const int 
     return mat;
 }
 
-Node3d* GltfLoader::Load(const std::string& path, Shader* shader) {
+Node3d* GltfLoader::Load(const std::string& path, std::shared_ptr<Shader> shader) {
     tinygltf::TinyGLTF loader;
     tinygltf::Model model;
     std::string err, warn;
@@ -367,4 +367,76 @@ Node3d* GltfLoader::Load(const std::string& path, Shader* shader) {
     }
 
     return root;
+}
+
+std::shared_ptr<Mesh> GltfLoader::ExtractFirstMesh(const std::string& path) {
+    tinygltf::TinyGLTF loader;
+    tinygltf::Model model;
+    std::string err, warn;
+
+    const bool success = path.ends_with(".glb") ? loader.LoadBinaryFromFile(&model, &err, &warn, path) : loader.LoadASCIIFromFile(&model, &err, &warn, path);
+    if (!success || model.meshes.empty() || model.meshes[0].primitives.empty()) return nullptr;
+
+    const auto& primitive = model.meshes[0].primitives[0];
+    if (!primitive.attributes.contains("POSITION")) return nullptr;
+
+    AccessorData posData = GetAccessorData(model, primitive.attributes.at("POSITION"));
+
+    AccessorData normData;
+    if (primitive.attributes.contains("NORMAL")) normData = GetAccessorData(model, primitive.attributes.at("NORMAL"));
+
+    AccessorData uvData;
+    if (primitive.attributes.contains("TEXCOORD_0")) uvData = GetAccessorData(model, primitive.attributes.at("TEXCOORD_0"));
+
+    std::vector<Vertex> vertices;
+    vertices.reserve(posData.count);
+
+    constexpr size_t floatSize = sizeof(float);
+    for (size_t i = 0; i < posData.count; i++) {
+        Vertex v{};
+        v.position = {
+            ReadFloat(posData.base, TINYGLTF_COMPONENT_TYPE_FLOAT, i, posData.stride, 0),
+            ReadFloat(posData.base, TINYGLTF_COMPONENT_TYPE_FLOAT, i, posData.stride, floatSize),
+            ReadFloat(posData.base, TINYGLTF_COMPONENT_TYPE_FLOAT, i, posData.stride, floatSize * 2)
+        };
+
+        if (normData.valid) {
+            v.normal = {
+                ReadFloat(normData.base, normData.compType, i, normData.stride, 0),
+                ReadFloat(normData.base, normData.compType, i, normData.stride, tinygltf::GetComponentSizeInBytes(normData.compType)),
+                ReadFloat(normData.base, normData.compType, i, normData.stride, tinygltf::GetComponentSizeInBytes(normData.compType) * 2)
+            };
+        } else v.normal = glm::vec3(0, 1, 0);
+
+        if (uvData.valid) {
+            const size_t cs = tinygltf::GetComponentSizeInBytes(uvData.compType);
+            v.texCoord = {
+                ReadFloat(uvData.base, uvData.compType, i, uvData.stride, 0),
+                ReadFloat(uvData.base, uvData.compType, i, uvData.stride, cs)
+            };
+        } else v.texCoord = glm::vec2(0.0f);
+
+        vertices.push_back(v);
+    }
+
+    std::vector<uint32_t> indices;
+    if (primitive.indices >= 0) {
+        const auto& idxAccessor = model.accessors[primitive.indices];
+        const auto& idxView = model.bufferViews[idxAccessor.bufferView];
+        const uint8_t* idxData = model.buffers[idxView.buffer].data.data() + idxView.byteOffset + idxAccessor.byteOffset;
+        size_t idxStride = idxView.byteStride > 0 ? idxView.byteStride : tinygltf::GetComponentSizeInBytes(idxAccessor.componentType);
+
+        indices.reserve(idxAccessor.count);
+        for (size_t i = 0; i < idxAccessor.count; i++) {
+            const uint8_t* p = idxData + i * idxStride;
+            switch (idxAccessor.componentType) {
+                case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE: indices.push_back(*p); break;
+                case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT: indices.push_back(*reinterpret_cast<const uint16_t*>(p)); break;
+                case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT: indices.push_back(*reinterpret_cast<const uint32_t*>(p)); break;
+                default: break;
+            }
+        }
+    }
+
+    return std::make_shared<Mesh>(vertices, indices);
 }

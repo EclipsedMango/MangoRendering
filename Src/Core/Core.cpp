@@ -13,12 +13,13 @@
 #include "Nodes/Lights/SpotLightNode3d.h"
 #include <algorithm>
 
+#include "ResourceManager.h"
+
 Core::Core(Node3d* scene) : m_currentScene(scene) {}
 
 Core::~Core() {
     delete m_currentScene;
     m_currentScene = nullptr;
-
     m_defaultShader.reset();
 
     ImGui_ImplOpenGL3_Shutdown();
@@ -95,7 +96,7 @@ void Core::InitRenderer() {
     SDL_GL_SetSwapInterval(0);
     SDL_SetWindowRelativeMouseMode(m_activeWindow->GetSDLWindow(), true);
 
-    m_defaultShader = std::make_unique<Shader>("../Assets/Shaders/test.vert", "../Assets/Shaders/test.frag");
+    m_defaultShader = ResourceManager::Get().LoadShader("default", "../Assets/Shaders/test.vert", "../Assets/Shaders/test.frag");
 }
 
 void Core::InitImGui() const {
@@ -315,9 +316,18 @@ void Core::SetCameraMode(CameraMode mode) {
 }
 
 void Core::ChangeScene(Node3d* scene) {
+    if (m_currentScene) {
+        m_currentScene->PropagateExitTree();
+    }
+
     delete m_currentScene;
     m_currentScene = scene;
+
     m_nodeCache.clear();
     m_renderableCache.clear();
+    m_lightNodeCache.clear();
+    m_gameCamera = nullptr;
+    m_activeSkybox = nullptr;
+
     m_currentScene->PropagateEnterTree(this);
 }

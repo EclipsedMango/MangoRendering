@@ -6,6 +6,7 @@
 
 #include "Editor.h"
 #include "Core/Core.h"
+#include "Core/ResourceManager.h"
 #include "glm/vec2.hpp"
 #include "glm/vec3.hpp"
 #include "Nodes/CameraNode3d.h"
@@ -90,7 +91,7 @@ void SceneTreePanel::DrawSceneTree(Node3d *node) {
                         break;
                     }
                     case 1: {
-                        created = new MeshNode3d(std::make_shared<CubeMesh>(), m_editor->GetCore().GetDefaultShader());
+                        created = new MeshNode3d(std::make_shared<CubeMesh>(), ResourceManager::Get().LoadShader("test", "../Assets/Shaders/test.vert", "../Assets/Shaders/test.frag"));
                         created->SetName("MeshNode3d");
                         break;
                     }
@@ -143,7 +144,7 @@ void SceneTreePanel::DrawSceneTree(Node3d *node) {
     ImGuiMultiSelectIO* msIO = ImGui::BeginMultiSelect(msFlags, m_selection.Size, totalNodes);
     m_selection.ApplyRequests(msIO);
 
-    // Tree drawing
+    // tree drawing
     std::function<void(Node3d*)> drawNode = [&](Node3d* n) {
         const ImGuiID sid = n->GetId();
 
@@ -228,7 +229,7 @@ void SceneTreePanel::DeleteSelectedNodes() {
 
     for (const uint32_t id : idsToDelete) {
         Node3d* n = FindNodeById(m_editor->GetCore().GetScene(), id);
-        if (!n || n == m_editor->GetCore().GetScene()) {
+        if (!n || n == m_editor->GetCore().GetScene() || n->GetNodeType() == std::string("SkyboxNode3d")) {
             continue;
         }
 
@@ -290,7 +291,7 @@ void SceneTreePanel::DuplicateSelectedNodes() {
     }
 }
 
-Node3d * SceneTreePanel::FindNodeById(Node3d *root, const uint32_t id) {
+Node3d* SceneTreePanel::FindNodeById(Node3d *root, const uint32_t id) {
     if (!root) {
         return nullptr;
     }

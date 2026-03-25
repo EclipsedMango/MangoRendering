@@ -9,8 +9,11 @@
 
 class GltfLoader {
 public:
-    // returns a root Node3d with all meshes as children, caller owns the pointer
-    static Node3d* Load(const std::string& path, Shader* shader);
+    // loads the full scene hierarchy, caller owns the returned Node3d pointer
+    static Node3d* Load(const std::string& path, std::shared_ptr<Shader> shader);
+
+    // extracts just the first mesh found in the file (useful for the ResourceManager)
+    static std::shared_ptr<Mesh> ExtractFirstMesh(const std::string& path);
 };
 
 #endif //MANGORENDERING_GLTFLOADER_H

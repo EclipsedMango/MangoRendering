@@ -51,7 +51,6 @@ public:
     [[nodiscard]] CameraNode3d* GetActiveCamera() const { return m_activeCamera; }
     [[nodiscard]] CameraNode3d* GetEditorCamera() const { return m_editorCamera; }
     [[nodiscard]] CameraNode3d* GetGameCamera() const { return m_gameCamera; }
-    [[nodiscard]] Shader* GetDefaultShader() const { return m_defaultShader.get(); }
 
 private:
     void InitRenderer();
@@ -72,6 +71,8 @@ private:
     Node3d* m_currentScene = nullptr;
     Window* m_activeWindow = nullptr;
 
+    std::shared_ptr<Shader> m_defaultShader;
+
     std::vector<Node3d*> m_nodeCache;
     std::vector<RenderableNode3d*> m_renderableCache;
     std::vector<LightNode3d*> m_lightNodeCache;
@@ -81,7 +82,6 @@ private:
     CameraNode3d* m_editorCamera = nullptr;
     CameraNode3d* m_gameCamera   = nullptr;
     CameraNode3d* m_activeCamera = nullptr;
-    std::unique_ptr<Shader> m_defaultShader;
 };
 
 

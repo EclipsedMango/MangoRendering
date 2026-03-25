@@ -1,6 +1,10 @@
 
 #include "PointLightNode3d.h"
 
+REGISTER_NODE_TYPE(PointLightNode3d)
+
+PointLightNode3d::PointLightNode3d() : PointLightNode3d(glm::vec3(0.0f), glm::vec3(1.0f), 1.0f, 8.0f) {}
+
 PointLightNode3d::PointLightNode3d(const glm::vec3 position, const glm::vec3 color, const float intensity, const float radius) : LightNode3d(color, intensity), m_light(position, color, intensity, radius) {
     SetPosition(position);
     SetName("PointLightNode3d");

@@ -6,6 +6,7 @@
 
 class CameraNode3d : public Node3d {
 public:
+    CameraNode3d();
     CameraNode3d(glm::vec3 position, float fov, float aspectRatio);
     ~CameraNode3d() override = default;
 
@@ -17,6 +18,7 @@ public:
 
     void Process(float deltaTime) override {}
 
+    [[nodiscard]] std::string GetNodeType() const override { return "CameraNode3d"; }
     [[nodiscard]] glm::mat4 GetViewMatrix() const;
     [[nodiscard]] glm::mat4 GetProjectionMatrix() const;
 

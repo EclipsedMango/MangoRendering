@@ -9,6 +9,9 @@
 
 class Texture : public PropertyHolder {
 public:
+    // ONLY for internal use and serializing, use other constructors instead
+    Texture() = default;
+
     explicit Texture(const std::string& path, bool flipVertically = true);
     explicit Texture(const unsigned char* data, int width, int height, int channels, std::string key);
     explicit Texture(int width, int height, GLenum internalFormat);
@@ -25,6 +28,8 @@ public:
 
     static Texture* LoadHDR(const std::string& path);
 
+    [[nodiscard]] std::string GetPropertyHolderType() const override { return "Texture"; }
+
     [[nodiscard]] const std::string& GetPath() const { return m_path; }
     [[nodiscard]] GLuint GetGLHandle()  const { return m_id; }
     [[nodiscard]] int GetWidth() const { return m_width; }
@@ -33,7 +38,6 @@ public:
     [[nodiscard]] bool IsCubemap()  const { return m_target == GL_TEXTURE_CUBE_MAP; }
 
 private:
-    Texture() = default;
     void RegisterProperties();
 
     std::string m_path;

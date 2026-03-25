@@ -29,8 +29,8 @@ FetchContent_MakeAvailable(stb)
 FetchContent_Declare(tinygltf GIT_REPOSITORY https://github.com/syoyo/tinygltf.git GIT_TAG v2.9.6)
 FetchContent_MakeAvailable(tinygltf)
 
-FetchContent_Declare(json GIT_REPOSITORY https://github.com/nlohmann/json.git GIT_TAG v3.11.3)
-FetchContent_MakeAvailable(json)
+FetchContent_Declare(fkYAML GIT_REPOSITORY https://github.com/fktn-k/fkYAML.git GIT_TAG v0.4.2)
+FetchContent_MakeAvailable(fkYAML)
 
 add_library(imgui STATIC
         ${imgui_SOURCE_DIR}/imgui.cpp
@@ -133,9 +133,12 @@ add_executable(MangoRendering Src/main.cpp
         Src/Core/PackedScene.h
         Src/Core/PropertyHolder.h
         Src/Core/ResourceManager.h
+        Src/Core/NodeRegistry.h
+        Src/Core/PropertyRegistry.h
+        Src/Core/PropertyHolder.cpp
 )
 
-target_link_libraries(MangoRendering SDL3::SDL3 glad_gl imgui ${CMAKE_DL_LIBS} nlohmann_json::nlohmann_json)
+target_link_libraries(MangoRendering SDL3::SDL3 glad_gl imgui ${CMAKE_DL_LIBS} fkYAML::fkYAML)
 target_include_directories(MangoRendering PRIVATE ${CMAKE_SOURCE_DIR}/Src include ${glm_SOURCE_DIR} ${stb_SOURCE_DIR} ${tinygltf_SOURCE_DIR})
 
 add_custom_target(copy_assets ALL

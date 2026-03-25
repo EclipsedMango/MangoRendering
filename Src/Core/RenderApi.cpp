@@ -34,6 +34,7 @@ RenderApi::~RenderApi() {
     m_cameraUbo.reset();
     m_debugClusterMesh.reset();
     m_debugClusterShader.reset();
+    m_sceneFbo.reset();
     m_ibl = {};
     m_skybox = nullptr;
 
@@ -196,8 +197,8 @@ void RenderApi::RemoveSpotLight(SpotLight* light) const { m_lightManager->Remove
 void RenderApi::SetSkybox(SkyboxNode3d *skybox) {
     m_skybox = skybox;
 
-    if (skybox) {
-        m_ibl = IBLPrecomputer::Compute(skybox->GetSkybox().GetTexture());
+    if (skybox && skybox->GetSkybox()) {
+        m_ibl = IBLPrecomputer::Compute(skybox->GetSkybox()->GetTexture());
         m_hasIbl = true;
     } else {
         m_hasIbl = false;
@@ -262,7 +263,7 @@ void RenderApi::Flush() {
     RenderMainPass();
 
     if (m_skybox) {
-        m_skybox->GetSkybox().Draw(m_activeCamera->GetViewMatrix(), m_activeCamera->GetProjectionMatrix());
+        m_skybox->GetSkybox()->Draw(m_activeCamera->GetViewMatrix(), m_activeCamera->GetProjectionMatrix());
     }
 
     // transparent pass
@@ -298,7 +299,7 @@ void RenderApi::RenderMainPass() {
             continue;
         }
 
-        const Shader* currentShader = node->GetShader();
+        const Shader* currentShader = node->GetShader().get();
         const Material& currentMat = node->GetActiveMaterial();
 
         if (currentShader != lastShader) {
@@ -360,7 +361,7 @@ void RenderApi::RenderTransparentPass() {
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         }
 
-        const Shader* currentShader = node->GetShader();
+        const Shader* currentShader = node->GetShader().get();
         const Material& currentMat = node->GetActiveMaterial();
 
         if (currentShader != lastShader) {
@@ -421,7 +422,7 @@ void RenderApi::DrawMeshNode(const MeshNode3d* node) {
     const Material& mat = node->GetActiveMaterial();
     ApplyMaterialCull(mat);
 
-    const Shader* shader = node->GetShader();
+    const Shader* shader = node->GetShader().get();
     shader->Bind();
     m_shadowRenderer->BindShadowUniforms(*shader);
 
@@ -517,7 +518,7 @@ void RenderApi::DrawClusterVisualizer() {
             0,4, 1,5, 2,6, 3,7    // verticals
         };
 
-        m_debugClusterMesh   = std::make_unique<Mesh>(vertices, indices);
+        m_debugClusterMesh = std::make_unique<Mesh>(vertices, indices);
         m_debugClusterMesh->Upload();
         m_debugClusterShader = std::make_unique<Shader>("../Assets/Shaders/debug_clusters.vert", "../Assets/Shaders/debug_clusters.frag");
     }

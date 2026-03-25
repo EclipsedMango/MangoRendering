@@ -3,6 +3,8 @@
 
 #include "Core/ResourceManager.h"
 
+REGISTER_PROPERTY_TYPE(Material)
+
 Material::Material() {
     AddProperty("albedo_color",
         [this]() -> PropertyValue { return glm::vec3(GetAlbedoColor()); },

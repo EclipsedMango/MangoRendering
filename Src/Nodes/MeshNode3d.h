@@ -9,20 +9,26 @@
 
 class MeshNode3d : public RenderableNode3d {
 public:
-    explicit MeshNode3d(Shader* shader);
-    MeshNode3d(std::shared_ptr<Mesh> mesh, Shader* shader);
+    MeshNode3d();
+    explicit MeshNode3d(std::shared_ptr<Shader> shader);
+    MeshNode3d(std::shared_ptr<Mesh> mesh, std::shared_ptr<Shader> shader);
 
     [[nodiscard]] Node3d* Clone() override;
 
     void SubmitToRenderer(RenderApi& renderer) override;
 
-    void SetMesh(std::shared_ptr<Mesh> mesh) { m_mesh = std::move(mesh); };
+    void SetMesh(std::shared_ptr<Mesh> mesh) { m_mesh = std::move(mesh); }
+    void SetMeshByName(const std::string& name);
+    void SetShader(const std::string& path) { m_shaderPath = path; }
+    void SetShader(std::shared_ptr<Shader> shader) { m_shader = std::move(shader); }
     void SetMaterial(const std::shared_ptr<Material> &material) { m_material = material; }
     void SetMaterialOverride(const std::shared_ptr<Material> &material) { m_materialOverride = material; }
     void ClearMaterialOverride() { m_materialOverride = nullptr; }
 
-    [[nodiscard]] Mesh* GetMesh()   const { return m_mesh ? m_mesh.get() : nullptr; }
-    [[nodiscard]] Shader* GetShader() const { return m_shader; }
+    [[nodiscard]] std::string GetNodeType() const override { return "MeshNode3d"; }
+    [[nodiscard]] Mesh* GetMesh() const { return m_mesh ? m_mesh.get() : nullptr; }
+    [[nodiscard]] std::shared_ptr<Shader> GetShader() const { return m_shader; }
+    [[nodiscard]] const std::string& GetShaderPath() const { return m_shaderPath; }
     [[nodiscard]] Material& GetActiveMaterial() { return m_materialOverride ? *m_materialOverride : *m_material; }
     [[nodiscard]] const Material& GetActiveMaterial() const { return m_materialOverride ? *m_materialOverride : *m_material; }
 
@@ -31,13 +37,14 @@ public:
 
 private:
     void Init();
-    [[nodiscard]] std::string GetMeshTypeName() const;
-    void SetMeshByName(const std::string& name);
 
     std::shared_ptr<PropertyHolder> m_meshSlot;
 
-    Shader* m_shader = nullptr;
+    std::string m_shaderPath = "default";
+    std::string m_meshName = "None";
+    std::string m_meshTypeName = "None";
 
+    std::shared_ptr<Shader> m_shader;
     std::shared_ptr<Mesh> m_mesh;
     std::shared_ptr<Material> m_material;
     std::shared_ptr<Material> m_materialOverride;

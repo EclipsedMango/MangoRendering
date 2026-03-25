@@ -8,6 +8,8 @@
 #include <stdexcept>
 #include <utility>
 
+REGISTER_PROPERTY_TYPE(Texture)
+
 static void GetFormats(const int channels, const std::string& label, GLenum& internalFormat, GLenum& format) {
     switch (channels) {
         case 1: internalFormat = GL_R8; format = GL_RED; break;

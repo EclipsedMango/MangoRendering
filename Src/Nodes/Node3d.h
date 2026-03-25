@@ -10,6 +10,7 @@
 #include <glm/gtc/quaternion.hpp>
 
 #include "Core/PropertyHolder.h"
+#include "Core/NodeRegistry.h"
 
 enum class NodeNotification;
 class TreeListener;
@@ -48,6 +49,7 @@ public:
 
     [[nodiscard]] bool IsRoot() const { return m_is_root; }
     [[nodiscard]] std::string GetName() const { return m_name; }
+    [[nodiscard]] virtual std::string GetNodeType() const { return "Node3d"; }
     [[nodiscard]] bool IsVisible() const { return m_visible; }
     [[nodiscard]] glm::vec3 GetPosition() const { return m_position; }
     [[nodiscard]] glm::vec3 GetScale() const { return m_scale; }

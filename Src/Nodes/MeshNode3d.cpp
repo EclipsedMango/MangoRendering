@@ -2,14 +2,20 @@
 #include "MeshNode3d.h"
 
 #include "Core/RenderApi.h"
+#include "Core/ResourceManager.h"
 #include "Renderer/Meshes/PrimitiveMesh.h"
 
-// for inspector use
-MeshNode3d::MeshNode3d(Shader* shader) : m_shader(shader), m_material(std::make_shared<Material>()) {
+REGISTER_NODE_TYPE(MeshNode3d)
+
+MeshNode3d::MeshNode3d() : m_material(std::make_shared<Material>()) {
     Init();
 }
 
-MeshNode3d::MeshNode3d(std::shared_ptr<Mesh> mesh, Shader* shader) : m_shader(shader), m_mesh(std::move(mesh)), m_material(std::make_shared<Material>()) {
+MeshNode3d::MeshNode3d(std::shared_ptr<Shader> shader) : m_shader(std::move(shader)), m_material(std::make_shared<Material>()) {
+    Init();
+}
+
+MeshNode3d::MeshNode3d(std::shared_ptr<Mesh> mesh, std::shared_ptr<Shader> shader) : m_shader(std::move(shader)), m_mesh(std::move(mesh)), m_material(std::make_shared<Material>()) {
     Init();
 }
 
@@ -37,53 +43,71 @@ Node3d* MeshNode3d::Clone() {
 }
 
 void MeshNode3d::SubmitToRenderer(RenderApi& renderer) {
-    if (!m_mesh || !IsVisible()) return;
+    if (!m_mesh || !m_shader || !IsVisible()) return;
     renderer.SubmitMesh(this);
+}
+
+void MeshNode3d::SetMeshByName(const std::string &name) {
+    m_meshName = name;
+    m_mesh = ResourceManager::Get().LoadMesh(name);
 }
 
 void MeshNode3d::Init() {
     SetName("MeshNode3d");
     m_meshSlot = std::make_shared<PropertyHolder>();
 
-    m_meshSlot->AddProperty("mesh_type",
-        [this]() -> PropertyValue { return GetMeshTypeName(); },
-        [this](const PropertyValue& v) { SetMeshByName(std::get<std::string>(v)); }
+    AddProperty("shader_path",
+        [this]() -> PropertyValue { return m_shaderPath; },
+        [this](const PropertyValue& v) {
+            m_shaderPath = std::get<std::string>(v);
+            m_shader = ResourceManager::Get().GetShader(m_shaderPath);
+            if (!m_shader) {
+                std::cerr << "[MeshNode3d] WARNING: Shader '" << m_shaderPath << "' is null! Did you preload it?\n";
+            }
+        }
     );
-    m_meshSlot->AddProperty("mesh",
-        [this]() -> PropertyValue {
+    m_meshSlot->AddProperty("mesh_type",
+        [this]() -> PropertyValue { return m_meshName; },
+        [this](const PropertyValue& v) {
+            m_meshName = std::get<std::string>(v);
+            m_mesh = ResourceManager::Get().LoadMesh(m_meshName);
+        }
+    );
+
+    m_meshSlot->AddProperty("mesh",[this]() -> PropertyValue {
             if (!m_mesh) return std::shared_ptr<PropertyHolder>{};
             return std::static_pointer_cast<PropertyHolder>(m_mesh);
-        },
-        [](const PropertyValue&) {}
+        },[](const PropertyValue&) {}
     );
 
     AddProperty("mesh",
         [this]() -> PropertyValue { return m_meshSlot; },
-        [](const PropertyValue&) {}
+        [this](const PropertyValue& v) {
+            const auto& holder = std::get<std::shared_ptr<PropertyHolder>>(v);
+            if (!holder) return;
+
+            for (const auto& [key, prop] : holder->GetProperties()) {
+                try {
+                    m_meshSlot->Set(key, prop.getter());
+                } catch (const std::exception& e) {
+                    std::cerr << "[MeshNode3d] mesh property error: " << e.what() << "\n";
+                }
+            }
+        }
     );
+
     AddProperty("material",
         [this]() -> PropertyValue { return std::static_pointer_cast<PropertyHolder>(m_material); },
-        [](const PropertyValue&) {}
+        [this](const PropertyValue& v) {
+            const auto& holder = std::get<std::shared_ptr<PropertyHolder>>(v);
+            if (!holder) return;
+            for (const auto& [key, prop] : holder->GetProperties()) {
+                try {
+                    m_material->Set(key, prop.getter());
+                } catch (const std::exception& e) {
+                    std::cerr << "[MeshNode3d] material property '" << key << "' error: " << e.what() << "\n";
+                }
+            }
+        }
     );
-}
-
-std::string MeshNode3d::GetMeshTypeName() const {
-    if (!m_mesh) return "None";
-    if (dynamic_cast<CubeMesh*>(m_mesh.get())) return "Cube";
-    if (dynamic_cast<SphereMesh*>(m_mesh.get())) return "Sphere";
-    if (dynamic_cast<PlaneMesh*>(m_mesh.get())) return "Plane";
-    if (dynamic_cast<QuadMesh*>(m_mesh.get())) return "Quad";
-    if (dynamic_cast<CylinderMesh*>(m_mesh.get())) return "Cylinder";
-    if (dynamic_cast<CapsuleMesh*>(m_mesh.get())) return "Capsule";
-    return "Custom";
-}
-
-void MeshNode3d::SetMeshByName(const std::string& name) {
-    if (name == "Cube") m_mesh = std::make_shared<CubeMesh>();
-    else if (name == "Sphere") m_mesh = std::make_shared<SphereMesh>();
-    else if (name == "Plane") m_mesh = std::make_shared<PlaneMesh>();
-    else if (name == "Quad") m_mesh = std::make_shared<QuadMesh>();
-    else if (name == "Cylinder") m_mesh = std::make_shared<CylinderMesh>();
-    else if (name == "Capsule") m_mesh = std::make_shared<CapsuleMesh>();
-    else if (name == "None") m_mesh = nullptr;
 }

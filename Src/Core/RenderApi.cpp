@@ -319,8 +319,10 @@ void RenderApi::RenderMainPass() {
             currentShader->Bind();
 
             // set shader global uniforms
+            glm::vec2 actualScreenSize(m_sceneFbo->GetWidth(), m_sceneFbo->GetHeight());
+            currentShader->SetVector2("u_ScreenSize", actualScreenSize);
+
             currentShader->SetVector3("u_CameraPos", m_activeCamera->GetPosition());
-            currentShader->SetVector2("u_ScreenSize", m_windows[0]->GetSize());
             currentShader->SetFloat("u_ZNear", m_activeCamera->GetNearPlane());
             currentShader->SetFloat("u_ZFar", m_activeCamera->GetFarPlane());
             currentShader->SetInt("u_DebugMode", m_debugMode);
@@ -431,6 +433,7 @@ void RenderApi::RunLightCulling() const {
     }
 
     m_clusterSystem->Cull(m_lightManager->GetPointLightSsbo(), m_lightManager->GetSpotLightSsbo());
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 }
 
 void RenderApi::DrawMeshNodeDepth(const MeshNode3d *node) const {

@@ -53,7 +53,7 @@ void LightManager::Upload() {
         if (i < m_directionalLights.size()) {
             const DirectionalLight* l = m_directionalLights[i];
             gpuLight.direction = glm::vec4(l->GetDirection(), 0.0f);
-            gpuLight.color     = glm::vec4(l->GetColor(), l->GetIntensity());
+            gpuLight.color = glm::vec4(l->GetColor(), l->GetIntensity());
         }
 
         m_globalLightUbo->SetData(&gpuLight, sizeof(GPUDirectionalLight), offset);
@@ -67,8 +67,8 @@ void LightManager::Upload() {
 
         for (const auto* l : m_pointLights) {
             GPUPointLight gl{};
-            gl.position    = glm::vec4(l->GetPosition(), l->GetRadius());
-            gl.color       = glm::vec4(l->GetColor(), l->GetIntensity());
+            gl.position = glm::vec4(l->GetPosition(), l->GetRadius());
+            gl.color = glm::vec4(l->GetColor(), l->GetIntensity());
             gl.attenuation = glm::vec4(l->GetConstant(), l->GetLinear(), l->GetQuadratic(), 0.0f);
             pointData.push_back(gl);
         }
@@ -88,12 +88,11 @@ void LightManager::Upload() {
 
         for (const auto* l : m_spotLights) {
             GPUSpotLight gl{};
-            const float radius = CalculateLightRadius(
-                l->GetColor(), l->GetIntensity(), 1.0f, l->GetLinear(), l->GetQuadratic());
+            const float radius = CalculateLightRadius(l->GetColor(), l->GetIntensity(), 1.0f, l->GetLinear(), l->GetQuadratic());
             gl.position  = glm::vec4(l->GetPosition(), radius);
             gl.direction = glm::vec4(l->GetDirection(), 0.0f);
-            gl.color     = glm::vec4(l->GetColor(), l->GetIntensity());
-            gl.params    = glm::vec4(l->GetCutOff(), l->GetOuterCutOff(), l->GetLinear(), l->GetQuadratic());
+            gl.color = glm::vec4(l->GetColor(), l->GetIntensity());
+            gl.params = glm::vec4(l->GetCutOff(), l->GetOuterCutOff(), l->GetLinear(), l->GetQuadratic());
             spotData.push_back(gl);
         }
 
@@ -107,7 +106,7 @@ void LightManager::Upload() {
 }
 
 float LightManager::CalculateLightRadius(const glm::vec3& color, const float intensity, const float constant, const float linear, const float quadratic) {
-    constexpr float threshold = 0.01f;
+    constexpr float threshold = 0.05f;
 
     const float maxBrightness = std::max({ color.r, color.g, color.b }) * intensity;
     if (maxBrightness <= 0.0f) {

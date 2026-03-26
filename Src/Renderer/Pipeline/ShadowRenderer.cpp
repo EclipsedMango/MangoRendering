@@ -111,7 +111,7 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
     for (auto& [slot, farPlane, bias, pad] : meta) {
         slot = 0xFFFFFFFFu;
         farPlane = 1.0f;
-        bias = 0.002f;
+        bias = 0.02f;
         pad = 0.0f;
     }
 
@@ -135,9 +135,9 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
 
     for (uint32_t slot = 0; slot < shadowCount; slot++) {
         const uint32_t lightIndex = candidates[slot].index;
-        const PointLight* L       = pointLights[lightIndex];
-        const float farPlane      = glm::max(L->GetRadius(), 0.5f);
-        const float lightRadius   = L->GetRadius();
+        const PointLight* L = pointLights[lightIndex];
+        const float farPlane = glm::max(L->GetRadius(), 0.5f);
+        const float lightRadius = L->GetRadius();
 
         m_shadowedPointLightsDebug.push_back({
             lightIndex, slot,
@@ -147,7 +147,7 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
             glm::length(L->GetPosition() - camera.GetPosition())
         });
 
-        meta[lightIndex].slot     = slot;
+        meta[lightIndex].slot = slot;
         meta[lightIndex].farPlane = farPlane;
 
         glm::mat4 vp[6];

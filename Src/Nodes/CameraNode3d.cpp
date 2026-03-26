@@ -32,6 +32,10 @@ CameraNode3d::CameraNode3d(const glm::vec3 position, const float fov, const floa
     );
 }
 
+Node3d * CameraNode3d::Clone() {
+    return Node3d::Clone();
+}
+
 glm::mat4 CameraNode3d::GetViewMatrix() const {
     return glm::lookAt(GetPosition(), GetPosition() + m_front, m_up);
 }

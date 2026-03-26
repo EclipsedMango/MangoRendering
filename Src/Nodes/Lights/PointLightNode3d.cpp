@@ -22,6 +22,16 @@ PointLightNode3d::PointLightNode3d(const glm::vec3 position, const glm::vec3 col
     );
 }
 
+Node3d* PointLightNode3d::Clone() {
+    PointLightNode3d* clone = new PointLightNode3d();
+    clone->SetName(GetName());
+    clone->SetLocalTransform(GetLocalMatrix());
+    clone->SetLight(m_light);
+    clone->SetIntensity(GetIntensity());
+    clone->SetColor(GetColor());
+    return clone;
+}
+
 void PointLightNode3d::Process(float deltaTime) {
     m_light.SetPosition(GetPosition());
     m_light.SetColor(GetColor());
@@ -33,4 +43,8 @@ void PointLightNode3d::SyncLight() {
     m_light.SetPosition(worldPos);
     m_light.SetColor(GetColor());
     m_light.SetIntensity(GetIntensity());
+}
+
+void PointLightNode3d::SetLight(const PointLight &light) {
+    m_light = light;
 }

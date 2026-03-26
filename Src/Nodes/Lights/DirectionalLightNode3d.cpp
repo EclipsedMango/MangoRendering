@@ -19,6 +19,14 @@ DirectionalLightNode3d::DirectionalLightNode3d(const glm::vec3 direction, const 
     );
 }
 
+Node3d * DirectionalLightNode3d::Clone() {
+    DirectionalLightNode3d* clone = new DirectionalLightNode3d();
+    clone->SetName(GetName());
+    clone->SetLocalTransform(GetLocalMatrix());
+    clone->SetLight(m_light);
+    return clone;
+}
+
 void DirectionalLightNode3d::Process(float deltaTime) {
     m_light.SetColor(GetColor());
     m_light.SetIntensity(GetIntensity());
@@ -29,4 +37,8 @@ void DirectionalLightNode3d::SyncLight() {
     m_light.SetDirection(dir);
     m_light.SetColor(GetColor());
     m_light.SetIntensity(GetIntensity());
+}
+
+void DirectionalLightNode3d::SetLight(const DirectionalLight &light) {
+    m_light = light;
 }

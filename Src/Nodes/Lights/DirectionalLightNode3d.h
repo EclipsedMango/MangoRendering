@@ -11,6 +11,8 @@ public:
     DirectionalLightNode3d(glm::vec3 direction, glm::vec3 color, float intensity);
     ~DirectionalLightNode3d() override = default;
 
+    Node3d *Clone() override;
+
     void SetLightDirection(const glm::vec3 direction) { m_light.SetDirection(direction); }
 
     [[nodiscard]] std::string GetNodeType() const override { return "DirectionalLightNode3d"; }
@@ -20,6 +22,7 @@ public:
     void SyncLight() override;
 
 private:
+    void SetLight(const DirectionalLight& light);
     DirectionalLight m_light;
 };
 

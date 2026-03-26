@@ -12,6 +12,16 @@ SpotLightNode3d::SpotLightNode3d(const glm::vec3 position, const glm::vec3 direc
     SetName("SpotLightNode3d");
 }
 
+Node3d* SpotLightNode3d::Clone() {
+    SpotLightNode3d *clone = new SpotLightNode3d();
+    clone->SetName(GetName());
+    clone->SetLocalTransform(GetLocalMatrix());
+    clone->SetLight(m_light);
+    clone->SetIntensity(GetIntensity());
+    clone->SetColor(GetColor());
+    return clone;
+}
+
 void SpotLightNode3d::Process(float deltaTime) {
     m_light.SetColor(GetColor());
     m_light.SetIntensity(GetIntensity());
@@ -24,4 +34,8 @@ void SpotLightNode3d::SyncLight() {
     m_light.SetDirection(dir);
     m_light.SetColor(GetColor());
     m_light.SetIntensity(GetIntensity());
+}
+
+void SpotLightNode3d::SetLight(const SpotLight &light) {
+    m_light = light;
 }

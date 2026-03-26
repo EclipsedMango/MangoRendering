@@ -10,6 +10,8 @@ public:
     CameraNode3d(glm::vec3 position, float fov, float aspectRatio);
     ~CameraNode3d() override = default;
 
+    Node3d *Clone() override;
+
     void SetNearPlane(const float nearPlane) { m_nearPlane = nearPlane; }
     void SetFarPlane(const float farPlane) { m_farPlane = farPlane; }
     void SetAspectRatio(const float aspectRatio) { m_aspectRatio = aspectRatio; }

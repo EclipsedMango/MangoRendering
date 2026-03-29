@@ -11,11 +11,14 @@
 
 Editor::Editor(std::unique_ptr<Node3d> scene) : m_inspector(this), m_sceneTree(this) {
     m_core.Init();
-    m_viewports.push_back(std::make_unique<ViewportWindow>(this, "Viewport 1"));
-    m_viewports[0]->LoadScene(std::move(scene));
-    m_activeViewport = m_viewports[0].get();
 
-    m_core.SetEditorCamera(m_viewports[0]->GetCamera());
+    m_mainViewport = std::make_unique<ViewportWindow>(this, "Main Viewport");
+    m_mainViewport->LoadScene(std::move(scene));
+
+    m_activeViewport = m_mainViewport.get();
+    m_viewports.push_back(std::move(m_mainViewport));
+
+    m_core.SetEditorCamera(m_activeViewport->GetCamera());
     m_core.SetCameraMode(Core::CameraMode::Editor);
 
     m_sceneTabs.push_back({ "main" });
@@ -145,8 +148,6 @@ void Editor::DrawViewportTabs() {
             auto newScene = std::make_unique<Node3d>();
             newScene->SetName("New Scene");
 
-            auto skybox = std::make_unique<SkyboxNode3d>("../Assets/Textures/Cubemaps/kloppenheim_06_puresky_1k.hdr");
-            newScene->AddChild(std::move(skybox));
             vp->LoadScene(std::move(newScene));
 
             m_viewports.push_back(std::move(vp));
@@ -232,22 +233,28 @@ void Editor::DrawContentBrowser() {
 }
 
 void Editor::OnPlay() {
-    for (auto& vp : m_viewports) {
+    m_sceneTree.ClearSelection();
+
+    for (const auto& vp : m_viewports) {
         if (Node3d* scene = vp->GetScene()) {
             vp->SaveSnapshot(scene->Clone());
         }
     }
 
-    auto globalRoot = std::make_unique<Node3d>();
-    globalRoot->SetName("GlobalRoot");
+    auto mainScene = m_viewports.front()->DetachScene();
 
-    for (const auto& vp : m_viewports) {
-        if (auto scene = vp->DetachScene()) {
-            globalRoot->AddChild(std::move(scene));
+    if (!mainScene) {
+        mainScene = std::make_unique<Node3d>();
+        mainScene->SetName("FallbackRoot");
+    }
+
+    for (size_t i = 1; i < m_viewports.size(); ++i) {
+        if (auto scene = m_viewports[i]->DetachScene()) {
+            mainScene->AddChild(std::move(scene));
         }
     }
 
-    m_core.ChangeScene(std::move(globalRoot));
+    m_core.ChangeScene(std::move(mainScene));
     m_core.SetCameraMode(Core::CameraMode::Game);
     m_state = State::Playing;
 
@@ -270,9 +277,10 @@ void Editor::OnPause() {
 }
 
 void Editor::OnStop() {
+    m_sceneTree.ClearSelection();
     m_core.ChangeScene(nullptr);
 
-    for (auto& vp : m_viewports) {
+    for (const auto& vp : m_viewports) {
         if (auto snapshot = vp->TakeSnapshot()) {
             vp->LoadScene(std::move(snapshot));
         }

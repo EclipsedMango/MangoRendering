@@ -50,10 +50,6 @@ void Core::Notification(Node3d *node, const NodeNotification notification) {
                 RegisterLight(l);
             }
 
-            if (auto* s = dynamic_cast<SkyboxNode3d*>(node)) {
-                m_skyboxCache.push_back(s);
-            }
-
             break;
         }
 
@@ -66,10 +62,6 @@ void Core::Notification(Node3d *node, const NodeNotification notification) {
             if (auto* l = dynamic_cast<LightNode3d*>(node)) {
                 std::erase(m_lightNodeCache, l);
                 UnregisterLight(l);
-            }
-
-            if (auto* s = dynamic_cast<SkyboxNode3d*>(node)) {
-                std::erase(m_skyboxCache, s);
             }
 
             break;
@@ -214,14 +206,9 @@ void Core::RenderScene(Node3d* sceneRoot, const CameraNode3d* camera, const Fram
         }
     }
 
-    SkyboxNode3d* sceneSkybox = nullptr;
-    for (const auto s : m_skyboxCache) {
-        if (IsInScene(s, sceneRoot)) {
-            sceneSkybox = s;
-            break;
-        }
+    if (m_globalSkybox) {
+        m_renderer->SetSkybox(m_globalSkybox.get());
     }
-    m_renderer->SetSkybox(sceneSkybox);
 
     for (auto* l : m_lightNodeCache) {
         l->SyncLight();
@@ -252,10 +239,8 @@ void Core::StepFrame(const float deltaTime) {
 
 void Core::Process() {
     uint64_t lastTime = SDL_GetTicksNS();
-    float smoothCpuMs = 0.0f;
 
     while (m_activeWindow->IsOpen()) {
-        const uint64_t cpuFrameStart = SDL_GetTicksNS();
         const uint64_t now = SDL_GetTicksNS();
         const float deltaTime = (now - lastTime) / 1e9f;
         lastTime = now;
@@ -333,7 +318,6 @@ void Core::RebuildNodeCache() {
     m_nodeCache.clear();
     m_renderableCache.clear();
     m_lightNodeCache.clear();
-    m_skyboxCache.clear();
 
     for (auto* root : roots) {
         root->PropagateEnterTree(this);
@@ -356,6 +340,18 @@ void Core::SetGameCamera(CameraNode3d *camera) {
 
 void Core::SetActiveCamera(CameraNode3d* camera) {
     m_activeCamera = camera;
+}
+
+void Core::SetGlobalSkybox(std::unique_ptr<SkyboxNode3d> skybox) {
+    if (m_globalSkybox) {
+        m_globalSkybox->PropagateExitTree();
+    }
+
+    m_globalSkybox = std::move(skybox);
+
+    if (m_globalSkybox) {
+        m_globalSkybox->PropagateEnterTree(this);
+    }
 }
 
 void Core::SetCameraMode(const CameraMode mode) {

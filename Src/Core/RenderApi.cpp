@@ -180,7 +180,7 @@ void RenderApi::SubmitRenderable(RenderableNode3d* node) {
 
 void RenderApi::SetSkybox(SkyboxNode3d* skybox) {
     if (m_skybox == skybox) return;
-    m_skybox = std::move(skybox);
+    m_skybox = skybox;
 
     if (skybox && skybox->GetSkybox()) {
         m_ibl = IBLPrecomputer::Compute(skybox->GetSkybox()->GetTexture());

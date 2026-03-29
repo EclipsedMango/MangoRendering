@@ -64,7 +64,7 @@ int main() {
     liveScene->AddChild(std::move(pointLight));
 
     auto skybox = std::make_unique<SkyboxNode3d>("../Assets/Textures/Cubemaps/kloppenheim_06_puresky_1k.hdr");
-    liveScene->AddChild(std::move(skybox));
+    editor.GetCore().SetGlobalSkybox(std::move(skybox));
 
     auto camera = std::make_unique<CameraNode3d>(glm::vec3(0, 0, 3), 75.0f, 500.0f / 500.0f);
     editor.GetCore().SetGameCamera(camera.get());

@@ -53,6 +53,7 @@ std::unique_ptr<Node3d> ViewportWindow::TakeSnapshot() {
     return std::move(m_snapshot);
 }
 
+// gets root node of scene
 Node3d* ViewportWindow::GetScene() const {
     if (m_scene) return m_scene.get();
     return nullptr;

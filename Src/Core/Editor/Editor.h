@@ -47,6 +47,7 @@ private:
 
     [[nodiscard]] bool IsAnyViewportLooking() const;
     std::vector<std::unique_ptr<ViewportWindow>> m_viewports;
+    std::unique_ptr<ViewportWindow> m_mainViewport;
     ViewportWindow* m_activeViewport = nullptr;
 
     // cameras

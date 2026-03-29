@@ -23,6 +23,8 @@ std::unique_ptr<Node3d> DirectionalLightNode3d::Clone() {
     auto clone = std::make_unique<DirectionalLightNode3d>();
     clone->SetName(GetName());
     clone->SetLocalTransform(GetLocalMatrix());
+    clone->SetColor(GetColor());
+    clone->SetIntensity(GetIntensity());
     clone->SetLight(m_light);
     return clone;
 }

@@ -41,7 +41,7 @@ public:
 
     // this function should not be used for the game loop
     void SetActiveCamera(CameraNode3d* camera);
-
+    void SetGlobalSkybox(std::unique_ptr<SkyboxNode3d> skybox);
     void SetCameraMode(CameraMode mode);
 
     static void BeginImGuiFrame();
@@ -52,6 +52,7 @@ public:
     [[nodiscard]] Window* GetActiveWindow() const { return m_activeWindow.get(); }
     [[nodiscard]] CameraNode3d* GetActiveCamera() const { return m_activeCamera; }
     [[nodiscard]] CameraNode3d* GetEditorCamera() const { return m_editorCamera; }
+    [[nodiscard]] SkyboxNode3d* GetGlobalSkybox() const { return m_globalSkybox.get(); }
     [[nodiscard]] CameraNode3d* GetGameCamera() const { return m_gameCamera; }
 
     [[nodiscard]] GLuint GetMainViewportTexture() const;
@@ -76,6 +77,7 @@ private:
 
     std::unique_ptr<RenderApi> m_renderer {};
     std::unique_ptr<Node3d> m_currentScene {};
+    std::unique_ptr<SkyboxNode3d> m_globalSkybox {};
     std::unique_ptr<Window> m_activeWindow {};
 
     std::shared_ptr<Shader> m_defaultShader;
@@ -86,7 +88,6 @@ private:
     std::vector<Node3d*> m_nodeCache;
     std::vector<RenderableNode3d*> m_renderableCache;
     std::vector<LightNode3d*> m_lightNodeCache;
-    std::vector<SkyboxNode3d*> m_skyboxCache;
 
     std::unique_ptr<Framebuffer> m_mainFramebuffer;
 

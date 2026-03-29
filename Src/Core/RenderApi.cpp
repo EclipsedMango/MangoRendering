@@ -11,7 +11,44 @@
 #include "glad/gl.h"
 #include "glm/gtc/type_ptr.hpp"
 #include "Nodes/MeshNode3d.h"
+#include "Nodes/PortalNode3d.h"
 #include "Scene/Frustum.h"
+
+namespace {
+    CameraNode3d BuildPortalRenderCamera(const CameraNode3d* sourceCamera, const Framebuffer* targetFbo, const glm::mat4& virtualView) {
+        const float aspect = static_cast<float>(targetFbo->GetWidth()) / static_cast<float>(targetFbo->GetHeight());
+
+        CameraNode3d portalCamera(
+            glm::vec3(0.0f),
+            glm::degrees(sourceCamera->GetFov()),
+            aspect
+        );
+
+        portalCamera.SetNearPlane(sourceCamera->GetNearPlane());
+        portalCamera.SetFarPlane(sourceCamera->GetFarPlane());
+        portalCamera.SetAspectRatio(aspect);
+
+        const glm::mat4 world = glm::inverse(virtualView);
+        const glm::vec3 position = glm::vec3(world[3]);
+
+        glm::vec3 forward = -glm::normalize(glm::vec3(world[2]));
+        if (glm::length(forward) < 0.0001f) {
+            forward = glm::vec3(0.0f, 0.0f, -1.0f);
+        }
+
+        const float yaw = glm::degrees(std::atan2(forward.z, forward.x));
+        const float pitch = glm::degrees(std::asin(glm::clamp(forward.y, -1.0f, 1.0f)));
+
+        portalCamera.SetPosition(position);
+        portalCamera.SetYaw(yaw);
+        portalCamera.SetPitch(pitch);
+
+        // keep the exact virtual view matrix so portal orientation is correct
+        portalCamera.SetViewMatrixOverride(virtualView);
+
+        return portalCamera;
+    }
+}
 
 void RenderApi::InitSDL() {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -66,7 +103,6 @@ void RenderApi::InitDepthPass() {
 }
 
 RenderApi::~RenderApi() {
-    // destroy all GL resources while the context is still alive
     m_clusterSystem.reset();
     m_lightManager.reset();
     m_shadowRenderer.reset();
@@ -74,7 +110,7 @@ RenderApi::~RenderApi() {
     m_cameraUbo.reset();
     m_ibl = {};
 
-    m_windows.clear(); // destroys the window and GL context
+    m_windows.clear();
 
     SDL_Quit();
 }
@@ -95,9 +131,8 @@ std::unique_ptr<Window> RenderApi::CreateWindow(const char* title, const glm::ve
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
 
-    std::unique_ptr<Window> raw = std::move(window);
-    m_windows.push_back(std::move(window));
-    return raw;
+    m_windows.push_back(window.get());
+    return window;
 }
 
 void RenderApi::HandleResizeEvent(const SDL_Event &event) const {
@@ -154,7 +189,7 @@ void RenderApi::ApplyMaterialCull(const Material &mat) {
 
 void RenderApi::ClearColour(const glm::vec4 &colour) {
     glClearColor(colour.r, colour.g, colour.b, colour.a);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 }
 
 void RenderApi::AddDirectionalLight(DirectionalLight *light) const {
@@ -178,6 +213,15 @@ void RenderApi::SubmitRenderable(RenderableNode3d* node) {
     }
 }
 
+void RenderApi::SubmitPortal(PortalNode3d* portal) {
+    m_portalQueue.push_back(portal);
+}
+
+void RenderApi::ClearQueues() {
+    m_meshQueue.clear();
+    m_portalQueue.clear();
+}
+
 void RenderApi::SetSkybox(SkyboxNode3d* skybox) {
     if (m_skybox == skybox) return;
     m_skybox = skybox;
@@ -190,80 +234,33 @@ void RenderApi::SetSkybox(SkyboxNode3d* skybox) {
     }
 }
 
-RenderStats RenderApi::RenderScene(const CameraNode3d* camera, const Framebuffer* targetFbo) const {
-    RenderStats stats = {};
-    if (!camera || !targetFbo) {
-        return stats;
+RenderStats RenderApi::RenderScene(const CameraNode3d* camera, const Framebuffer* targetFbo, bool clearFbo) const {
+    return RenderView(camera, targetFbo, clearFbo, nullptr);
+}
+
+RenderStats RenderApi::RenderSceneWithPortals(const CameraNode3d *camera, const Framebuffer *targetFbo, const int maxPortalDepth) const {
+    RenderStats stats = RenderView(camera, targetFbo, true, nullptr);
+
+    if (maxPortalDepth > 0) {
+        RenderPortalPasses(camera, targetFbo, maxPortalDepth);
     }
-
-    std::vector<MeshNode3d*> transparentQueue;
-    std::vector<MeshNode3d*> opaqueQueue;
-
-    for (MeshNode3d* node : m_meshQueue) {
-        const BlendMode mode = node->GetActiveMaterial().GetBlendMode();
-        if (mode == BlendMode::AlphaBlend || mode == BlendMode::Additive) {
-            transparentQueue.push_back(node);
-            continue;
-        }
-
-        opaqueQueue.push_back(node);
-    }
-
-    // sort transparent back to front by distance to camera
-    const glm::vec3 camPos = camera->GetPosition();
-    const glm::vec3 forward = camera->GetFront();
-    std::ranges::sort(transparentQueue, [&](const MeshNode3d* a, const MeshNode3d* b) {
-        const float depthA = glm::dot(glm::vec3(a->GetWorldMatrix()[3]) - camPos, forward);
-        const float depthB = glm::dot(glm::vec3(b->GetWorldMatrix()[3]) - camPos, forward);
-        return depthA > depthB;
-    });
-
-    stats.submitted = static_cast<uint32_t>(m_meshQueue.size());
-
-    UploadCameraData(camera);
-    m_lightManager->Upload();
-    m_shadowRenderer->ResetStats();
-
-    RebuildClusters(camera, targetFbo);
-
-    // shadow pass
-    const glm::vec2 targetSize(targetFbo->GetWidth(), targetFbo->GetHeight());
-    glEnable(GL_POLYGON_OFFSET_FILL);
-    glPolygonOffset(2.5f, 3.0f);
-    m_shadowRenderer->RenderDirectionalShadows(*camera, opaqueQueue, targetSize);
-    m_shadowRenderer->RenderPointLightShadows(*camera, m_lightManager->GetPointLights(), opaqueQueue, targetSize);
-    glDisable(GL_POLYGON_OFFSET_FILL);
-
-    stats.shadowDrawCalls = m_shadowRenderer->GetShadowDrawCallCount();
-
-    targetFbo->Bind();
-    glViewport(0, 0, targetFbo->GetWidth(), targetFbo->GetHeight());
-
-    glDepthMask(GL_TRUE);
-    ClearColour({0.16f, 0.16f, 0.16f, 1.0f});
-
-    // z-prepass
-    BeginZPrepass();
-    m_depthShader->Bind();
-    for (const MeshNode3d* mesh : opaqueQueue) {
-        DrawMeshNodeDepth(mesh);
-    }
-    EndZPrepass();
-
-    // light culling
-    RunLightCulling();
-    m_shadowRenderer->BindPointShadowTexture();
-
-    RenderMainPass(camera, targetFbo, opaqueQueue, stats);
-
-    if (m_skybox) {
-        m_skybox->GetSkybox()->Draw(camera->GetViewMatrix(), camera->GetProjectionMatrix());
-    }
-
-    // transparent pass
-    RenderTransparentPass(camera, transparentQueue, stats);
 
     Framebuffer::Unbind();
+
+    if (!m_windows.empty() && m_windows[0]) {
+        int w = 0;
+        int h = 0;
+        SDL_GetWindowSizeInPixels(m_windows[0]->GetSDLWindow(), &w, &h);
+        glViewport(0, 0, w, h);
+    }
+
+    glDisable(GL_STENCIL_TEST);
+    glStencilMask(0xFF);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glDepthMask(GL_TRUE);
+    glDepthFunc(GL_LEQUAL);
+    glDepthRange(0.0, 1.0);
+
     return stats;
 }
 
@@ -380,6 +377,125 @@ void RenderApi::RenderTransparentPass(const CameraNode3d* camera, const std::vec
     glDepthFunc(GL_LEQUAL);
 }
 
+void RenderApi::RenderPortalPasses(const CameraNode3d *camera, const Framebuffer *targetFbo, const int remainingDepth) const {
+    if (remainingDepth <= 0 || m_portalQueue.empty() || !camera || !targetFbo) {
+        return;
+    }
+
+    targetFbo->Bind();
+    glEnable(GL_STENCIL_TEST);
+    glStencilMask(0xFF);
+
+    int stencilId = 1;
+
+    for (const PortalNode3d* portal : m_portalQueue) {
+        if (!portal || !portal->IsLinked()) {
+            continue;
+        }
+
+        const PortalNode3d* linked = portal->GetLinkedPortal();
+        if (!linked) {
+            continue;
+        }
+
+        if (!portal->GetMesh() || !portal->GetShader() || !linked->GetMesh()) {
+            continue;
+        }
+
+        if (stencilId > 255) {
+            break;
+        }
+
+        DrawPortalMask(portal, stencilId, camera);
+
+        const glm::mat4 virtualView = ComputePortalView(camera, portal, linked);
+        CameraNode3d portalCamera = BuildPortalRenderCamera(camera, targetFbo, virtualView);
+
+        RenderView(&portalCamera, targetFbo, false, portal);
+
+        targetFbo->Bind();
+        glEnable(GL_STENCIL_TEST);
+        glStencilMask(0xFF);
+
+        ++stencilId;
+    }
+
+    glDisable(GL_STENCIL_TEST);
+    glStencilMask(0xFF);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glDepthMask(GL_TRUE);
+    glDepthFunc(GL_LEQUAL);
+    glDepthRange(0.0, 1.0);
+
+    Framebuffer::Unbind();
+
+    if (!m_windows.empty() && m_windows[0]) {
+        int w = 0;
+        int h = 0;
+        SDL_GetWindowSizeInPixels(m_windows[0]->GetSDLWindow(), &w, &h);
+        glViewport(0, 0, w, h);
+    }
+}
+
+glm::mat4 RenderApi::ComputePortalView(const CameraNode3d* mainCamera, const PortalNode3d* sourcePortal, const PortalNode3d* destPortal) {
+    const glm::mat4 sourceWorld = sourcePortal->GetWorldMatrix();
+    const glm::mat4 destWorld = destPortal->GetWorldMatrix();
+    const glm::mat4 cameraWorld = glm::inverse(mainCamera->GetViewMatrix());
+
+    const glm::mat4 flip = glm::rotate(
+        glm::mat4(1.0f),
+        glm::radians(180.0f),
+        glm::vec3(0.0f, 1.0f, 0.0f)
+    );
+
+    const glm::mat4 virtualCameraWorld = destWorld * flip * glm::inverse(sourceWorld) * cameraWorld;
+    return glm::inverse(virtualCameraWorld);
+}
+
+void RenderApi::DrawPortalMask(const PortalNode3d *portal, int stencilId, const CameraNode3d *camera) const {
+    if (!portal || !camera || !portal->GetMesh() || !portal->GetShader()) {
+        return;
+    }
+
+    UploadCameraData(camera);
+
+    const Shader* shader = portal->GetShader().get();
+    shader->Bind();
+    shader->SetMatrix4("u_Model", portal->GetWorldMatrix());
+
+    glEnable(GL_DEPTH_TEST);
+
+    // write only to stencil where the portal surface is visible
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+    glDepthMask(GL_FALSE);
+
+    glStencilMask(0xFF);
+    glStencilFunc(GL_ALWAYS, stencilId, 0xFF);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+
+    DrawMesh(*portal->GetMesh(), *shader);
+
+    // push the portal area depth to the far plane so the destination view isnt blocked by the wall the portal sits on
+    glDepthMask(GL_TRUE);
+    glDepthFunc(GL_ALWAYS);
+    glDepthRange(1.0, 1.0);
+
+    glStencilFunc(GL_EQUAL, stencilId, 0xFF);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+
+    DrawMesh(*portal->GetMesh(), *shader);
+
+    // restore normal render state, but keep stencil clipping active
+    glDepthRange(0.0, 1.0);
+    glDepthFunc(GL_LEQUAL);
+
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+
+    glStencilMask(0x00);
+    glStencilFunc(GL_EQUAL, stencilId, 0xFF);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+}
+
 void RenderApi::BeginZPrepass() {
     // disable writing to the color buffer
     glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
@@ -406,6 +522,116 @@ void RenderApi::RunLightCulling() const {
 
     m_clusterSystem->Cull(m_lightManager->GetPointLightSsbo(), m_lightManager->GetSpotLightSsbo());
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+}
+
+RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer *targetFbo, bool clearFbo, const PortalNode3d *excludedPortal) const {
+    RenderStats stats = {};
+    if (!camera || !targetFbo) {
+        return stats;
+    }
+
+    std::vector<MeshNode3d*> transparentQueue;
+    std::vector<MeshNode3d*> opaqueQueue;
+
+    for (MeshNode3d* node : m_meshQueue) {
+        if (excludedPortal && node == static_cast<const MeshNode3d*>(excludedPortal)) {
+            continue;
+        }
+
+        const BlendMode mode = node->GetActiveMaterial().GetBlendMode();
+        if (mode == BlendMode::AlphaBlend || mode == BlendMode::Additive) {
+            transparentQueue.push_back(node);
+            continue;
+        }
+
+        opaqueQueue.push_back(node);
+    }
+
+    const glm::vec3 camPos = camera->GetPosition();
+    const glm::vec3 forward = camera->GetFront();
+
+    std::ranges::sort(transparentQueue, [&](const MeshNode3d* a, const MeshNode3d* b) {
+        const float depthA = glm::dot(glm::vec3(a->GetWorldMatrix()[3]) - camPos, forward);
+        const float depthB = glm::dot(glm::vec3(b->GetWorldMatrix()[3]) - camPos, forward);
+        return depthA > depthB;
+    });
+
+    stats.submitted = static_cast<uint32_t>(opaqueQueue.size() + transparentQueue.size());
+
+    UploadCameraData(camera);
+    m_lightManager->Upload();
+    m_shadowRenderer->ResetStats();
+
+    RebuildClusters(camera, targetFbo);
+
+    GLint savedStencilFunc = 0;
+    GLint savedStencilRef = 0;
+    GLint savedStencilMask = 0;
+    GLint savedStencilFail = 0;
+    GLint savedStencilPassDepthFail = 0;
+    GLint savedStencilPassDepthPass = 0;
+
+    const bool stencilEnabled = glIsEnabled(GL_STENCIL_TEST);
+    glGetIntegerv(GL_STENCIL_FUNC,            &savedStencilFunc);
+    glGetIntegerv(GL_STENCIL_REF,             &savedStencilRef);
+    glGetIntegerv(GL_STENCIL_VALUE_MASK,      &savedStencilMask);
+    glGetIntegerv(GL_STENCIL_FAIL,            &savedStencilFail);
+    glGetIntegerv(GL_STENCIL_PASS_DEPTH_FAIL, &savedStencilPassDepthFail);
+    glGetIntegerv(GL_STENCIL_PASS_DEPTH_PASS, &savedStencilPassDepthPass);
+
+    glDisable(GL_STENCIL_TEST);
+
+    const glm::vec2 targetSize(targetFbo->GetWidth(), targetFbo->GetHeight());
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(2.5f, 3.0f);
+    m_shadowRenderer->RenderDirectionalShadows(*camera, opaqueQueue, targetSize);
+    m_shadowRenderer->RenderPointLightShadows(*camera, m_lightManager->GetPointLights(), opaqueQueue, targetSize);
+    glDisable(GL_POLYGON_OFFSET_FILL);
+
+    stats.shadowDrawCalls = m_shadowRenderer->GetShadowDrawCallCount();
+
+    if (stencilEnabled) {
+        glEnable(GL_STENCIL_TEST);
+        glStencilFunc(
+            static_cast<GLenum>(savedStencilFunc),
+            savedStencilRef,
+            static_cast<GLuint>(savedStencilMask)
+        );
+        glStencilOp(
+            static_cast<GLenum>(savedStencilFail),
+            static_cast<GLenum>(savedStencilPassDepthFail),
+            static_cast<GLenum>(savedStencilPassDepthPass)
+        );
+    }
+
+    targetFbo->Bind();
+    glViewport(0, 0, targetFbo->GetWidth(), targetFbo->GetHeight());
+
+    glDepthMask(GL_TRUE);
+    if (clearFbo) {
+        ClearColour({0.16f, 0.16f, 0.16f, 1.0f});
+    }
+
+    BeginZPrepass();
+    m_depthShader->Bind();
+    for (const MeshNode3d* mesh : opaqueQueue) {
+        DrawMeshNodeDepth(mesh);
+    }
+    EndZPrepass();
+
+    RunLightCulling();
+    m_shadowRenderer->BindPointShadowTexture();
+
+    RenderMainPass(camera, targetFbo, opaqueQueue, stats);
+
+    if (m_skybox) {
+        m_skybox->GetSkybox()->Draw(camera->GetViewMatrix(), camera->GetProjectionMatrix());
+    }
+
+    RenderTransparentPass(camera, transparentQueue, stats);
+
+    Framebuffer::Unbind();
+    return stats;
 }
 
 void RenderApi::DrawMeshNodeDepth(const MeshNode3d *node) const {

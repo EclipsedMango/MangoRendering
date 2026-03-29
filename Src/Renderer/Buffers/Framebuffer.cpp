@@ -48,19 +48,20 @@ void Framebuffer::Create() {
         glNamedFramebufferReadBuffer(m_fbo, GL_NONE);
 
     } else if (m_type == FramebufferType::ColorDepth) {
-        // color attachment
         glCreateTextures(GL_TEXTURE_2D, 1, &m_colorAttachment);
         glTextureStorage2D(m_colorAttachment, 1, GL_RGBA8, m_width, m_height);
         glTextureParameteri(m_colorAttachment, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTextureParameteri(m_colorAttachment, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glNamedFramebufferTexture(m_fbo, GL_COLOR_ATTACHMENT0, m_colorAttachment, 0);
 
-        // depth attachment
         glCreateTextures(GL_TEXTURE_2D, 1, &m_depthAttachment);
-        glTextureStorage2D(m_depthAttachment, 1, GL_DEPTH_COMPONENT32F, m_width, m_height);
+
+        glTextureStorage2D(m_depthAttachment, 1, GL_DEPTH32F_STENCIL8, m_width, m_height);
+
         glTextureParameteri(m_depthAttachment, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTextureParameteri(m_depthAttachment, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glNamedFramebufferTexture(m_fbo, GL_DEPTH_ATTACHMENT, m_depthAttachment, 0);
+
+        glNamedFramebufferTexture(m_fbo, GL_DEPTH_STENCIL_ATTACHMENT, m_depthAttachment, 0);
 
     } else if (m_type == FramebufferType::ColorOnly) {
         glCreateTextures(GL_TEXTURE_2D, 1, &m_colorAttachment);

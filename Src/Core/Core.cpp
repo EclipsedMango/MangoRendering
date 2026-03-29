@@ -15,9 +15,11 @@
 
 #include "ResourceManager.h"
 #include "Editor/EditorStyle.h"
+#include "Nodes/PortalNode3d.h"
 
 Core::~Core() {
     m_currentScene.reset();
+    m_globalSkybox.reset();
     m_defaultShader.reset();
     m_mainFramebuffer.reset();
 
@@ -193,28 +195,38 @@ void Core::RenderScene(Node3d* sceneRoot, const CameraNode3d* camera, const Fram
     }
 
     sceneRoot->UpdateWorldTransform();
-
     m_renderer->ClearQueues();
-
-    for (auto* renderable : m_renderableCache) {
-        if (IsInScene(renderable, sceneRoot)) {
-            if (const auto* meshNode = dynamic_cast<const MeshNode3d*>(renderable)) {
-                if (meshNode->IsVisible() && meshNode->GetMesh() && meshNode->GetShader()) {
-                    m_renderer->SubmitRenderable(renderable);
-                }
-            }
-        }
-    }
 
     if (m_globalSkybox) {
         m_renderer->SetSkybox(m_globalSkybox.get());
     }
 
     for (auto* l : m_lightNodeCache) {
-        l->SyncLight();
+        if (IsInScene(l, sceneRoot)) {
+            l->SyncLight();
+        }
     }
 
-    m_renderer->RenderScene(camera, targetFbo);
+    for (auto* renderable : m_renderableCache) {
+        if (!IsInScene(renderable, sceneRoot) || !renderable->IsVisible()) {
+            continue;
+        }
+
+        if (auto* portal = dynamic_cast<PortalNode3d*>(renderable)) {
+            if (portal->GetMesh() && portal->GetShader()) {
+                m_renderer->SubmitPortal(portal);
+            }
+            continue;
+        }
+
+        if (auto* meshNode = dynamic_cast<MeshNode3d*>(renderable)) {
+            if (meshNode->GetMesh() && meshNode->GetShader()) {
+                m_renderer->SubmitMesh(meshNode);
+            }
+        }
+    }
+
+    m_renderer->RenderSceneWithPortals(camera, targetFbo, 1);
 }
 
 void Core::StepFrame(const float deltaTime) {

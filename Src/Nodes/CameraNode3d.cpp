@@ -37,7 +37,17 @@ std::unique_ptr<Node3d> CameraNode3d::Clone() {
     return Node3d::Clone();
 }
 
+void CameraNode3d::SetViewMatrixOverride(const glm::mat4 &viewMatrix) {
+    m_viewOverride = viewMatrix;
+    m_hasViewOverride = true;
+}
+
+void CameraNode3d::ClearViewMatrixOverride() {
+    m_hasViewOverride = false;
+}
+
 glm::mat4 CameraNode3d::GetViewMatrix() const {
+    if (m_hasViewOverride) return m_viewOverride;
     return glm::lookAt(GetPosition(), GetPosition() + m_front, m_up);
 }
 

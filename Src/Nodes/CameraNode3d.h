@@ -17,6 +17,8 @@ public:
     void SetAspectRatio(const float aspectRatio) { m_aspectRatio = aspectRatio; }
     void SetYaw(const float yaw) { m_yaw = yaw; UpdateVectors(); }
     void SetPitch(const float pitch) { m_pitch = pitch; UpdateVectors(); }
+    void SetViewMatrixOverride(const glm::mat4& viewMatrix);
+    void ClearViewMatrixOverride();
 
     void Process(float deltaTime) override {}
 
@@ -43,6 +45,9 @@ private:
     glm::vec3 m_right{};
     glm::vec3 m_up{};
     glm::vec3 m_worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
+
+    glm::mat4 m_viewOverride;
+    bool m_hasViewOverride = false;
 
     float m_yaw = -90.0f;
     float m_pitch = 0.0f;

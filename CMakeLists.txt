@@ -150,6 +150,8 @@ add_executable(MangoRendering Src/main.cpp
         Src/Core/Editor/UI/ViewportWindow.h
         Src/Core/Editor/UI/MenuBar.cpp
         Src/Core/Editor/UI/MenuBar.h
+        Src/Nodes/PortalNode3d.cpp
+        Src/Nodes/PortalNode3d.h
 )
 
 target_link_libraries(MangoRendering SDL3::SDL3 glad_gl imgui ${CMAKE_DL_LIBS} fkYAML::fkYAML)

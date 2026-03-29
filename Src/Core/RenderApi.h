@@ -22,6 +22,7 @@
 #include "Renderer/Pipeline/IBLPrecomputer.h"
 #include "Renderer/Shadows/CascadedShadowMap.h"
 
+class PortalNode3d;
 class Frustum;
 
 struct RenderStats {
@@ -57,9 +58,11 @@ public:
     void RemoveSpotLight(SpotLight* light) const;
 
     void SubmitRenderable(RenderableNode3d* node);
-    void ClearQueues() { m_meshQueue.clear(); }
+    void SubmitPortal(PortalNode3d* portal);
+    void ClearQueues();
     void SubmitMesh(MeshNode3d* node) { m_meshQueue.push_back(node); }
     void SetSkybox(SkyboxNode3d* skybox);
+    void UploadCameraData(const CameraNode3d* camera) const;
 
     [[nodiscard]] ShaderStorageBuffer* GetLightGridSsbo() const { return m_clusterSystem->GetLightGridSsbo(); }
     [[nodiscard]] ShaderStorageBuffer* GetGlobalCountSsbo() const { return m_clusterSystem->GetGlobalCountSsbo(); }
@@ -69,7 +72,8 @@ public:
     [[nodiscard]] const std::vector<ShadowedPointLightDebug>& GetShadowedPointLightsDebug() const { return m_shadowRenderer->GetShadowedPointLightsDebug(); }
 
     static void ApplyMaterialCull(const Material& mat);
-    RenderStats RenderScene(const CameraNode3d* camera, const Framebuffer* targetFbo) const;
+    RenderStats RenderScene(const CameraNode3d* camera, const Framebuffer* targetFbo, bool clearFbo) const;
+    RenderStats RenderSceneWithPortals(const CameraNode3d* camera, const Framebuffer* targetFbo, int maxPortalDepth) const;
     static void DrawMesh(const Mesh& mesh, const Shader& shader);
 
     // Debug
@@ -94,9 +98,15 @@ private:
 
     void RebuildClusters(const CameraNode3d* camera, const Framebuffer* targetFbo) const;
     void RunLightCulling() const;
+
+    RenderStats RenderView(const CameraNode3d* camera, const Framebuffer* targetFbo, bool clearFbo, const PortalNode3d* excludedPortal = nullptr) const;
+
     void RenderMainPass(const CameraNode3d* camera, const Framebuffer* targetFbo, const std::vector<MeshNode3d*>& opaqueQueue, RenderStats& stats) const;
     void RenderTransparentPass(const CameraNode3d* camera, const std::vector<MeshNode3d*>& transparentQueue, RenderStats& stats) const;
-    void UploadCameraData(const CameraNode3d* camera) const;
+
+    void RenderPortalPasses(const CameraNode3d* camera, const Framebuffer* targetFbo, int remainingDepth) const;
+    static glm::mat4 ComputePortalView(const CameraNode3d* mainCamera, const PortalNode3d* sourcePortal, const PortalNode3d* destPortal);
+    void DrawPortalMask(const PortalNode3d* portal, int stencilId, const CameraNode3d* camera) const;
 
     // constants
     static constexpr uint32_t CLUSTER_DIM_X = 16;
@@ -104,7 +114,7 @@ private:
     static constexpr uint32_t CLUSTER_DIM_Z = 24;
     static constexpr uint32_t NUM_CLUSTERS = CLUSTER_DIM_X * CLUSTER_DIM_Y * CLUSTER_DIM_Z;
 
-    std::vector<std::unique_ptr<Window>> m_windows;
+    std::vector<Window*> m_windows;
     SkyboxNode3d* m_skybox = nullptr;
 
     std::unique_ptr<ClusterSystem> m_clusterSystem;
@@ -115,6 +125,7 @@ private:
     std::unique_ptr<Shader> m_depthShader;
 
     std::vector<MeshNode3d*> m_meshQueue;
+    std::vector<PortalNode3d*> m_portalQueue;
 
     IBLPrecomputer::Result m_ibl;
     bool m_hasIbl = false;

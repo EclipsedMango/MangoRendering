@@ -8,8 +8,10 @@ class CameraNode3d;
 
 class PortalNode3d : public MeshNode3d {
 public:
-    PortalNode3d() { SetName("PortalNode"); }
+    PortalNode3d();
     ~PortalNode3d() override { Unlink(); }
+
+    [[nodiscard]] std::unique_ptr<Node3d> Clone() override;
 
     void LinkTo(PortalNode3d* other);
     void Unlink();
@@ -22,7 +24,10 @@ public:
     [[nodiscard]] std::string GetNodeType() const override { return "PortalNode3d"; }
 
 private:
+    void Init() override;
+
     PortalNode3d* m_linkedPortal = nullptr;
+    std::string m_linkedPortalName;
 };
 
 

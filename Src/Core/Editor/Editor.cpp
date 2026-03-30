@@ -182,10 +182,13 @@ void Editor::DrawMenuBar() {
     if (ImGui::BeginMenu("File")) {
         if (ImGui::MenuItem("New Scene"))  { /* TODO */ }
         if (ImGui::MenuItem("Open Scene")) {
-            const Node3d* activeScene = m_state == State::Playing ? m_core.GetScene() : m_activeViewport->GetScene();
-            if (activeScene) {
-                PackedScene scene(activeScene);
-                scene.SaveToFile("../Assets/john.yml");
+            try {
+                const auto packed = PackedScene::LoadFromFile("../Assets/john.yml");
+                auto loaded = packed.Instantiate();
+                m_activeViewport->LoadScene(std::move(loaded));
+                m_sceneTree.ClearSelection();
+            } catch (const std::exception& e) {
+                std::cerr << "[Editor] Failed to open scene: " << e.what() << "\n";
             }
         }
         if (ImGui::MenuItem("Save Scene")) {

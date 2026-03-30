@@ -4,7 +4,10 @@
 
 #include <fstream>
 #include <iostream>
+#include <unordered_set>
 #include <fkYAML/node.hpp>
+
+#include "Nodes/PortalNode3d.h"
 
 PackedNode::PackedNode(const Node3d *node) {
     std::function<PropertyValue(PropertyValue)> captureValue = [&](PropertyValue val) -> PropertyValue {
@@ -139,11 +142,12 @@ void PackedScene::SaveToFile(const std::string &path) {
 }
 
 std::unique_ptr<Node3d> PackedScene::Instantiate() const {
-    if (!m_node) {
+    if (!m_node)
         throw std::runtime_error("PackedScene: Cannot instantiate scene without a node");
-    }
 
-    return InstantiateNode(*m_node);
+    auto root = InstantiateNode(*m_node);
+    RelinkPortals(root.get());
+    return root;
 }
 
 std::unique_ptr<Node3d> PackedScene::InstantiateNode(const PackedNode &packedNode) {
@@ -162,6 +166,38 @@ std::unique_ptr<Node3d> PackedScene::InstantiateNode(const PackedNode &packedNod
     }
 
     return node;
+}
+
+void PackedScene::RelinkPortals(Node3d *root) {
+    std::unordered_map<std::string, PortalNode3d*> portalMap;
+    std::function<void(Node3d*)> collect = [&](Node3d* node) {
+        if (auto* p = dynamic_cast<PortalNode3d*>(node)) portalMap[p->GetName()] = p;
+        for (Node3d* child : node->GetChildren()) {
+            collect(child);
+        }
+    };
+    collect(root);
+
+    std::unordered_set<PortalNode3d*> linked;
+    std::function<void(Node3d*)> relink = [&](Node3d* node) {
+        if (auto* p = dynamic_cast<PortalNode3d*>(node)) {
+            if (!linked.contains(p)) {
+                const std::string partnerName = p->Get<std::string>("linked_portal_name");
+                if (!partnerName.empty()) {
+                    auto it = portalMap.find(partnerName);
+                    if (it != portalMap.end()) {
+                        PortalNode3d::LinkPair(p, it->second);
+                        linked.insert(p);
+                        linked.insert(it->second);
+                    }
+                }
+            }
+        }
+        for (Node3d* child : node->GetChildren()) {
+            relink(child);
+        }
+    };
+    relink(root);
 }
 
 fkyaml::node PackedScene::FromPackedNode(const PackedNode& packedNode) {

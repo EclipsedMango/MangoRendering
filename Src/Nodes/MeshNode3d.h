@@ -34,7 +34,7 @@ public:
     [[nodiscard]] std::shared_ptr<Material> GetMaterialPtr() { return m_material; }
 
 private:
-    void Init();
+    virtual void Init();
 
     std::shared_ptr<PropertyHolder> m_meshSlot;
 

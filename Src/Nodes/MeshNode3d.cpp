@@ -8,15 +8,15 @@
 REGISTER_NODE_TYPE(MeshNode3d)
 
 MeshNode3d::MeshNode3d() : m_material(std::make_shared<Material>()) {
-    Init();
+    MeshNode3d::Init();
 }
 
 MeshNode3d::MeshNode3d(std::shared_ptr<Shader> shader) : m_shader(std::move(shader)), m_material(std::make_shared<Material>()) {
-    Init();
+    MeshNode3d::Init();
 }
 
 MeshNode3d::MeshNode3d(std::shared_ptr<Mesh> mesh, std::shared_ptr<Shader> shader) : m_shader(std::move(shader)), m_mesh(std::move(mesh)), m_material(std::make_shared<Material>()) {
-    Init();
+    MeshNode3d::Init();
 }
 
 std::unique_ptr<Node3d> MeshNode3d::Clone() {

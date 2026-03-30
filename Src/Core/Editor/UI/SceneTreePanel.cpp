@@ -11,6 +11,7 @@
 #include "glm/vec3.hpp"
 #include "Nodes/CameraNode3d.h"
 #include "Nodes/MeshNode3d.h"
+#include "Nodes/PortalNode3d.h"
 #include "Nodes/Lights/DirectionalLightNode3d.h"
 #include "Nodes/Lights/PointLightNode3d.h"
 #include "Renderer/Meshes/PrimitiveMesh.h"
@@ -78,8 +79,9 @@ void SceneTreePanel::DrawSceneTree(Node3d *node) {
             { "Node3d", "Base" },
             { "MeshNode3d", "3D" },
             { "CameraNode3d", "3D" },
-            { "DirectionalLight", "Light" },
-            { "PointLight", "Light" },
+            { "DirectionalLightNode3d", "Light" },
+            { "PointLightNode3d", "Light" },
+            {"PortalNode3d", "Portal"}
         };
 
         const char* lastCategory = nullptr;
@@ -122,17 +124,23 @@ void SceneTreePanel::DrawSceneTree(Node3d *node) {
                     }
                     case 3: {
                         auto n = std::make_unique<DirectionalLightNode3d>(glm::vec3(-64.0f, 128.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), 0.25f);
-                        n->SetName("DirectionalLight");
+                        n->SetName("DirectionalLightNode3d");
                         created = n.get();
                         root->AddChild(std::move(n));
                         break;
                     }
                     case 4: {
                         auto n = std::make_unique<PointLightNode3d>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), 1.0f);
-                        n->SetName("PointLight");
+                        n->SetName("PointLightNode3d");
                         created = n.get();
                         root->AddChild(std::move(n));
                         break;
+                    }
+                    case 5: {
+                        auto n = std::make_unique<PortalNode3d>();
+                        n->SetName("PortalNode3d");
+                        created = n.get();
+                        root->AddChild(std::move(n));
                     }
                     default: break;
                 }

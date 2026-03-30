@@ -10,6 +10,7 @@ class Editor;
 class Node3d;
 class Material;
 class Texture;
+class PortalNode3d;
 
 class InspectorPanel {
 public:
@@ -21,6 +22,7 @@ public:
 
 private:
     void DrawProperties(PropertyHolder* holder);
+    void DrawPortalProperties(PortalNode3d *portal);
     void DrawPropertyValue(const std::string& name, PropertyHolder* holder);
 
     void DrawTexturePreviewPopup();

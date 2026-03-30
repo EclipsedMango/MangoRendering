@@ -11,9 +11,8 @@ class Mesh : public PropertyHolder {
 public:
     // ONLY for internal use and serializing, use other constructors instead
     Mesh() { RegisterProperties(); }
-
     Mesh(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
-    virtual ~Mesh() = default;
+    ~Mesh() override = default;
 
     Mesh(const Mesh&) = delete;
     Mesh& operator=(const Mesh&) = delete;

@@ -3,13 +3,13 @@
 
 #include <iostream>
 #include <memory>
-#include <ranges>
 
 #include "../Editor.h"
 #include "imgui.h"
 #include "Core/ResourceManager.h"
 #include "glm/glm.hpp"
 #include "Nodes/Node3d.h"
+#include "Nodes/PortalNode3d.h"
 
 static constexpr ImVec4 COL_HEADER = {0.55f, 0.75f, 0.95f, 1.00f}; // soft blue
 static constexpr ImVec4 COL_LABEL = {0.75f, 0.75f, 0.75f, 1.00f}; // muted grey
@@ -82,6 +82,10 @@ void InspectorPanel::DrawInspector(Node3d* selectedNode) {
     ImGui::Spacing();
 
     DrawProperties(selectedNode);
+    if (auto* portal = dynamic_cast<PortalNode3d*>(selectedNode)) {
+        DrawPortalProperties(portal);
+    }
+
     DrawTexturePreviewPopup();
 
     ImGui::End();
@@ -110,6 +114,76 @@ void InspectorPanel::DrawProperties(PropertyHolder* holder) {
     for (const auto& name : subProps) {
         DrawPropertyValue(name, holder);
     }
+}
+
+static void CollectPortals(Node3d* root, PortalNode3d* exclude, std::vector<PortalNode3d*>& out) {
+    if (!root) return;
+    if (auto* p = dynamic_cast<PortalNode3d*>(root); p && p != exclude) out.push_back(p);
+    for (Node3d* child : root->GetChildren()) {
+        CollectPortals(child, exclude, out);
+    }
+}
+
+void InspectorPanel::DrawPortalProperties(PortalNode3d* portal) {
+    Node3d* activeScene = m_editor->GetState() == Editor::State::Playing ? m_editor->GetCore().GetScene() : m_editor->GetActiveViewport()->GetScene();
+
+    SectionHeader("Portal Link");
+
+    std::vector<PortalNode3d*> candidates;
+    CollectPortals(activeScene, portal, candidates);
+
+    const PortalNode3d* linked = portal->GetLinkedPortal();
+    if (linked) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 1.0f, 0.5f, 1.0f));
+        ImGui::Text("Linked: %s", linked->GetName().c_str());
+        ImGui::PopStyleColor();
+    } else {
+        ImGui::PushStyleColor(ImGuiCol_Text, COL_LABEL);
+        ImGui::TextUnformatted("Not linked");
+        ImGui::PopStyleColor();
+    }
+
+    ImGui::Spacing();
+
+    if (candidates.empty()) {
+        ImGui::PushStyleColor(ImGuiCol_Text, COL_LABEL);
+        ImGui::TextUnformatted("No other portals in scene.");
+        ImGui::PopStyleColor();
+        return;
+    }
+
+    BeginPropertyTable();
+    PropertyLabel("Target");
+
+    const char* preview = linked ? linked->GetName().c_str() : "None";
+    if (ImGui::BeginCombo("##portal_target", preview)) {
+        if (ImGui::Selectable("None", linked == nullptr)) {
+            portal->Unlink();
+        }
+
+        for (PortalNode3d* c : candidates) {
+            const bool selected = (linked == c);
+            if (ImGui::Selectable(c->GetName().c_str(), selected)) {
+                portal->LinkTo(c);
+            }
+
+            if (selected) ImGui::SetItemDefaultFocus();
+        }
+
+        ImGui::EndCombo();
+    }
+
+    if (linked) {
+        ImGui::SameLine(0, 6);
+        if (ImGui::SmallButton("×")) {
+            portal->Unlink();
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Unlink");
+        }
+    }
+
+    EndPropertyTable();
 }
 
 void InspectorPanel::DrawPropertyValue(const std::string& name, PropertyHolder* holder) {

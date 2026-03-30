@@ -239,10 +239,10 @@ RenderStats RenderApi::RenderScene(const CameraNode3d* camera, const Framebuffer
 }
 
 RenderStats RenderApi::RenderSceneWithPortals(const CameraNode3d *camera, const Framebuffer *targetFbo, const int maxPortalDepth) const {
-    RenderStats stats = RenderView(camera, targetFbo, true, nullptr);
+    const RenderStats stats = RenderView(camera, targetFbo, true, nullptr, true);
 
     if (maxPortalDepth > 0) {
-        RenderPortalPasses(camera, targetFbo, maxPortalDepth);
+        RenderPortalPasses(camera, targetFbo, maxPortalDepth, 0);
     }
 
     Framebuffer::Unbind();
@@ -377,63 +377,58 @@ void RenderApi::RenderTransparentPass(const CameraNode3d* camera, const std::vec
     glDepthFunc(GL_LEQUAL);
 }
 
-void RenderApi::RenderPortalPasses(const CameraNode3d *camera, const Framebuffer *targetFbo, const int remainingDepth) const {
+void RenderApi::RenderPortalPasses(const CameraNode3d *camera, const Framebuffer *targetFbo, int remainingDepth, int currentStencil) const {
     if (remainingDepth <= 0 || m_portalQueue.empty() || !camera || !targetFbo) {
         return;
     }
 
+    Frustum cameraFrustum{};
+    cameraFrustum.ExtractFromMatrix(camera->GetProjectionMatrix() * camera->GetViewMatrix());
+
     targetFbo->Bind();
-    glEnable(GL_STENCIL_TEST);
-    glStencilMask(0xFF);
 
-    int stencilId = 1;
-
-    for (const PortalNode3d* portal : m_portalQueue) {
-        if (!portal || !portal->IsLinked()) {
-            continue;
-        }
-
+     for (const PortalNode3d* portal : m_portalQueue) {
+        if (!portal || !portal->IsLinked() || !portal->GetMesh() || !portal->GetShader()) continue;
         const PortalNode3d* linked = portal->GetLinkedPortal();
-        if (!linked) {
+        if (!linked || !linked->GetMesh()) continue;
+
+        const Mesh* mesh = portal->GetMesh();
+        const glm::vec3 worldCenter = glm::vec3(portal->GetWorldMatrix() * glm::vec4(mesh->GetBoundsCenter(), 1.0f));
+        const float maxScale = std::max({ portal->GetScale().x, portal->GetScale().y, portal->GetScale().z });
+        const float worldRadius = mesh->GetBoundsRadius() * maxScale;
+
+        if (!cameraFrustum.IntersectsSphere(worldCenter, worldRadius)) {
             continue;
         }
 
-        if (!portal->GetMesh() || !portal->GetShader() || !linked->GetMesh()) {
+        const glm::vec3 portalPos = glm::vec3(portal->GetWorldMatrix()[3]);
+        // assuming portal mesh faces +Z. If it faces +X or +Y, change the vec4 below to (1,0,0,0) or (0,1,0,0).
+        const glm::vec3 portalNormal = glm::normalize(glm::vec3(portal->GetWorldMatrix() * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)));
+        const glm::vec3 camToPortal = portalPos - camera->GetPosition();
+
+        if (glm::dot(camToPortal, portalNormal) > 0.0f) {
             continue;
         }
 
-        if (stencilId > 255) {
-            break;
+        const float distance = glm::length(camToPortal);
+        if (currentStencil > 1 && distance > 20.0f) {
+            continue;
         }
 
-        DrawPortalMask(portal, stencilId, camera);
+        const int nextStencil = currentStencil + 1;
+        if (nextStencil > 255) break;
+
+        DrawPortalMask(portal, currentStencil, camera);
 
         const glm::mat4 virtualView = ComputePortalView(camera, portal, linked);
         CameraNode3d portalCamera = BuildPortalRenderCamera(camera, targetFbo, virtualView);
 
-        RenderView(&portalCamera, targetFbo, false, portal);
+        RenderView(&portalCamera, targetFbo, false, linked, false);
+
+        RenderPortalPasses(&portalCamera, targetFbo, remainingDepth - 1, nextStencil);
+        RestorePortalMask(portal, nextStencil, camera);
 
         targetFbo->Bind();
-        glEnable(GL_STENCIL_TEST);
-        glStencilMask(0xFF);
-
-        ++stencilId;
-    }
-
-    glDisable(GL_STENCIL_TEST);
-    glStencilMask(0xFF);
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-    glDepthMask(GL_TRUE);
-    glDepthFunc(GL_LEQUAL);
-    glDepthRange(0.0, 1.0);
-
-    Framebuffer::Unbind();
-
-    if (!m_windows.empty() && m_windows[0]) {
-        int w = 0;
-        int h = 0;
-        SDL_GetWindowSizeInPixels(m_windows[0]->GetSDLWindow(), &w, &h);
-        glViewport(0, 0, w, h);
     }
 }
 
@@ -452,10 +447,8 @@ glm::mat4 RenderApi::ComputePortalView(const CameraNode3d* mainCamera, const Por
     return glm::inverse(virtualCameraWorld);
 }
 
-void RenderApi::DrawPortalMask(const PortalNode3d *portal, int stencilId, const CameraNode3d *camera) const {
-    if (!portal || !camera || !portal->GetMesh() || !portal->GetShader()) {
-        return;
-    }
+void RenderApi::DrawPortalMask(const PortalNode3d *portal, const int currentStencil, const CameraNode3d *camera) const {
+    if (!portal || !camera || !portal->GetMesh() || !portal->GetShader()) return;
 
     UploadCameraData(camera);
 
@@ -464,36 +457,59 @@ void RenderApi::DrawPortalMask(const PortalNode3d *portal, int stencilId, const 
     shader->SetMatrix4("u_Model", portal->GetWorldMatrix());
 
     glEnable(GL_DEPTH_TEST);
-
-    // write only to stencil where the portal surface is visible
     glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
     glDepthMask(GL_FALSE);
 
+    glEnable(GL_STENCIL_TEST);
     glStencilMask(0xFF);
-    glStencilFunc(GL_ALWAYS, stencilId, 0xFF);
-    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+
+    glStencilFunc(GL_EQUAL, currentStencil, 0xFF);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
 
     DrawMesh(*portal->GetMesh(), *shader);
 
-    // push the portal area depth to the far plane so the destination view isnt blocked by the wall the portal sits on
     glDepthMask(GL_TRUE);
     glDepthFunc(GL_ALWAYS);
     glDepthRange(1.0, 1.0);
 
-    glStencilFunc(GL_EQUAL, stencilId, 0xFF);
+    const int nextStencil = currentStencil + 1;
+    glStencilFunc(GL_EQUAL, nextStencil, 0xFF);
     glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
 
     DrawMesh(*portal->GetMesh(), *shader);
 
-    // restore normal render state, but keep stencil clipping active
     glDepthRange(0.0, 1.0);
     glDepthFunc(GL_LEQUAL);
-
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
     glStencilMask(0x00);
-    glStencilFunc(GL_EQUAL, stencilId, 0xFF);
-    glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+    glStencilFunc(GL_EQUAL, nextStencil, 0xFF);
+}
+
+void RenderApi::RestorePortalMask(const PortalNode3d *portal, const int nextStencil, const CameraNode3d *camera) const {
+    if (!portal || !camera || !portal->GetMesh() || !portal->GetShader()) return;
+
+    UploadCameraData(camera);
+
+    const Shader* shader = portal->GetShader().get();
+    shader->Bind();
+    shader->SetMatrix4("u_Model", portal->GetWorldMatrix());
+
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+    glDepthMask(GL_FALSE);
+    glEnable(GL_STENCIL_TEST);
+    glStencilMask(0xFF);
+
+    glStencilFunc(GL_EQUAL, nextStencil, 0xFF);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_DECR);
+
+    DrawMesh(*portal->GetMesh(), *shader);
+
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glDepthMask(GL_TRUE);
+
+    glStencilMask(0x00);
+    glStencilFunc(GL_EQUAL, nextStencil - 1, 0xFF);
 }
 
 void RenderApi::BeginZPrepass() {
@@ -524,7 +540,7 @@ void RenderApi::RunLightCulling() const {
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 }
 
-RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer *targetFbo, bool clearFbo, const PortalNode3d *excludedPortal) const {
+RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer *targetFbo, bool clearFbo, const PortalNode3d *excludedPortal, bool isMainPass) const {
     RenderStats stats = {};
     if (!camera || !targetFbo) {
         return stats;
@@ -560,7 +576,10 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
 
     UploadCameraData(camera);
     m_lightManager->Upload();
-    m_shadowRenderer->ResetStats();
+
+    if (isMainPass) {
+        m_shadowRenderer->ResetStats();
+    }
 
     RebuildClusters(camera, targetFbo);
 
@@ -582,13 +601,15 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
     glDisable(GL_STENCIL_TEST);
 
     const glm::vec2 targetSize(targetFbo->GetWidth(), targetFbo->GetHeight());
-    glEnable(GL_POLYGON_OFFSET_FILL);
-    glPolygonOffset(2.5f, 3.0f);
-    m_shadowRenderer->RenderDirectionalShadows(*camera, opaqueQueue, targetSize);
-    m_shadowRenderer->RenderPointLightShadows(*camera, m_lightManager->GetPointLights(), opaqueQueue, targetSize);
-    glDisable(GL_POLYGON_OFFSET_FILL);
 
-    stats.shadowDrawCalls = m_shadowRenderer->GetShadowDrawCallCount();
+    if (isMainPass) {
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(2.5f, 3.0f);
+        m_shadowRenderer->RenderDirectionalShadows(*camera, opaqueQueue, targetSize);
+        m_shadowRenderer->RenderPointLightShadows(*camera, m_lightManager->GetPointLights(), opaqueQueue, targetSize);
+        glDisable(GL_POLYGON_OFFSET_FILL);
+        stats.shadowDrawCalls = m_shadowRenderer->GetShadowDrawCallCount();
+    }
 
     if (stencilEnabled) {
         glEnable(GL_STENCIL_TEST);

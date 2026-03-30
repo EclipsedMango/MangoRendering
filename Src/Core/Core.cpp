@@ -226,7 +226,7 @@ void Core::RenderScene(Node3d* sceneRoot, const CameraNode3d* camera, const Fram
         }
     }
 
-    m_renderer->RenderSceneWithPortals(camera, targetFbo, 1);
+    m_renderer->RenderSceneWithPortals(camera, targetFbo, 6);
 }
 
 void Core::StepFrame(const float deltaTime) {

@@ -31,6 +31,7 @@ int main() {
     auto quad = std::make_unique<MeshNode3d>(shader);
     quad->SetMeshByName("Quad");
     quad->SetScale({4.0f, 4.0f, 4.0f});
+    quad->GetActiveMaterial().SetDoubleSided(true);
     quad->GetActiveMaterial().SetDiffuse("../Assets/Textures/RedBrick/red_brick_03_diff_1k.png");
     quad->GetActiveMaterial().SetAmbientOcclusion("../Assets/Textures/RedBrick/red_brick_03_ao_1k.png");
     quad->GetActiveMaterial().SetDisplacement("../Assets/Textures/RedBrick/red_brick_03_disp_1k.png");

@@ -99,14 +99,16 @@ private:
     void RebuildClusters(const CameraNode3d* camera, const Framebuffer* targetFbo) const;
     void RunLightCulling() const;
 
-    RenderStats RenderView(const CameraNode3d* camera, const Framebuffer* targetFbo, bool clearFbo, const PortalNode3d* excludedPortal = nullptr) const;
+    RenderStats RenderView(const CameraNode3d* camera, const Framebuffer* targetFbo, bool clearFbo, const PortalNode3d* excludedPortal = nullptr, bool isMainPass = true) const;
 
     void RenderMainPass(const CameraNode3d* camera, const Framebuffer* targetFbo, const std::vector<MeshNode3d*>& opaqueQueue, RenderStats& stats) const;
     void RenderTransparentPass(const CameraNode3d* camera, const std::vector<MeshNode3d*>& transparentQueue, RenderStats& stats) const;
 
-    void RenderPortalPasses(const CameraNode3d* camera, const Framebuffer* targetFbo, int remainingDepth) const;
+    void RenderPortalPasses(const CameraNode3d* camera, const Framebuffer* targetFbo, int remainingDepth, int currentStencil = 0) const;
     static glm::mat4 ComputePortalView(const CameraNode3d* mainCamera, const PortalNode3d* sourcePortal, const PortalNode3d* destPortal);
-    void DrawPortalMask(const PortalNode3d* portal, int stencilId, const CameraNode3d* camera) const;
+
+    void DrawPortalMask(const PortalNode3d* portal, int currentStencil, const CameraNode3d* camera) const;
+    void RestorePortalMask(const PortalNode3d* portal, int nextStencil, const CameraNode3d* camera) const;
 
     // constants
     static constexpr uint32_t CLUSTER_DIM_X = 16;

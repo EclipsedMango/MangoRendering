@@ -32,6 +32,8 @@ public:
     [[nodiscard]] bool IsHovered() const { return m_viewportHovered; }
     [[nodiscard]] CameraNode3d* GetCamera() const { return m_camera.get(); }
     [[nodiscard]] EditorCameraController* GetCameraController() const { return m_cameraController.get(); }
+    [[nodiscard]] ImVec2 GetViewportSize() const { return m_viewportSize; }
+    [[nodiscard]] ImVec2 GetViewportPos() const { return m_viewportPos; }
 
     [[nodiscard]] Node3d* GetScene() const;
 

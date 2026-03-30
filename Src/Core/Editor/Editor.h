@@ -39,6 +39,7 @@ private:
     void DrawViewportTabs();
     void DrawMenuBar();
     void DrawContentBrowser();
+    void DrawCameraSpeedIndication(float alpha) const;
 
     // helpers
     void OnPlay();
@@ -57,6 +58,9 @@ private:
     InspectorPanel m_inspector;
     SceneTreePanel m_sceneTree;
     GizmoSystem m_gizmoSystem;
+
+    float m_speedIndicatorTimer = 0.0f;
+    constexpr static float kSpeedIndicatorFadeTime = 1.2f;
 
     State m_state = State::Editing;
 

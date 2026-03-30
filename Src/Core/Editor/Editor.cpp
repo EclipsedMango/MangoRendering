@@ -89,6 +89,16 @@ void Editor::Run() {
         DrawMenuBar();
         DrawViewportTabs();
 
+        if (m_activeViewport->GetCameraController()->GetMoveSpeedLastFrame() != m_activeViewport->GetCameraController()->GetMoveSpeed()) {
+            m_activeViewport->GetCameraController()->SetMoveSpeedLastFrame(m_activeViewport->GetCameraController()->GetMoveSpeed());
+            m_speedIndicatorTimer = kSpeedIndicatorFadeTime;
+        }
+
+        if (m_speedIndicatorTimer > 0.0f) {
+            m_speedIndicatorTimer -= deltaTime;
+            DrawCameraSpeedIndication(m_speedIndicatorTimer / kSpeedIndicatorFadeTime);
+        }
+
         Node3d* sceneToDraw = m_state == State::Playing ? m_core.GetScene() : m_activeViewport->GetScene();
         m_sceneTree.DrawSceneTree(sceneToDraw);
 
@@ -230,6 +240,41 @@ void Editor::DrawContentBrowser() {
     ImGui::Begin("Content Browser");
     ImGui::TextDisabled("Content browser coming soon");
     ImGui::End();
+}
+
+void Editor::DrawCameraSpeedIndication(const float alpha) const {
+    const ImVec2 pos  = m_activeViewport->GetViewportPos();
+    const ImVec2 size = m_activeViewport->GetViewportSize();
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
+
+    const float a = alpha * alpha;
+    const auto  A = [&](const int base) { return static_cast<int>(base * a); };
+
+    constexpr float barW = 12.0f;
+    constexpr float pad = 16.0f;
+    constexpr float barH = 256.0f;
+
+    const ImVec2 barMax = ImVec2(pos.x + size.x - pad, pos.y + size.y - pad);
+    const ImVec2 barMin = ImVec2(barMax.x - barW, barMax.y - barH);
+
+    dl->AddRectFilled(barMin, barMax, IM_COL32(0, 0, 0, A(160)), 4.0f);
+
+    constexpr float minSpeed = 0.05f;
+    constexpr float maxSpeed = 550.0f;
+    const float speed = m_activeViewport->GetCameraController()->GetMoveSpeed();
+
+    float t = (glm::log(speed) - glm::log(minSpeed)) / (glm::log(maxSpeed) - glm::log(minSpeed));
+    t = glm::clamp(t, 0.02f, 0.98f);
+
+    const float fillTop = barMin.y + barH * (1.0f - t);
+
+    dl->PushClipRect(barMin, barMax, true);
+    dl->AddRectFilled(ImVec2(barMin.x, fillTop), barMax, IM_COL32(136, 33, 191, A(210)), 4.0f);
+
+    dl->AddRectFilled(ImVec2(barMin.x, fillTop), ImVec2(barMax.x, fillTop + 2.0f), IM_COL32(172, 50, 237, A(255)));
+    dl->PopClipRect();
+
+    dl->AddRect(barMin, barMax, IM_COL32(255, 255, 255, A(60)), 4.0f, ImDrawFlags_RoundCornersAll, 1.0f);
 }
 
 void Editor::OnPlay() {

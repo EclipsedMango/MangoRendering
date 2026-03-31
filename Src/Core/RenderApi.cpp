@@ -9,6 +9,7 @@
 #include "Renderer/Lights/GpuLights.h"
 #include "Renderer/Buffers/UniformBuffer.h"
 #include "glad/gl.h"
+#include "glm/gtc/matrix_access.hpp"
 #include "glm/gtc/type_ptr.hpp"
 #include "Nodes/MeshNode3d.h"
 #include "Nodes/PortalNode3d.h"
@@ -424,7 +425,7 @@ void RenderApi::RenderPortalPasses(const CameraNode3d *camera, const Framebuffer
 
     targetFbo->Bind();
 
-     for (const PortalNode3d* portal : m_portalQueue) {
+    for (const PortalNode3d* portal : m_portalQueue) {
         if (!portal || !portal->IsLinked() || !portal->GetMesh() || !portal->GetShader()) continue;
         const PortalNode3d* linked = portal->GetLinkedPortal();
         if (!linked || !linked->GetMesh()) continue;
@@ -459,6 +460,8 @@ void RenderApi::RenderPortalPasses(const CameraNode3d *camera, const Framebuffer
 
         const glm::mat4 virtualView = ComputePortalView(camera, portal, linked);
         CameraNode3d portalCamera = BuildPortalRenderCamera(camera, targetFbo, virtualView);
+        const glm::mat4 obliqueProjMat = ObliqueProjection(portalCamera.GetProjectionMatrix(), virtualView, linked);
+        portalCamera.SetProjectionMatrixOverride(obliqueProjMat);
 
         RenderView(&portalCamera, targetFbo, false, linked, false);
 
@@ -482,6 +485,27 @@ glm::mat4 RenderApi::ComputePortalView(const CameraNode3d* mainCamera, const Por
 
     const glm::mat4 virtualCameraWorld = destWorld * flip * glm::inverse(sourceWorld) * cameraWorld;
     return glm::inverse(virtualCameraWorld);
+}
+
+glm::mat4 RenderApi::ObliqueProjection(const glm::mat4 &projMat, const glm::mat4 &virtualView, const PortalNode3d *destPortal) {
+    const glm::vec3 planeNormal = glm::normalize(glm::vec3(destPortal->GetWorldMatrix() * glm::vec4(0.f, 0.f, 1.f, 0.f)));
+    const glm::vec3 planePoint = glm::vec3(destPortal->GetWorldMatrix()[3]);
+    const float planeD = -glm::dot(planeNormal, planePoint);
+
+    const glm::vec4 clipPlane = glm::inverse(glm::transpose(virtualView)) * glm::vec4(planeNormal, planeD);
+    if (clipPlane.w > 0.f) return projMat;
+
+    const glm::vec4 q = glm::inverse(projMat) * glm::vec4(
+        glm::sign(clipPlane.x),
+        glm::sign(clipPlane.y),
+        1.f,
+        1.f
+    );
+
+    glm::vec4 c = clipPlane * (2.f / glm::dot(clipPlane, q));
+    glm::mat4 newProj = projMat;
+    newProj = glm::row(newProj, 2, c - glm::row(newProj, 3));
+    return newProj;
 }
 
 void RenderApi::DrawPortalMask(const PortalNode3d *portal, const int currentStencil, const CameraNode3d *camera) const {

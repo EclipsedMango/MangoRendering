@@ -19,7 +19,9 @@ public:
     void SetPitch(const float pitch) { m_pitch = pitch; UpdateVectors(); }
     void SetAsGameCamera(const bool val) { m_isGameCamera = val; }
     void SetViewMatrixOverride(const glm::mat4& viewMatrix);
+    void SetProjectionMatrixOverride(const glm::mat4& projMatrix);
     void ClearViewMatrixOverride();
+    void ClearProjectionMatrixOverride();
 
     void Process(float deltaTime) override {}
 
@@ -48,8 +50,12 @@ private:
     glm::vec3 m_up{};
     glm::vec3 m_worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
 
+    glm::mat4 m_projOverride{};
+    bool m_hasProjectionOverride = false;
+
     glm::mat4 m_viewOverride{};
     bool m_hasViewOverride = false;
+
     bool m_isGameCamera = false;
 
     float m_yaw = -90.0f;

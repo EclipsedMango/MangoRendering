@@ -59,8 +59,17 @@ void CameraNode3d::SetViewMatrixOverride(const glm::mat4 &viewMatrix) {
     m_hasViewOverride = true;
 }
 
+void CameraNode3d::SetProjectionMatrixOverride(const glm::mat4 &projMatrix) {
+    m_projOverride = projMatrix;
+    m_hasProjectionOverride = true;
+}
+
 void CameraNode3d::ClearViewMatrixOverride() {
     m_hasViewOverride = false;
+}
+
+void CameraNode3d::ClearProjectionMatrixOverride() {
+    m_hasProjectionOverride = false;
 }
 
 glm::mat4 CameraNode3d::GetViewMatrix() const {
@@ -69,6 +78,7 @@ glm::mat4 CameraNode3d::GetViewMatrix() const {
 }
 
 glm::mat4 CameraNode3d::GetProjectionMatrix() const {
+    if (m_hasProjectionOverride) return m_projOverride;
     return glm::perspective(glm::radians(m_fov), m_aspectRatio, m_nearPlane, m_farPlane);
 }
 

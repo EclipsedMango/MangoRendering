@@ -107,6 +107,7 @@ private:
 
     void RenderPortalPasses(const CameraNode3d* camera, const Framebuffer* targetFbo, int remainingDepth, int currentStencil = 0) const;
     static glm::mat4 ComputePortalView(const CameraNode3d* mainCamera, const PortalNode3d* sourcePortal, const PortalNode3d* destPortal);
+    static glm::mat4 ObliqueProjection(const glm::mat4& projMat, const glm::mat4& virtualView, const PortalNode3d* destPortal);
 
     void DrawPortalMask(const PortalNode3d* portal, int currentStencil, const CameraNode3d* camera) const;
     void RestorePortalMask(const PortalNode3d* portal, int nextStencil, const CameraNode3d* camera) const;

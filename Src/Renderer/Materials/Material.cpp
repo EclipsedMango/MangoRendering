@@ -6,6 +6,11 @@
 REGISTER_PROPERTY_TYPE(Material)
 
 Material::Material() {
+    AddProperty("name",
+        [this]() -> PropertyValue { return GetName(); },
+        [this](const PropertyValue& v) { SetName(std::get<std::string>(v)); }
+    );
+
     AddProperty("albedo_color",
         [this]() -> PropertyValue { return glm::vec3(GetAlbedoColor()); },
         [this](const PropertyValue& v) { SetAlbedoColor(glm::vec4(std::get<glm::vec3>(v), m_albedoColor.a)); }

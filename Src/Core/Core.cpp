@@ -227,6 +227,10 @@ void Core::RenderScene(Node3d* sceneRoot, const CameraNode3d* camera, const Fram
     }
 
     m_renderer->RenderSceneWithPortals(camera, targetFbo, 6);
+
+    if (m_cameraMode == CameraMode::Editor) {
+        m_renderer->DrawGrid(camera, targetFbo);
+    }
 }
 
 void Core::StepFrame(const float deltaTime) {

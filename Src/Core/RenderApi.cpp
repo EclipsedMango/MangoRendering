@@ -93,6 +93,9 @@ void RenderApi::InitGLResources() {
     // camera UBO
     m_cameraUbo = std::make_unique<UniformBuffer>(2 * sizeof(glm::mat4), 0);
 
+    m_gridShader = std::make_unique<Shader>("../Assets/Shaders/grid.vert", "../Assets/Shaders/grid.frag");
+    glGenVertexArrays(1, &m_gridVao);
+
     m_clusterSystem = std::make_unique<ClusterSystem>();
     m_shadowRenderer = std::make_unique<ShadowRenderer>();
     m_lightManager = std::make_unique<LightManager>();
@@ -262,6 +265,40 @@ RenderStats RenderApi::RenderSceneWithPortals(const CameraNode3d *camera, const 
     glDepthRange(0.0, 1.0);
 
     return stats;
+}
+
+void RenderApi::DrawGrid(const CameraNode3d *camera, const Framebuffer *targetFbo) const {
+    if (!camera || !targetFbo || !m_gridShader) return;
+
+    targetFbo->Bind();
+    glViewport(0, 0, targetFbo->GetWidth(), targetFbo->GetHeight());
+
+    glDisable(GL_STENCIL_TEST);
+
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    UploadCameraData(camera);
+
+    m_gridShader->Bind();
+    m_gridShader->SetVector3("u_CameraPos", camera->GetPosition());
+    m_gridShader->SetVector2("u_ScreenSize", glm::vec2(targetFbo->GetWidth(), targetFbo->GetHeight()));
+    m_gridShader->SetFloat("u_GridSpacing", 1.0f);
+    m_gridShader->SetFloat("u_FadeDistance", 80.0f);
+
+    glDepthFunc(GL_LEQUAL);
+    glDepthMask(GL_FALSE);
+    glBindVertexArray(m_gridVao);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glDepthFunc(GL_LESS);
+    glDepthMask(GL_TRUE);
+
+    glDisable(GL_BLEND);
+    glDepthMask(GL_TRUE);
+
+    Framebuffer::Unbind();
 }
 
 void RenderApi::RenderMainPass(const CameraNode3d* camera, const Framebuffer* targetFbo, const std::vector<MeshNode3d*>& opaqueQueue, RenderStats& stats) const {

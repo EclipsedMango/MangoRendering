@@ -74,6 +74,7 @@ public:
     static void ApplyMaterialCull(const Material& mat);
     RenderStats RenderScene(const CameraNode3d* camera, const Framebuffer* targetFbo, bool clearFbo) const;
     RenderStats RenderSceneWithPortals(const CameraNode3d* camera, const Framebuffer* targetFbo, int maxPortalDepth) const;
+    void DrawGrid(const CameraNode3d* camera, const Framebuffer* targetFbo) const;
     static void DrawMesh(const Mesh& mesh, const Shader& shader);
 
     // Debug
@@ -125,6 +126,8 @@ private:
 
     std::unique_ptr<UniformBuffer> m_cameraUbo;
     std::unique_ptr<Shader> m_depthShader;
+    std::unique_ptr<Shader> m_gridShader;
+    GLuint m_gridVao = 0;
 
     std::vector<MeshNode3d*> m_meshQueue;
     std::vector<PortalNode3d*> m_portalQueue;

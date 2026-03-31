@@ -96,7 +96,14 @@ void ViewportWindow::Draw() {
         Node3d* activeScene = m_editor->GetState() == Editor::State::Playing ? m_editor->GetCore().GetScene() : GetScene();
 
         if (shouldRender) {
-            m_editor->GetCore().RenderScene(activeScene, m_camera.get(), m_framebuffer.get());
+            const CameraNode3d* renderCam = m_camera.get();
+            if (m_editor->GetState() == Editor::State::Playing) {
+                if (const CameraNode3d* gameCam = m_editor->GetCore().GetGameCamera()) {
+                    renderCam = gameCam;
+                }
+            }
+
+            m_editor->GetCore().RenderScene(activeScene, renderCam, m_framebuffer.get());
             m_timeSinceLastRender = 0.0f;
         }
 
@@ -175,7 +182,14 @@ void ViewportWindow::DrawContent() {
         Node3d* activeScene = m_editor->GetState() == Editor::State::Playing ? m_editor->GetCore().GetScene() : GetScene();
 
         if (shouldRender) {
-            m_editor->GetCore().RenderScene(activeScene, m_camera.get(), m_framebuffer.get());
+            const CameraNode3d* renderCam = m_camera.get();
+            if (m_editor->GetState() == Editor::State::Playing) {
+                if (const CameraNode3d* gameCam = m_editor->GetCore().GetGameCamera()) {
+                    renderCam = gameCam;
+                }
+            }
+
+            m_editor->GetCore().RenderScene(activeScene, renderCam, m_framebuffer.get());
             m_timeSinceLastRender = 0.0f;
         }
 

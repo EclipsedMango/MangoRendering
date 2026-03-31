@@ -54,6 +54,15 @@ void Editor::Run() {
             m_sceneTree.ClearSelection();
         }
 
+        if (Input::IsKeyJustPressed(SDL_SCANCODE_F2) && m_sceneTree.IsHoveringSceneTree()) {
+            if (!m_sceneTree.GetSelectedNodes().empty() && m_sceneTree.GetSelectedNodes().size() < 2) {
+                Node3d* sel = m_sceneTree.GetSelectedNode();
+                if (sel) {
+                    m_sceneTree.BeginRename(sel);
+                }
+            }
+        }
+
         if (Input::IsKeyJustPressedWithMod(SDL_SCANCODE_D, SDL_SCANCODE_LCTRL)) {
             m_sceneTree.DuplicateSelectedNodes();
         }
@@ -303,6 +312,11 @@ void Editor::OnPlay() {
     }
 
     m_core.ChangeScene(std::move(mainScene));
+
+    if (CameraNode3d* cam = FindGameCamera(m_core.GetScene())) {
+        m_core.SetGameCamera(cam);
+    }
+
     m_core.SetCameraMode(Core::CameraMode::Game);
     m_state = State::Playing;
 
@@ -343,6 +357,20 @@ void Editor::OnStop() {
 
     SDL_SetWindowRelativeMouseMode(m_core.GetActiveWindow()->GetSDLWindow(), false);
     Input::SetMouseDeltaEnabled(false);
+}
+
+CameraNode3d * Editor::FindGameCamera(Node3d *node) {
+    if (auto* cam = dynamic_cast<CameraNode3d*>(node); cam && cam->IsGameCamera()) {
+        return cam;
+    }
+
+    for (Node3d* child : node->GetChildren()) {
+        if (auto* found = FindGameCamera(child)) {
+            return found;
+        }
+    }
+
+    return nullptr;
 }
 
 bool Editor::IsAnyViewportLooking() const {

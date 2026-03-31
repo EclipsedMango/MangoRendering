@@ -30,11 +30,28 @@ CameraNode3d::CameraNode3d(const glm::vec3 position, const float fov, const floa
         [this]() -> PropertyValue { return m_pitch; },
         [this](const PropertyValue& v) { SetPitch(std::get<float>(v)); }
     );
+    AddProperty("is_main_camera",
+        [this]() -> PropertyValue { return m_isGameCamera; },
+        [this](const PropertyValue& v) { SetAsGameCamera(std::get<bool>(v)); }
+    );
 }
 
-// TODO: finish this
 std::unique_ptr<Node3d> CameraNode3d::Clone() {
-    return Node3d::Clone();
+    auto clone = std::make_unique<CameraNode3d>(GetPosition(), m_fov, m_aspectRatio);
+
+    clone->SetName(GetName());
+    clone->SetYaw(m_yaw);
+    clone->SetPitch(m_pitch);
+    clone->SetNearPlane(m_nearPlane);
+    clone->SetFarPlane(m_farPlane);
+    clone->SetAsGameCamera(m_isGameCamera);
+    clone->SetLocalTransform(GetLocalMatrix());
+
+    for (Node3d* child : GetChildren()) {
+        clone->AddChild(child->Clone());
+    }
+
+    return clone;
 }
 
 void CameraNode3d::SetViewMatrixOverride(const glm::mat4 &viewMatrix) {

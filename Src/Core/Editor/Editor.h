@@ -46,6 +46,8 @@ private:
     void OnPause();
     void OnStop();
 
+    static CameraNode3d* FindGameCamera(Node3d* node);
+
     [[nodiscard]] bool IsAnyViewportLooking() const;
     std::vector<std::unique_ptr<ViewportWindow>> m_viewports;
     std::unique_ptr<ViewportWindow> m_mainViewport;

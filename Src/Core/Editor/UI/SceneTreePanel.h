@@ -20,6 +20,9 @@ public:
 
     [[nodiscard]] Node3d* GetSelectedNode() const { return m_lastSelectedNode; };
     [[nodiscard]] std::vector<Node3d*> GetSelectedNodes();
+    [[nodiscard]] bool IsHoveringSceneTree() const { return m_hoveringSceneTree; }
+
+    void BeginRename(Node3d* node);
 
     void DrawSceneTree(Node3d* node);
     void DeleteSelectedNodes();
@@ -31,9 +34,14 @@ private:
 
     Editor* m_editor = nullptr;
 
+    bool m_hoveringSceneTree = false;
+
     bool m_scrollToSelected = false;
     ImGuiSelectionBasicStorage m_selection;
     Node3d* m_lastSelectedNode = nullptr;
+
+    Node3d* m_renamingNode = nullptr;
+    char m_renameBuf[256] = {};
 
     std::vector<uint32_t> m_pendingDeletes;
 };

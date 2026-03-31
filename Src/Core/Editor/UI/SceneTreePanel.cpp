@@ -21,6 +21,7 @@ SceneTreePanel::SceneTreePanel(Editor* editor) : m_editor(editor) {}
 void SceneTreePanel::ClearSelection() {
     m_selection.Clear();
     m_lastSelectedNode = nullptr;
+    m_renamingNode = nullptr;
 }
 
 std::vector<Node3d*> SceneTreePanel::GetSelectedNodes() {
@@ -47,8 +48,15 @@ std::vector<Node3d*> SceneTreePanel::GetSelectedNodes() {
     return selectedNodes;
 }
 
+void SceneTreePanel::BeginRename(Node3d *node) {
+    m_renamingNode = node;
+    strncpy(m_renameBuf, node->GetName().c_str(), sizeof(m_renameBuf));
+    m_renameBuf[sizeof(m_renameBuf) - 1] = '\0';
+}
+
 void SceneTreePanel::DrawSceneTree(Node3d *node) {
     ImGui::Begin("Scene Tree");
+    m_hoveringSceneTree = ImGui::IsWindowHovered();
 
     if (!node) {
         ImGui::TextDisabled("No active scene.");
@@ -190,34 +198,59 @@ void SceneTreePanel::DrawSceneTree(Node3d *node) {
         }
 
         ImGui::SetNextItemSelectionUserData(sid);
-
         ImGui::PushID(static_cast<int>(sid));
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(3.0f, 3.0f));
-        const bool open = ImGui::TreeNodeEx("##node", flags, "%s", n->GetName().c_str());
+
+        bool open = false;
+
+        if (m_renamingNode == n) {
+            open = ImGui::TreeNodeEx("##node", flags | ImGuiTreeNodeFlags_AllowOverlap, "");
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(-FLT_MIN);
+
+            if (!ImGui::IsItemActive()) ImGui::SetKeyboardFocusHere();
+
+            ImGui::InputText("##rename", m_renameBuf, sizeof(m_renameBuf), ImGuiInputTextFlags_AutoSelectAll);
+
+            if (ImGui::IsItemDeactivatedAfterEdit()) {
+                if (m_renameBuf[0] != '\0') n->SetName(m_renameBuf);
+                m_renamingNode = nullptr;
+            } else if (ImGui::IsItemDeactivated()) {
+                m_renamingNode = nullptr;
+            }
+        } else {
+            open = ImGui::TreeNodeEx("##node", flags, "%s", n->GetName().c_str());
+
+            if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
+                m_lastSelectedNode = n;
+            }
+
+            if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
+                BeginRename(n);
+            }
+
+            if (ImGui::BeginPopupContextItem()) {
+                if (ImGui::MenuItem("Rename")) BeginRename(n);
+                if (ImGui::MenuItem("Duplicate")) DuplicateSelectedNodes();
+                if (ImGui::MenuItem("Delete")) {
+                    ImGuiID id = 0;
+                    void* it2 = nullptr;
+                    while (m_selection.GetNextSelectedItem(&it2, &id)) {
+                        m_pendingDeletes.push_back(id);
+                    }
+                }
+                ImGui::Separator();
+                if (ImGui::BeginMenu("Add Child")) {
+                    if (ImGui::MenuItem("Node3D"))   { /* TODO */ }
+                    if (ImGui::MenuItem("MeshNode")) { /* TODO */ }
+                    ImGui::EndMenu();
+                }
+                ImGui::EndPopup();
+            }
+        }
+
         ImGui::PopStyleVar();
         ImGui::PopID();
-
-        if (ImGui::BeginPopupContextItem()) {
-            if (ImGui::MenuItem("Duplicate")) DuplicateSelectedNodes();
-            if (ImGui::MenuItem("Delete")) {
-                ImGuiID id = 0;
-                void* it2 = nullptr;
-                while (m_selection.GetNextSelectedItem(&it2, &id)) {
-                    m_pendingDeletes.push_back(id);
-                }
-            }
-            ImGui::Separator();
-            if (ImGui::BeginMenu("Add Child")) {
-                if (ImGui::MenuItem("Node3D")) { /* TODO */ }
-                if (ImGui::MenuItem("MeshNode")) { /* TODO */ }
-                ImGui::EndMenu();
-            }
-            ImGui::EndPopup();
-        }
-
-        if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
-            m_lastSelectedNode = n;
-        }
 
         if (n == m_lastSelectedNode && m_scrollToSelected) {
             ImGui::SetScrollHereY(0.5f);
@@ -228,7 +261,6 @@ void SceneTreePanel::DrawSceneTree(Node3d *node) {
             for (Node3d* child : n->GetChildren()) {
                 drawNode(child);
             }
-
             ImGui::TreePop();
         }
     };

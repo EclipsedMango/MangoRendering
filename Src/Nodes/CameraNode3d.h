@@ -17,6 +17,7 @@ public:
     void SetAspectRatio(const float aspectRatio) { m_aspectRatio = aspectRatio; }
     void SetYaw(const float yaw) { m_yaw = yaw; UpdateVectors(); }
     void SetPitch(const float pitch) { m_pitch = pitch; UpdateVectors(); }
+    void SetAsGameCamera(const bool val) { m_isGameCamera = val; }
     void SetViewMatrixOverride(const glm::mat4& viewMatrix);
     void ClearViewMatrixOverride();
 
@@ -35,6 +36,7 @@ public:
     [[nodiscard]] float GetYaw() const { return m_yaw; }
     [[nodiscard]] float GetPitch() const { return m_pitch; }
     [[nodiscard]] float GetFov() const { return glm::radians(m_fov); }
+    [[nodiscard]] bool IsGameCamera() const { return m_isGameCamera; }
 
     void Rotate(float yawDelta, float pitchDelta);
 
@@ -46,8 +48,9 @@ private:
     glm::vec3 m_up{};
     glm::vec3 m_worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
 
-    glm::mat4 m_viewOverride;
+    glm::mat4 m_viewOverride{};
     bool m_hasViewOverride = false;
+    bool m_isGameCamera = false;
 
     float m_yaw = -90.0f;
     float m_pitch = 0.0f;

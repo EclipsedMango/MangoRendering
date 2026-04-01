@@ -18,7 +18,7 @@ public:
     static constexpr uint32_t MAX_LIGHTS_PER_CLUSTER = 128;
 
     ClusterSystem();
-    ~ClusterSystem() = default;
+    ~ClusterSystem();
 
     ClusterSystem(const ClusterSystem&) = delete;
     ClusterSystem& operator=(const ClusterSystem&) = delete;

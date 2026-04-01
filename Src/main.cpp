@@ -21,8 +21,8 @@ int main() {
 
     auto texture = ResourceManager::Get().LoadTexture("face.png");
     auto teddyTexture = ResourceManager::Get().LoadTexture("sky_16_2k.png");
-    const auto shader = ResourceManager::Get().LoadShader("default", "test.vert", "test.frag");
-    const auto portalShader = ResourceManager::Get().LoadShader("portal_mask", "portal_mask.vert", "portal_mask.frag");
+    auto shader = ResourceManager::Get().LoadShader("default", "test.vert", "test.frag");
+    auto portalShader = ResourceManager::Get().LoadShader("portal_mask", "portal_mask.vert", "portal_mask.frag");
 
     auto quad = std::make_unique<MeshNode3d>(shader);
     quad->SetMeshByName("Quad");
@@ -90,6 +90,8 @@ int main() {
     editor.Run();
 
     scene.reset();
+    shader.reset();
+    portalShader.reset();
     texture.reset();
     teddyTexture.reset();
 

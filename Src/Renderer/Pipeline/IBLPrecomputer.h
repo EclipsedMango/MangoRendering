@@ -17,6 +17,7 @@ public:
     };
 
     static Result Compute(const Texture& envCubemap);
+    static void Shutdown();
 
     static constexpr int IRRADIANCE_SIZE = 32;
     static constexpr int PREFILTER_SIZE = 128;

@@ -18,6 +18,8 @@ ShadowRenderer::ShadowRenderer() {
 }
 
 ShadowRenderer::~ShadowRenderer() {
+    m_shadowDepthShader.reset();
+    m_pointShadowDepthShader.reset();
     for (const CascadedShadowMap* csm : m_cascadedShadowMaps) {
         delete csm;
     }

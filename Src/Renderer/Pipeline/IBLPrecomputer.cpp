@@ -79,6 +79,11 @@ IBLPrecomputer::Result IBLPrecomputer::Compute(const Texture &envCubemap) {
     return result;
 }
 
+void IBLPrecomputer::Shutdown() {
+    m_irradianceShader.reset();
+    m_prefilterShader.reset();
+}
+
 std::unique_ptr<Texture> IBLPrecomputer::ComputeIrradiance(const Texture &env, const GLuint captureFbo, const GLuint captureRbo, const Mesh &cube) {
     auto irradiance = std::make_unique<Texture>(IRRADIANCE_SIZE, IRRADIANCE_SIZE, GL_RGB16F, 1);
 

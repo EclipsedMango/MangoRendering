@@ -23,6 +23,9 @@ Core::~Core() {
     m_defaultShader.reset();
     m_mainFramebuffer.reset();
 
+    IBLPrecomputer::Shutdown();
+    ResourceManager::Get().ReleaseAll();
+
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();

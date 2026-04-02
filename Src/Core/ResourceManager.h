@@ -34,6 +34,18 @@ public:
     ResourceManager& operator=(const ResourceManager&) = delete;
 
     // ----- textures -----
+    void RegisterTexture(const std::string& name, const std::shared_ptr<Texture>& texture) {
+        if (name.empty() || !texture) return;
+        m_textures[name] = texture;
+    }
+
+    std::shared_ptr<Texture> GetTexture(const std::string& name) {
+        if (const auto it = m_textures.find(name); it != m_textures.end()) {
+            return it->second.lock();
+        }
+        return nullptr;
+    }
+
     std::shared_ptr<Texture> LoadTexture(const std::string& filename, const CacheMode mode = CacheMode::Reuse) {
         if (filename.empty()) return nullptr;
 
@@ -53,6 +65,18 @@ public:
     }
 
     // ----- materials -----
+    void RegisterMaterial(const std::string& name, const std::shared_ptr<Material>& material) {
+        if (name.empty() || !material) return;
+        m_materials[name] = material;
+    }
+
+    std::shared_ptr<Material> GetMaterial(const std::string& name) {
+        if (const auto it = m_materials.find(name); it != m_materials.end()) {
+            return it->second.lock();
+        }
+        return nullptr;
+    }
+
     std::shared_ptr<Material> LoadMaterial(const std::string& name, const CacheMode mode = CacheMode::Reuse) {
         return Load<Material>(m_materials, name, mode, [&] { return std::make_shared<Material>(); });
     }

@@ -18,7 +18,7 @@ public:
     ~InspectorPanel() = default;
 
     void DrawInspector(Node3d* selectedNode);
-    void OpenTexturePreview(const Texture* tex, const char* label);
+    void OpenTexturePreview(const std::shared_ptr<Texture>& tex, const char* label);
 
 private:
     void DrawProperties(PropertyHolder* holder);
@@ -26,9 +26,11 @@ private:
     void DrawPropertyValue(const std::string& name, PropertyHolder* holder);
 
     void DrawTexturePreviewPopup();
+    std::shared_ptr<Texture> GetCachedTexture(const std::string& path);
 
     Editor* m_editor = nullptr;
-    const Texture* m_previewTex = nullptr;
+    std::shared_ptr<Texture> m_previewTex;
+    std::unordered_map<std::string, std::shared_ptr<Texture>> m_textureCache;
     std::string m_previewLabel;
 };
 

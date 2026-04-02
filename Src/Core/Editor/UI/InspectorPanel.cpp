@@ -252,11 +252,21 @@ void InspectorPanel::DrawPropertyValue(const std::string& name, PropertyHolder* 
                 }
 
                 // get the texture from resource manager for display
-                const auto tex = ResourceManager::Get().LoadTexture(val);
+                const auto tex = GetCachedTexture(val);
+                if (!tex) {
+                    style.PushLabel();
+                    ImGui::TextUnformatted(name.c_str());
+                    ImGui::SameLine();
+                    ImGui::TextDisabled("Failed to load");
+                    EditorStyle::PopLabel();
+                    ImGui::Spacing();
+                    return;
+                }
 
                 const bool clicked = ImGui::ImageButton("##thumb", static_cast<ImTextureID>(static_cast<intptr_t>(tex->GetGLHandle())), ImVec2(40, 40));
-
-                if (clicked) OpenTexturePreview(tex.get(), name.c_str());
+                if (clicked) {
+                    OpenTexturePreview(tex, name.c_str());
+                }
 
                 ImGui::SameLine();
                 ImGui::BeginGroup();
@@ -434,7 +444,22 @@ void InspectorPanel::DrawTexturePreviewPopup() {
     if (!open) m_previewTex = nullptr;
 }
 
-void InspectorPanel::OpenTexturePreview(const Texture* tex, const char* label) {
+std::shared_ptr<Texture> InspectorPanel::GetCachedTexture(const std::string &path) {
+    if (path.empty()) return nullptr;
+
+    if (const auto it = m_textureCache.find(path); it != m_textureCache.end()) {
+        return it->second;
+    }
+
+    auto tex = ResourceManager::Get().LoadTexture(path);
+    if (tex) {
+        m_textureCache[path] = tex;
+    }
+
+    return tex;
+}
+
+void InspectorPanel::OpenTexturePreview(const std::shared_ptr<Texture>& tex, const char* label) {
     m_previewTex = tex;
     m_previewLabel = std::string("Texture: ") + label + "###TexPreview";
 }

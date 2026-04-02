@@ -77,14 +77,25 @@ static std::string ExtractTexture(const tinygltf::Model& model, const int textur
         }
     }
 
+    ResourceManager::Get().LoadTexture(outPath);
     return outPath;
 }
+
 std::shared_ptr<Material> BuildMaterial(const tinygltf::Model& model, const int materialIndex, const std::string& gltfPath) {
+    const std::string materialID = gltfPath + "#mat" + std::to_string(materialIndex);
+    if (materialIndex >= 0) {
+        if (auto existing = ResourceManager::Get().GetMaterial(materialID)) {
+            return existing;
+        }
+    }
+
     auto mat = std::make_shared<Material>();
-    if (materialIndex < 0) return mat;
+    if (materialIndex < 0) {
+        return mat;
+    }
 
     const auto& gltfMat = model.materials[materialIndex];
-    mat->SetName(gltfMat.name);
+    mat->SetName(gltfMat.name.empty() ? materialID : gltfMat.name);
     mat->SetDoubleSided(gltfMat.doubleSided);
 
     const auto& pbr = gltfMat.pbrMetallicRoughness;
@@ -94,13 +105,13 @@ std::shared_ptr<Material> BuildMaterial(const tinygltf::Model& model, const int 
             pbr.baseColorFactor[2], pbr.baseColorFactor[3]
         ));
     }
+
     mat->SetMetallicValue(static_cast<float>(pbr.metallicFactor));
     mat->SetRoughnessValue(static_cast<float>(pbr.roughnessFactor));
 
     std::string path = ExtractTexture(model, gltfMat.pbrMetallicRoughness.baseColorTexture.index, gltfPath);
     if (!path.empty()) mat->SetDiffuse(path);
 
-    // GLTF packs metallic (B channel) and roughness (G channel) into one texture
     path = ExtractTexture(model, gltfMat.pbrMetallicRoughness.metallicRoughnessTexture.index, gltfPath);
     if (!path.empty()) {
         mat->SetMetallic(path);
@@ -124,9 +135,9 @@ std::shared_ptr<Material> BuildMaterial(const tinygltf::Model& model, const int 
         ));
     }
 
-    if (gltfMat.alphaMode == "BLEND")
+    if (gltfMat.alphaMode == "BLEND") {
         mat->SetBlendMode(BlendMode::AlphaBlend);
-    else if (gltfMat.alphaMode == "MASK") {
+    } else if (gltfMat.alphaMode == "MASK") {
         mat->SetBlendMode(BlendMode::AlphaScissor);
         mat->SetAlphaScissorThreshold(static_cast<float>(gltfMat.alphaCutoff));
     }
@@ -134,6 +145,7 @@ std::shared_ptr<Material> BuildMaterial(const tinygltf::Model& model, const int 
     mat->SetNormalStrength(static_cast<float>(gltfMat.normalTexture.scale));
     mat->SetAOStrength(static_cast<float>(gltfMat.occlusionTexture.strength));
 
+    ResourceManager::Get().RegisterMaterial(materialID, mat);
     return mat;
 }
 

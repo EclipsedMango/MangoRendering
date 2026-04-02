@@ -1,4 +1,3 @@
-
 #include "InspectorPanel.h"
 
 #include <iostream>
@@ -6,33 +5,26 @@
 
 #include "../Editor.h"
 #include "imgui.h"
+#include "Core/Editor/EditorStyle.h"
 #include "Core/ResourceManager.h"
 #include "glm/glm.hpp"
 #include "Nodes/Node3d.h"
 #include "Nodes/PortalNode3d.h"
 
-static constexpr ImVec4 COL_HEADER = {0.55f, 0.75f, 0.95f, 1.00f}; // soft blue
-static constexpr ImVec4 COL_LABEL = {0.75f, 0.75f, 0.75f, 1.00f}; // muted grey
-static constexpr ImVec4 COL_SEPARATOR = {0.30f, 0.30f, 0.35f, 1.00f};
-static constexpr ImU32  COL_TREE_LINE = IM_COL32(80, 80, 90, 200);
-
 InspectorPanel::InspectorPanel(Editor* editor) : m_editor(editor) {}
 
 static void SectionHeader(const char* label) {
+    const auto& style = EditorStyle::Get();
     ImGui::Spacing();
-    ImGui::PushStyleColor(ImGuiCol_Text, COL_HEADER);
+    style.PushHeader();
     ImGui::SeparatorText(label);
-    ImGui::PopStyleColor();
+    EditorStyle::PopHeader();
     ImGui::Spacing();
 }
 
 static void BeginPropertyTable() {
     ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(4, 3));
-    ImGui::BeginTable("##props", 2,
-        ImGuiTableFlags_SizingStretchProp |
-        ImGuiTableFlags_BordersInnerV,
-        ImVec2(0, 0)
-    );
+    ImGui::BeginTable("##props", 2, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_BordersInnerV, ImVec2(0, 0));
     ImGui::TableSetupColumn("##label", ImGuiTableColumnFlags_WidthFixed, 130.0f);
     ImGui::TableSetupColumn("##value", ImGuiTableColumnFlags_WidthStretch);
 }
@@ -43,41 +35,47 @@ static void EndPropertyTable() {
 }
 
 static void PropertyLabel(const char* label) {
+    const auto& style = EditorStyle::Get();
+
     ImGui::TableNextRow();
     ImGui::TableSetColumnIndex(0);
-    ImGui::PushStyleColor(ImGuiCol_Text, COL_LABEL);
+    style.PushLabel();
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(label);
-    ImGui::PopStyleColor();
+    EditorStyle::PopLabel();
     ImGui::TableSetColumnIndex(1);
-    ImGui::SetNextItemWidth(-FLT_MIN); // fill remaining width
+    ImGui::SetNextItemWidth(-FLT_MIN);
 }
 
 void InspectorPanel::DrawInspector(Node3d* selectedNode) {
+    const auto& style = EditorStyle::Get();
+
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 10));
     ImGui::Begin("Inspector");
 
     if (!selectedNode) {
         ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_Text, COL_LABEL);
+        style.PushLabel();
         const float w = ImGui::GetContentRegionAvail().x;
         const char* msg = "No node selected";
         ImGui::SetCursorPosX((w - ImGui::CalcTextSize(msg).x) * 0.5f);
         ImGui::TextUnformatted(msg);
-        ImGui::PopStyleColor();
+        EditorStyle::PopLabel();
         ImGui::End();
         ImGui::PopStyleVar();
         return;
     }
 
-    // Node type badge
-    ImGui::PushStyleColor(ImGuiCol_Text, COL_HEADER);
+    style.PushAccentText();
     ImGui::TextUnformatted(selectedNode->GetName().c_str());
-    ImGui::PopStyleColor();
+    EditorStyle::PopAccentText();
+
     ImGui::SameLine();
-    ImGui::PushStyleColor(ImGuiCol_Text, COL_LABEL);
+
+    style.PushLabel();
     ImGui::TextUnformatted("- Node3d");
-    ImGui::PopStyleColor();
+    EditorStyle::PopLabel();
+
     ImGui::Separator();
     ImGui::Spacing();
 
@@ -124,7 +122,8 @@ static void CollectPortals(Node3d* root, PortalNode3d* exclude, std::vector<Port
     }
 }
 
-void InspectorPanel::DrawPortalProperties(PortalNode3d* portal) {
+void InspectorPanel::DrawPortalProperties(PortalNode3d* portal) const {
+    const auto& style = EditorStyle::Get();
     Node3d* activeScene = m_editor->GetState() == Editor::State::Playing ? m_editor->GetCore().GetScene() : m_editor->GetActiveViewport()->GetScene();
 
     SectionHeader("Portal Link");
@@ -134,21 +133,21 @@ void InspectorPanel::DrawPortalProperties(PortalNode3d* portal) {
 
     const PortalNode3d* linked = portal->GetLinkedPortal();
     if (linked) {
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 1.0f, 0.5f, 1.0f));
+        style.PushSuccessText();
         ImGui::Text("Linked: %s", linked->GetName().c_str());
-        ImGui::PopStyleColor();
+        EditorStyle::PopSuccessText();
     } else {
-        ImGui::PushStyleColor(ImGuiCol_Text, COL_LABEL);
+        style.PushLabel();
         ImGui::TextUnformatted("Not linked");
-        ImGui::PopStyleColor();
+        EditorStyle::PopLabel();
     }
 
     ImGui::Spacing();
 
     if (candidates.empty()) {
-        ImGui::PushStyleColor(ImGuiCol_Text, COL_LABEL);
+        style.PushLabel();
         ImGui::TextUnformatted("No other portals in scene.");
-        ImGui::PopStyleColor();
+        EditorStyle::PopLabel();
         return;
     }
 
@@ -187,6 +186,7 @@ void InspectorPanel::DrawPortalProperties(PortalNode3d* portal) {
 }
 
 void InspectorPanel::DrawPropertyValue(const std::string& name, PropertyHolder* holder) {
+    const auto& style = EditorStyle::Get();
     PropertyValue value = holder->GetProperty(name);
 
     ImGui::PushID(name.c_str());
@@ -223,7 +223,9 @@ void InspectorPanel::DrawPropertyValue(const std::string& name, PropertyHolder* 
                 static constexpr const char* meshTypes[] = {
                     "None","Cube","Sphere","Plane","Quad","Cylinder","Capsule"
                 };
+
                 PropertyLabel("Mesh Type");
+
                 int idx = 0;
                 for (int i = 0; i < IM_ARRAYSIZE(meshTypes); i++) {
                     if (val == meshTypes[i]) { idx = i; break; }
@@ -240,11 +242,11 @@ void InspectorPanel::DrawPropertyValue(const std::string& name, PropertyHolder* 
                 ImGui::Spacing();
 
                 if (val.empty()) {
-                    ImGui::PushStyleColor(ImGuiCol_Text, COL_LABEL);
+                    style.PushLabel();
                     ImGui::TextUnformatted(name.c_str());
                     ImGui::SameLine();
                     ImGui::TextDisabled("None");
-                    ImGui::PopStyleColor();
+                    EditorStyle::PopLabel();
                     ImGui::Spacing();
                     return;
                 }
@@ -252,30 +254,32 @@ void InspectorPanel::DrawPropertyValue(const std::string& name, PropertyHolder* 
                 // get the texture from resource manager for display
                 const auto tex = ResourceManager::Get().LoadTexture(val);
 
-                const bool clicked = ImGui::ImageButton(
-                    "##thumb",
-                    static_cast<ImTextureID>(static_cast<intptr_t>(tex->GetGLHandle())),
-                    ImVec2(40, 40)
-                );
+                const bool clicked = ImGui::ImageButton("##thumb", static_cast<ImTextureID>(static_cast<intptr_t>(tex->GetGLHandle())), ImVec2(40, 40));
 
                 if (clicked) OpenTexturePreview(tex.get(), name.c_str());
 
                 ImGui::SameLine();
                 ImGui::BeginGroup();
-                ImGui::PushStyleColor(ImGuiCol_Text, COL_HEADER);
+
+                style.PushAccentText();
                 ImGui::TextUnformatted(name.c_str());
-                ImGui::PopStyleColor();
-                ImGui::PushStyleColor(ImGuiCol_Text, COL_LABEL);
+                EditorStyle::PopAccentText();
+
+                style.PushLabel();
                 ImGui::Text("%dx%d  •  %dch", tex->GetWidth(), tex->GetHeight(), tex->GetChannels());
-                ImGui::PopStyleColor();
+                EditorStyle::PopLabel();
+
                 ImGui::EndGroup();
 
                 const std::string treeId = name + "_props";
-                ImGui::PushStyleColor(ImGuiCol_Text, COL_LABEL);
+                style.PushLabel();
                 const bool open = ImGui::TreeNodeEx(treeId.c_str(), ImGuiTreeNodeFlags_SpanAvailWidth, "Details");
-                ImGui::PopStyleColor();
+                EditorStyle::PopLabel();
+
                 if (open) {
+                    ImGui::PushStyleColor(ImGuiCol_TableBorderLight, style.colSeparator);
                     DrawProperties(tex.get());
+                    ImGui::PopStyleColor();
                     ImGui::TreePop();
                 }
 
@@ -284,9 +288,11 @@ void InspectorPanel::DrawPropertyValue(const std::string& name, PropertyHolder* 
             }
 
             PropertyLabel(name.c_str());
+
             char buf[256];
             strncpy(buf, val.c_str(), sizeof(buf));
-            buf[sizeof(buf)-1] = '\0';
+            buf[sizeof(buf) - 1] = '\0';
+
             if (ImGui::InputText("##v", buf, sizeof(buf))) {
                 holder->Set(name, std::string(buf));
             }
@@ -319,17 +325,18 @@ void InspectorPanel::DrawPropertyValue(const std::string& name, PropertyHolder* 
             if (!val) return;
 
             ImGui::Spacing();
-            ImGui::PushStyleColor(ImGuiCol_Text, COL_HEADER);
 
-            // capitalise first letter for display
             std::string label = name;
-            if (!label.empty()) label[0] = static_cast<char>(toupper(label[0]));
+            if (!label.empty()) {
+                label[0] = static_cast<char>(toupper(label[0]));
+            }
 
+            style.PushAccentText();
             const bool open = ImGui::TreeNodeEx(name.c_str(), ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_FramePadding, "%s", label.c_str());
-            ImGui::PopStyleColor();
+            EditorStyle::PopAccentText();
 
             if (open) {
-                ImGui::PushStyleColor(ImGuiCol_TableBorderLight, COL_SEPARATOR);
+                ImGui::PushStyleColor(ImGuiCol_TableBorderLight, style.colSeparator);
                 DrawProperties(val.get());
                 ImGui::PopStyleColor();
                 ImGui::TreePop();
@@ -343,6 +350,8 @@ void InspectorPanel::DrawPropertyValue(const std::string& name, PropertyHolder* 
 }
 
 void InspectorPanel::DrawTexturePreviewPopup() {
+    const auto& style = EditorStyle::Get();
+
     if (!m_previewTex) return;
 
     ImGui::SetNextWindowSize(ImVec2(520, 580), ImGuiCond_Appearing);
@@ -365,60 +374,67 @@ void InspectorPanel::DrawTexturePreviewPopup() {
         ImGui::SetNextItemWidth(110);
         ImGui::SliderFloat("Zoom", &zoom, 0.25f, 4.0f, "%.2fx");
         ImGui::SameLine(0, 8);
-        if (ImGui::SmallButton("Reset")) { zoom = 1.0f; channel = 0; flipY = false; }
+        if (ImGui::SmallButton("Reset")) {
+            zoom = 1.0f;
+            channel = 0;
+            flipY = false;
+        }
 
         ImGui::Spacing();
         ImGui::Separator();
         ImGui::Spacing();
 
         const float imgSize = panelW * zoom;
-        const ImVec2 uv0 = flipY ? ImVec2(0,1) : ImVec2(0,0);
-        const ImVec2 uv1 = flipY ? ImVec2(1,0) : ImVec2(1,1);
+        const ImVec2 uv0 = flipY ? ImVec2(0, 1) : ImVec2(0, 0);
+        const ImVec2 uv1 = flipY ? ImVec2(1, 0) : ImVec2(1, 1);
 
-        ImVec4 tint = {1,1,1,1};
-        if (channel == 1) tint = {1,0,0,1};
-        else if (channel == 2) tint = {0,1,0,1};
-        else if (channel == 3) tint = {0,0,1,1};
+        ImVec4 tint = {1, 1, 1, 1};
+        if (channel == 1) tint = {1, 0, 0, 1};
+        else if (channel == 2) tint = {0, 1, 0, 1};
+        else if (channel == 3) tint = {0, 0, 1, 1};
 
         ImGui::BeginChild("##scroll", ImVec2(panelW, panelW), false, ImGuiWindowFlags_HorizontalScrollbar);
 
-        // checkerboard background
         const ImVec2 imgPos = ImGui::GetCursorScreenPos();
         ImDrawList* dl = ImGui::GetWindowDrawList();
         constexpr float cs = 12.0f;
+
         for (float cy = 0; cy < imgSize; cy += cs) {
             for (float cx = 0; cx < imgSize; cx += cs) {
-                const bool even = ((int)(cx/cs)+(int)(cy/cs)) % 2 == 0;
+                const bool even = ((int)(cx / cs) + (int)(cy / cs)) % 2 == 0;
                 dl->AddRectFilled(
-                    {imgPos.x+cx,    imgPos.y+cy},
-                    {imgPos.x+cx+cs, imgPos.y+cy+cs},
-                    even ? IM_COL32(80,80,80,255) : IM_COL32(50,50,50,255)
+                    { imgPos.x + cx,      imgPos.y + cy },
+                    { imgPos.x + cx + cs, imgPos.y + cy + cs },
+                    even ? style.colCheckerLightU32 : style.colCheckerDarkU32
                 );
             }
         }
 
         ImGui::Image(
             static_cast<ImTextureID>(static_cast<intptr_t>(m_previewTex->GetGLHandle())),
-            {imgSize, imgSize}, uv0, uv1, tint, {0,0,0,0}
+            { imgSize, imgSize }, uv0, uv1, tint, {0, 0, 0, 0}
         );
 
         ImGui::EndChild();
 
         ImGui::Separator();
         ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_Text, COL_LABEL);
+
+        style.PushLabel();
         ImGui::Text("%d x %d  |  %d channels  |  GL #%u",
-            m_previewTex->GetWidth(), m_previewTex->GetHeight(),
-            m_previewTex->GetChannels(), m_previewTex->GetGLHandle()
+            m_previewTex->GetWidth(),
+            m_previewTex->GetHeight(),
+            m_previewTex->GetChannels(),
+            m_previewTex->GetGLHandle()
         );
-        ImGui::PopStyleColor();
+        EditorStyle::PopLabel();
     }
     ImGui::End();
 
     if (!open) m_previewTex = nullptr;
 }
 
-void InspectorPanel::OpenTexturePreview(const Texture *tex, const char *label) {
+void InspectorPanel::OpenTexturePreview(const Texture* tex, const char* label) {
     m_previewTex = tex;
     m_previewLabel = std::string("Texture: ") + label + "###TexPreview";
 }

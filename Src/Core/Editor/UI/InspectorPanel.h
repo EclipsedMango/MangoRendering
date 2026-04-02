@@ -22,7 +22,7 @@ public:
 
 private:
     void DrawProperties(PropertyHolder* holder);
-    void DrawPortalProperties(PortalNode3d *portal);
+    void DrawPortalProperties(PortalNode3d *portal) const;
     void DrawPropertyValue(const std::string& name, PropertyHolder* holder);
 
     void DrawTexturePreviewPopup();

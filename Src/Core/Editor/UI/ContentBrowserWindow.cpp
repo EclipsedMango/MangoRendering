@@ -1,4 +1,3 @@
-
 #include "ContentBrowserWindow.h"
 
 #include <algorithm>
@@ -64,6 +63,7 @@ void ContentBrowserWindow::DrawContentBrowser() {
             NewFile(m_currentPath);
             RefreshDirectory();
         }
+
         ImGui::EndPopup();
     }
 
@@ -104,9 +104,11 @@ void ContentBrowserWindow::DisplayPath() {
     m_selection.ApplyRequests(ms_io);
 }
 
-void ContentBrowserWindow::DrawEntry(const fs::directory_entry& entry, int index) {
+void ContentBrowserWindow::DrawEntry(const fs::directory_entry& entry, const int index) {
     constexpr float itemSize = 80.0f;
     const std::string filename = entry.path().filename().string();
+
+    const EditorStyle& style = EditorStyle::Get();
 
     ImGui::PushID(index);
     ImGui::BeginGroup();
@@ -116,7 +118,9 @@ void ContentBrowserWindow::DrawEntry(const fs::directory_entry& entry, int index
 
     constexpr ImGuiSelectableFlags flags = ImGuiSelectableFlags_AllowDoubleClick | ImGuiSelectableFlags_AllowOverlap;
 
+    style.PushInvisibleSelectable();
     ImGui::Selectable("##item", isSelected, flags, ImVec2(itemSize, itemSize));
+    EditorStyle::PopInvisibleSelectable();
 
     const bool hovered = ImGui::IsItemHovered();
     const bool rightClicked = ImGui::IsItemClicked(ImGuiMouseButton_Right);
@@ -141,9 +145,10 @@ void ContentBrowserWindow::DrawEntry(const fs::directory_entry& entry, int index
 
     ImDrawList* drawList = ImGui::GetWindowDrawList();
     if (drawSelected) {
-        drawList->AddRectFilled(startPos, ImVec2(startPos.x + itemSize, startPos.y + itemSize), IM_COL32(40, 90, 150, 200), 4.0f);
+        drawList->AddRectFilled(startPos, ImVec2(startPos.x + itemSize, startPos.y + itemSize), style.colSelectionFillU32, 4.0f);
+        drawList->AddRect(startPos, ImVec2(startPos.x + itemSize, startPos.y + itemSize), style.colSelectionOutlineU32, 4.0f, 0, 2.0f);
     } else if (hovered) {
-        drawList->AddRectFilled(startPos, ImVec2(startPos.x + itemSize, startPos.y + itemSize), IM_COL32(255, 255, 255, 30), 4.0f);
+        drawList->AddRect(startPos, ImVec2(startPos.x + itemSize, startPos.y + itemSize), style.colHoverOutlineU32, 4.0f, 0, 1.0f);
     }
 
     if (entry.is_directory()) {
@@ -159,7 +164,7 @@ void ContentBrowserWindow::DrawEntry(const fs::directory_entry& entry, int index
     }
 
     drawList->PushClipRect(startPos, ImVec2(startPos.x + itemSize, startPos.y + itemSize), true);
-    drawList->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2(textX, startPos.y + itemSize - textSize.y - 2.0f), IM_COL32(230, 230, 230, 255), filename.c_str());
+    drawList->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2(textX, startPos.y + itemSize - textSize.y - 2.0f), style.colContentTextU32, filename.c_str());
     drawList->PopClipRect();
 
     if (ImGui::BeginPopupContextItem("##entry_context")) {
@@ -207,29 +212,31 @@ void ContentBrowserWindow::DrawEntry(const fs::directory_entry& entry, int index
     ImGui::PopID();
 }
 
-void ContentBrowserWindow::DrawEntryFile(const ImVec2 &startPos, const float itemSize) {
+void ContentBrowserWindow::DrawEntryFile(const ImVec2& startPos, const float itemSize) {
+    const auto& style = EditorStyle::Get();
+
     const char* icon = "\uf016";
-    constexpr ImU32 iconColor = IM_COL32(180, 180, 180, 255);
     constexpr ImVec2 iconOffset = ImVec2(-2.5f, 0.0f);
 
     ImDrawList* drawList = ImGui::GetWindowDrawList();
 
-    ImGui::PushFont(EditorStyle::Get().mainFontExLg);
+    ImGui::PushFont(style.mainFontExLg);
     const ImVec2 iconSize = ImGui::CalcTextSize(icon);
-    drawList->AddText(ImVec2(startPos.x + (itemSize - iconSize.x) * 0.5f + iconOffset.x, startPos.y + iconOffset.y), iconColor, icon);
+    drawList->AddText(ImVec2(startPos.x + (itemSize - iconSize.x) * 0.5f + iconOffset.x, startPos.y + iconOffset.y), style.colFileIconU32, icon);
     ImGui::PopFont();
 }
 
-void ContentBrowserWindow::DrawEntryFolder(const ImVec2 &startPos, const float itemSize) {
+void ContentBrowserWindow::DrawEntryFolder(const ImVec2& startPos, const float itemSize) {
+    const auto& style = EditorStyle::Get();
+
     const char* icon = "\uf114";
-    constexpr ImU32 iconColor = IM_COL32(180, 180, 180, 255);
     constexpr ImVec2 iconOffset = ImVec2(-7.5f, 0.0f);
 
     ImDrawList* drawList = ImGui::GetWindowDrawList();
 
-    ImGui::PushFont(EditorStyle::Get().mainFontExLg);
+    ImGui::PushFont(style.mainFontExLg);
     const ImVec2 iconSize = ImGui::CalcTextSize(icon);
-    drawList->AddText(ImVec2(startPos.x + (itemSize - iconSize.x) * 0.5f + iconOffset.x, startPos.y + iconOffset.y), iconColor, icon);
+    drawList->AddText(ImVec2(startPos.x + (itemSize - iconSize.x) * 0.5f + iconOffset.x, startPos.y + iconOffset.y), style.colFolderIconU32, icon);
     ImGui::PopFont();
 }
 
@@ -242,7 +249,7 @@ void ContentBrowserWindow::RefreshDirectory() {
     // TODO: sort m_currentDirEntries so folders are first or something
 }
 
-void ContentBrowserWindow::QueuePathChange(const fs::path &newPath) {
+void ContentBrowserWindow::QueuePathChange(const fs::path& newPath) {
     m_pendingPathChange = newPath;
     m_hasPendingPathChange = true;
 }
@@ -260,7 +267,7 @@ void ContentBrowserWindow::FlushPendingPathChange() {
     m_pendingPathChange.clear();
 }
 
-void ContentBrowserWindow::NewFolder(const fs::path &path) {
+void ContentBrowserWindow::NewFolder(const fs::path& path) {
     const std::string baseName = "NewFolder";
     fs::path newFolderPath = path / baseName;
 
@@ -273,12 +280,11 @@ void ContentBrowserWindow::NewFolder(const fs::path &path) {
     try {
         fs::create_directory(newFolderPath);
     } catch (const fs::filesystem_error& e) {
-        // TODO: log to console or something idk
         throw e;
     }
 }
 
-void ContentBrowserWindow::NewFile(fs::path &path) {
+void ContentBrowserWindow::NewFile(fs::path& path) {
     const std::string baseName = "NewFile";
     const std::string extension = ".txt";
 
@@ -299,12 +305,11 @@ void ContentBrowserWindow::NewFile(fs::path &path) {
 
         newFile.close();
     } catch (const std::exception& e) {
-        // TODO: log to console or something idk
         throw e;
     }
 }
 
-void ContentBrowserWindow::StartDrag(const std::string &fullPath, const std::string &filename) {
+void ContentBrowserWindow::StartDrag(const std::string& fullPath, const std::string& filename) {
     if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceNoDisableHover)) {
         ImGui::SetDragDropPayload("FILE_PATH", fullPath.c_str(), fullPath.size() + 1);
         ImGui::Text("Dragging: %s", filename.c_str());

@@ -216,14 +216,14 @@ void Core::RenderScene(Node3d* sceneRoot, const CameraNode3d* camera, const Fram
         }
 
         if (auto* portal = dynamic_cast<PortalNode3d*>(renderable)) {
-            if (portal->GetMesh() && portal->GetShader()) {
+            if (portal->GetMesh() && portal->GetActiveMaterial() && portal->GetShader()) {
                 m_renderer->SubmitPortal(portal);
             }
             continue;
         }
 
         if (auto* meshNode = dynamic_cast<MeshNode3d*>(renderable)) {
-            if (meshNode->GetMesh() && meshNode->GetShader()) {
+            if (meshNode->GetMesh() && meshNode->GetActiveMaterial() && meshNode->GetShader()) {
                 m_renderer->SubmitMesh(meshNode);
             }
         }

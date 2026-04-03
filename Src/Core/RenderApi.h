@@ -71,7 +71,7 @@ public:
     [[nodiscard]] static uint32_t GetMaxShadowedPointLights() { return ShadowRenderer::MAX_SHADOWED_POINT_LIGHTS; }
     [[nodiscard]] const std::vector<ShadowedPointLightDebug>& GetShadowedPointLightsDebug() const { return m_shadowRenderer->GetShadowedPointLightsDebug(); }
 
-    static void ApplyMaterialCull(const Material& mat);
+    static void ApplyMaterialCull(const Material* mat);
     RenderStats RenderScene(const CameraNode3d* camera, const Framebuffer* targetFbo, bool clearFbo) const;
     RenderStats RenderSceneWithPortals(const CameraNode3d* camera, const Framebuffer* targetFbo, int maxPortalDepth) const;
     void DrawGrid(const CameraNode3d* camera, const Framebuffer* targetFbo) const;

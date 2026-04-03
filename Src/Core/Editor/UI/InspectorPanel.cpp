@@ -243,76 +243,6 @@ void InspectorPanel::DrawPropertyValue(const std::string& name, PropertyHolder* 
                 return;
             }
 
-            if (name == "diffuse" || name == "normal" || name == "metallic" || name == "roughness" || name == "ambient_occlusion" || name == "emissive" || name == "displacement") {
-                ImGui::TableNextRow();
-
-                ImGui::TableSetColumnIndex(0);
-                style.PushLabel();
-                ImGui::AlignTextToFramePadding();
-                ImGui::TextUnformatted(name.c_str());
-                EditorStyle::PopLabel();
-
-                ImGui::TableSetColumnIndex(1);
-                ImGui::SetNextItemWidth(-FLT_MIN);
-
-                if (val.empty()) {
-                    ImGui::TextDisabled("None");
-                    return;
-                }
-
-                // get the texture from resource manager for display
-                const auto tex = GetCachedTexture(val);
-                if (!tex) {
-                    ImGui::TextDisabled("Failed to load");
-                    return;
-                }
-
-                const bool clicked = ImGui::ImageButton("##thumb", static_cast<ImTextureID>(static_cast<intptr_t>(tex->GetGLHandle())), ImVec2(40, 40));
-                if (clicked) {
-                    OpenTexturePreview(tex, name.c_str());
-                }
-
-                ImGui::SameLine();
-                ImGui::BeginGroup();
-
-                style.PushAccentText();
-                ImGui::TextUnformatted(name.c_str());
-                EditorStyle::PopAccentText();
-
-                style.PushLabel();
-                ImGui::Text("%dx%d  •  %dch", tex->GetWidth(), tex->GetHeight(), tex->GetChannels());
-                EditorStyle::PopLabel();
-
-                ImGui::EndGroup();
-
-                ImGui::Spacing();
-                const std::string treeId = name + "_props";
-
-                const ImVec4 frameBg = ImGui::GetStyle().Colors[ImGuiCol_FrameBg];
-                const ImVec4 frameBgH = ImGui::GetStyle().Colors[ImGuiCol_FrameBgHovered];
-                const ImVec4 frameBgA = ImGui::GetStyle().Colors[ImGuiCol_FrameBgActive];
-
-                ImGui::PushStyleColor(ImGuiCol_Header, frameBg);
-                ImGui::PushStyleColor(ImGuiCol_HeaderHovered, frameBgH);
-                ImGui::PushStyleColor(ImGuiCol_HeaderActive, frameBgA);
-
-                const bool open = ImGui::TreeNodeEx(treeId.c_str(), ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_FramePadding, "Texture Details");
-                ImGui::PopStyleColor(3);
-
-                if (open) {
-                    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
-
-                    ImGui::BeginChild((name + "_tex_panel").c_str(), ImVec2(0, 0), ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY, ImGuiWindowFlags_NoScrollbar);
-                    DrawProperties(tex.get());
-
-                    ImGui::EndChild();
-                    ImGui::PopStyleVar();
-                    ImGui::TreePop();
-                }
-
-                return;
-            }
-
             PropertyLabel(name.c_str());
 
             char buf[256];
@@ -348,13 +278,27 @@ void InspectorPanel::DrawPropertyValue(const std::string& name, PropertyHolder* 
         }
 
         if constexpr (std::is_same_v<T, std::shared_ptr<PropertyHolder>>) {
-            if (!val) return;
-
             ImGui::Spacing();
 
             std::string label = name;
             if (!label.empty()) {
                 label[0] = static_cast<char>(toupper(label[0]));
+            }
+
+            if (!val) {
+                style.PushLabel();
+                ImGui::AlignTextToFramePadding();
+                ImGui::TextUnformatted(label.c_str());
+                EditorStyle::PopLabel();
+                ImGui::SameLine(140.0f);
+
+                if (ImGui::Button(("Assign " + label + "##" + name).c_str(), ImVec2(-FLT_MIN, 0))) {
+                    // TODO: instantiate dynamically using registry with a create function or load a yaml file
+                    // Example: holder->Set(name, std::make_shared<Material>());
+                }
+
+                ImGui::Spacing();
+                return;
             }
 
             const ImVec4 frameBg = ImGui::GetStyle().Colors[ImGuiCol_FrameBg];
@@ -370,18 +314,21 @@ void InspectorPanel::DrawPropertyValue(const std::string& name, PropertyHolder* 
 
             if (open) {
                 ImGui::Indent(8.0f);
-
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 10));
 
                 ImGui::BeginChild((name + "_child").c_str(), ImVec2(0, 0), ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY, ImGuiWindowFlags_NoScrollbar);
                 DrawProperties(val.get());
-
                 ImGui::EndChild();
                 ImGui::PopStyleVar();
+
+                ImGui::Spacing();
+                if (ImGui::Button(("Clear " + label).c_str(), ImVec2(-FLT_MIN, 0))) {
+                    holder->Set(name, std::shared_ptr<PropertyHolder>(nullptr));
+                }
+
                 ImGui::Unindent(8.0f);
                 ImGui::TreePop();
             }
-
             ImGui::Spacing();
         }
     }, value);

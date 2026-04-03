@@ -27,12 +27,12 @@ int main() {
     auto quad = std::make_unique<MeshNode3d>(shader);
     quad->SetMeshByName("Quad");
     quad->SetScale({4.0f, 4.0f, 4.0f});
-    quad->GetActiveMaterial().SetDoubleSided(true);
-    quad->GetActiveMaterial().SetDiffuse("red_brick_03_diff_1k.png");
-    quad->GetActiveMaterial().SetAmbientOcclusion("red_brick_03_ao_1k.png");
-    quad->GetActiveMaterial().SetDisplacement("red_brick_03_disp_1k.png");
-    quad->GetActiveMaterial().SetNormal("red_brick_03_nor_gl_1k.png");
-    quad->GetActiveMaterial().SetRoughness("red_brick_03_rough_1k.png");
+    quad->GetActiveMaterial()->SetDoubleSided(true);
+    quad->GetActiveMaterial()->SetDiffuse("red_brick_03_diff_1k.png");
+    quad->GetActiveMaterial()->SetAmbientOcclusion("red_brick_03_ao_1k.png");
+    quad->GetActiveMaterial()->SetDisplacement("red_brick_03_disp_1k.png");
+    quad->GetActiveMaterial()->SetNormal("red_brick_03_nor_gl_1k.png");
+    quad->GetActiveMaterial()->SetRoughness("red_brick_03_rough_1k.png");
     liveScene->AddChild(std::move(quad));
 
     const std::string housePath = ResourceManager::Get().ResolveAssetPath("stylised_sky_player_home_dioroma.glb");
@@ -45,14 +45,14 @@ int main() {
     cube1->SetMeshByName("Cube");
     cube1->SetPosition({0, -4.9, 2});
     cube1->SetScale({0.2f, 0.2f, 0.2f});
-    cube1->GetActiveMaterial().SetMetallicValue(1.0);
-    cube1->GetActiveMaterial().SetRoughnessValue(0.5);
+    cube1->GetActiveMaterial()->SetMetallicValue(1.0);
+    cube1->GetActiveMaterial()->SetRoughnessValue(0.5);
     liveScene->AddChild(std::move(cube1));
 
     auto sphere = std::make_unique<MeshNode3d>(shader);
     sphere->SetMeshByName("Sphere");
-    sphere->GetActiveMaterial().SetMetallicValue(0.75);
-    sphere->GetActiveMaterial().SetRoughnessValue(0.25);
+    sphere->GetActiveMaterial()->SetMetallicValue(0.75);
+    sphere->GetActiveMaterial()->SetRoughnessValue(0.25);
     sphere->SetPosition({0, 4, -2});
     liveScene->AddChild(std::move(sphere));
 

@@ -3,7 +3,6 @@
 
 #include "Core/RenderApi.h"
 #include "Core/ResourceManager.h"
-#include "Renderer/Meshes/PrimitiveMesh.h"
 
 REGISTER_NODE_TYPE(MeshNode3d)
 
@@ -61,6 +60,17 @@ void MeshNode3d::Init() {
             }
         }
     );
+
+    AddProperty("material_path",
+       [this]() -> PropertyValue { return m_materialPath; },
+       [this](const PropertyValue& v) {
+           m_materialPath = std::get<std::string>(v);
+           if (!m_materialPath.empty()) {
+               m_material = ResourceManager::Get().LoadMaterial(m_materialPath);
+           }
+       }
+   );
+
     m_meshSlot->AddProperty("mesh_type",
         [this]() -> PropertyValue { return m_meshName; },
         [this](const PropertyValue& v) {
@@ -69,17 +79,29 @@ void MeshNode3d::Init() {
         }
     );
 
-    m_meshSlot->AddProperty("mesh",[this]() -> PropertyValue {
+    m_meshSlot->AddProperty("mesh",
+        [this]() -> PropertyValue {
             if (!m_mesh) return std::shared_ptr<PropertyHolder>{};
             return std::static_pointer_cast<PropertyHolder>(m_mesh);
-        },[](const PropertyValue&) {}
+        },
+        [this](const PropertyValue& v) {
+            const auto& holder = std::get<std::shared_ptr<PropertyHolder>>(v);
+            if (!holder) {
+                m_mesh = nullptr;
+                m_meshName = "None";
+            }
+        }
     );
 
     AddProperty("mesh",
         [this]() -> PropertyValue { return m_meshSlot; },
         [this](const PropertyValue& v) {
             const auto& holder = std::get<std::shared_ptr<PropertyHolder>>(v);
-            if (!holder) return;
+            if (!holder) {
+                m_mesh = nullptr;
+                m_meshName = "None";
+                return;
+            }
 
             for (const auto& [key, prop] : holder->GetProperties()) {
                 try {
@@ -95,13 +117,13 @@ void MeshNode3d::Init() {
         [this]() -> PropertyValue { return std::static_pointer_cast<PropertyHolder>(m_material); },
         [this](const PropertyValue& v) {
             const auto& holder = std::get<std::shared_ptr<PropertyHolder>>(v);
-            if (!holder) return;
-            for (const auto& [key, prop] : holder->GetProperties()) {
-                try {
-                    m_material->Set(key, prop.getter());
-                } catch (const std::exception& e) {
-                    std::cerr << "[MeshNode3d] material property '" << key << "' error: " << e.what() << "\n";
-                }
+            if (!holder) {
+                m_material = nullptr;
+                return;
+            }
+
+            if (const auto mat = std::dynamic_pointer_cast<Material>(holder)) {
+                m_material = mat;
             }
         }
     );

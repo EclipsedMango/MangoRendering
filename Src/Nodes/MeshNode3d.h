@@ -27,8 +27,8 @@ public:
     [[nodiscard]] Mesh* GetMesh() const { return m_mesh ? m_mesh.get() : nullptr; }
     [[nodiscard]] std::shared_ptr<Shader> GetShader() const { return m_shader; }
     [[nodiscard]] const std::string& GetShaderPath() const { return m_shaderPath; }
-    [[nodiscard]] Material& GetActiveMaterial() { return m_materialOverride ? *m_materialOverride : *m_material; }
-    [[nodiscard]] const Material& GetActiveMaterial() const { return m_materialOverride ? *m_materialOverride : *m_material; }
+    [[nodiscard]] Material* GetActiveMaterial() { return m_materialOverride ? m_materialOverride.get() : m_material.get(); }
+    [[nodiscard]] const Material* GetActiveMaterial() const { return m_materialOverride ? m_materialOverride.get() : m_material.get(); }
 
     [[nodiscard]] std::shared_ptr<Mesh> GetMeshPtr() const { return m_mesh; }
     [[nodiscard]] std::shared_ptr<Material> GetMaterialPtr() { return m_material; }
@@ -41,6 +41,7 @@ private:
     std::string m_shaderPath = "default";
     std::string m_meshName = "None";
     std::string m_meshTypeName = "None";
+    std::string m_materialPath = "default";
 
     std::shared_ptr<Shader> m_shader;
     std::shared_ptr<Mesh> m_mesh;

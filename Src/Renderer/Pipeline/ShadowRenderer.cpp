@@ -72,18 +72,18 @@ void ShadowRenderer::RenderDirectionalShadows(const CameraNode3d& camera, const 
             m_shadowDepthShader->SetMatrix4("u_LightSpaceMatrix", csm->GetLightSpaceMatrix(c));
 
             for (const MeshNode3d* node : renderQueue) {
-                const Material& mat = node->GetActiveMaterial();
-                if (!mat.GetCastShadows()) continue;
+                const Material* mat = node->GetActiveMaterial();
+                if (!mat->GetCastShadows()) continue;
 
                 RenderApi::ApplyMaterialCull(mat);
 
-                m_shadowDepthShader->SetBool("u_AlphaScissor", mat.GetBlendMode() == BlendMode::AlphaScissor);
-                m_shadowDepthShader->SetFloat("u_AlphaScissorThreshold", mat.GetAlphaScissorThreshold());
-                m_shadowDepthShader->SetBool("u_HasDiffuse", mat.GetDiffuse() != nullptr);
-                m_shadowDepthShader->SetBool("u_AlphaDitherShadow", mat.GetBlendMode() == BlendMode::AlphaBlend);
+                m_shadowDepthShader->SetBool("u_AlphaScissor", mat->GetBlendMode() == BlendMode::AlphaScissor);
+                m_shadowDepthShader->SetFloat("u_AlphaScissorThreshold", mat->GetAlphaScissorThreshold());
+                m_shadowDepthShader->SetBool("u_HasDiffuse", mat->GetDiffuse() != nullptr);
+                m_shadowDepthShader->SetBool("u_AlphaDitherShadow", mat->GetBlendMode() == BlendMode::AlphaBlend);
 
-                if (mat.GetDiffuse()) {
-                    mat.GetDiffuse()->Bind(0);
+                if (mat->GetDiffuse()) {
+                    mat->GetDiffuse()->Bind(0);
                     m_shadowDepthShader->SetInt("u_Diffuse", 0);
                 }
 
@@ -167,8 +167,8 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
         m_pointShadowMap->BeginLight(slot);
 
         for (const MeshNode3d* node : renderQueue) {
-            const Material& mat = node->GetActiveMaterial();
-            if (!mat.GetCastShadows()) continue;
+            const Material* mat = node->GetActiveMaterial();
+            if (!mat->GetCastShadows()) continue;
 
             const Mesh* mesh = node->GetMesh();
             const glm::vec3 worldCenter = glm::vec3(node->GetWorldMatrix() * glm::vec4(mesh->GetBoundsCenter(), 1.0f));
@@ -180,13 +180,13 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
 
             RenderApi::ApplyMaterialCull(node->GetActiveMaterial());
 
-            m_pointShadowDepthShader->SetBool("u_AlphaScissor", mat.GetBlendMode() == BlendMode::AlphaScissor);
-            m_pointShadowDepthShader->SetFloat("u_AlphaScissorThreshold", mat.GetAlphaScissorThreshold());
-            m_pointShadowDepthShader->SetBool("u_HasDiffuse", mat.GetDiffuse() != nullptr);
-            m_pointShadowDepthShader->SetBool("u_AlphaDitherShadow", mat.GetBlendMode() == BlendMode::AlphaBlend);
+            m_pointShadowDepthShader->SetBool("u_AlphaScissor", mat->GetBlendMode() == BlendMode::AlphaScissor);
+            m_pointShadowDepthShader->SetFloat("u_AlphaScissorThreshold", mat->GetAlphaScissorThreshold());
+            m_pointShadowDepthShader->SetBool("u_HasDiffuse", mat->GetDiffuse() != nullptr);
+            m_pointShadowDepthShader->SetBool("u_AlphaDitherShadow", mat->GetBlendMode() == BlendMode::AlphaBlend);
 
-            if (mat.GetDiffuse()) {
-                mat.GetDiffuse()->Bind(0);
+            if (mat->GetDiffuse()) {
+                mat->GetDiffuse()->Bind(0);
                 m_pointShadowDepthShader->SetInt("u_Diffuse", 0);
             }
 

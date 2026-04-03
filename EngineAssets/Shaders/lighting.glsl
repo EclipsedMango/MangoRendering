@@ -211,7 +211,7 @@ float ShadowCalculation(vec3 fragPos, int cascade, vec3 normal, vec3 lightDirWS)
 
     float zBias = 0.0001;
 
-    float filterRadiusWU = 0.02; // 2 cm
+    float filterRadiusWU = 0.01; // 2 cm
     float diskRadius = (filterRadiusWU / texelWU) * texel;
     diskRadius = clamp(diskRadius, 0.25 * texel, 2.0 * texel);
 

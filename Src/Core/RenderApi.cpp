@@ -184,8 +184,8 @@ void RenderApi::UploadCameraData(const CameraNode3d* camera) const {
     m_cameraUbo->SetData(&proj, sizeof(glm::mat4), sizeof(glm::mat4));
 }
 
-void RenderApi::ApplyMaterialCull(const Material &mat) {
-    if (mat.GetDoubleSided()) {
+void RenderApi::ApplyMaterialCull(const Material* mat) {
+    if (mat->GetDoubleSided()) {
         glDisable(GL_CULL_FACE);
     } else {
         glEnable(GL_CULL_FACE);
@@ -313,7 +313,7 @@ void RenderApi::RenderMainPass(const CameraNode3d* camera, const Framebuffer* ta
     std::ranges::sort(sortedQueue, [](const MeshNode3d* a, const MeshNode3d* b) {
         if (a->GetShader() != b->GetShader())
             return a->GetShader() < b->GetShader();
-        return &a->GetActiveMaterial() < &b->GetActiveMaterial();
+        return a->GetActiveMaterial() < b->GetActiveMaterial();
     });
 
     const Shader* lastShader = nullptr;
@@ -323,7 +323,7 @@ void RenderApi::RenderMainPass(const CameraNode3d* camera, const Framebuffer* ta
         if (IsVisible(node, cameraFrustum, stats)) continue;
 
         const Shader* currentShader = node->GetShader().get();
-        const Material& currentMat = node->GetActiveMaterial();
+        const Material* currentMat = node->GetActiveMaterial();
 
         if (currentShader != lastShader) {
             currentShader->Bind();
@@ -357,10 +357,10 @@ void RenderApi::RenderMainPass(const CameraNode3d* camera, const Framebuffer* ta
             lastMaterial = nullptr;
         }
 
-        if (&currentMat != lastMaterial) {
+        if (currentMat != lastMaterial) {
             ApplyMaterialCull(currentMat);
-            currentMat.Bind(*currentShader);
-            lastMaterial = &currentMat;
+            currentMat->Bind(*currentShader);
+            lastMaterial = currentMat;
         }
 
         SubmitToGpu(node, currentShader, stats);
@@ -388,14 +388,14 @@ void RenderApi::RenderTransparentPass(const CameraNode3d* camera, const std::vec
     for (const MeshNode3d* node : transparentQueue) {
         if (IsVisible(node, cameraFrustum, stats)) continue;
 
-        if (node->GetActiveMaterial().GetBlendMode() == BlendMode::Additive) {
+        if (node->GetActiveMaterial()->GetBlendMode() == BlendMode::Additive) {
             glBlendFunc(GL_SRC_ALPHA, GL_ONE);
         } else {
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         }
 
         const Shader* currentShader = node->GetShader().get();
-        const Material& currentMat = node->GetActiveMaterial();
+        const Material* currentMat = node->GetActiveMaterial();
 
         if (currentShader != lastShader) {
             currentShader->Bind();
@@ -403,9 +403,9 @@ void RenderApi::RenderTransparentPass(const CameraNode3d* camera, const std::vec
             lastMaterial = nullptr;
         }
 
-        if (&currentMat != lastMaterial) {
-            currentMat.Bind(*currentShader);
-            lastMaterial = &currentMat;
+        if (currentMat != lastMaterial) {
+            currentMat->Bind(*currentShader);
+            lastMaterial = currentMat;
         }
 
         SubmitToGpu(node, currentShader, stats);
@@ -617,7 +617,7 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
             continue;
         }
 
-        const BlendMode mode = node->GetActiveMaterial().GetBlendMode();
+        const BlendMode mode = node->GetActiveMaterial()->GetBlendMode();
         if (mode == BlendMode::AlphaBlend || mode == BlendMode::Additive) {
             transparentQueue.push_back(node);
             continue;
@@ -724,20 +724,20 @@ void RenderApi::DrawMeshNodeDepth(const MeshNode3d *node) const {
         return;
     }
 
-    const Material& mat = node->GetActiveMaterial();
+    const Material* mat = node->GetActiveMaterial();
     ApplyMaterialCull(mat);
 
     m_depthShader->SetMatrix4("u_Model", node->GetWorldMatrix());
 
-    m_depthShader->SetBool("u_AlphaScissor", mat.GetBlendMode() == BlendMode::AlphaScissor);
-    m_depthShader->SetFloat("u_AlphaScissorThreshold", mat.GetAlphaScissorThreshold());
-    m_depthShader->SetBool("u_HasDiffuse", mat.GetDiffuse() != nullptr);
-    m_depthShader->SetVector4("u_AlbedoColor", mat.GetAlbedoColor());
-    m_depthShader->SetVector2("u_UVScale", mat.GetUVScale());
-    m_depthShader->SetVector2("u_UVOffset", mat.GetUVOffset());
+    m_depthShader->SetBool("u_AlphaScissor", mat->GetBlendMode() == BlendMode::AlphaScissor);
+    m_depthShader->SetFloat("u_AlphaScissorThreshold", mat->GetAlphaScissorThreshold());
+    m_depthShader->SetBool("u_HasDiffuse", mat->GetDiffuse() != nullptr);
+    m_depthShader->SetVector4("u_AlbedoColor", mat->GetAlbedoColor());
+    m_depthShader->SetVector2("u_UVScale", mat->GetUVScale());
+    m_depthShader->SetVector2("u_UVOffset", mat->GetUVOffset());
 
-    if (mat.GetDiffuse()) {
-        mat.GetDiffuse()->Bind(0);
+    if (mat->GetDiffuse()) {
+        mat->GetDiffuse()->Bind(0);
         m_depthShader->SetInt("u_Diffuse", 0);
     }
 

@@ -9,6 +9,7 @@
 #include "Renderer/VertexArray.h"
 #include "Renderer/Buffers/Framebuffer.h"
 #include "Renderer/Meshes/CubeGeometry.h"
+#include "Renderer/Meshes/Mesh.h"
 
 std::shared_ptr<Texture> EquirectToCubemap::Convert(const std::string &hdrPath, const int faceSize) {
     GLint prevViewport[4];
@@ -29,7 +30,7 @@ std::shared_ptr<Texture> EquirectToCubemap::Convert(const std::string &hdrPath, 
     auto cubemap = std::make_shared<Texture>(faceSize, faceSize, GL_RGB16F, 1);
 
     const auto shader = ResourceManager::Get().LoadShader("EquirectToCube", "equirect_to_cubemap.vert", "equirect_to_cubemap.frag");
-    auto cubeMesh = ResourceManager::Get().LoadMesh("Cube");
+    auto cubeMesh = ResourceManager::Get().Load<Mesh>("Cube");
 
     const Framebuffer fbo(faceSize, faceSize, FramebufferType::ColorOnly);
 

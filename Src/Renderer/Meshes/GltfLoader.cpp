@@ -76,15 +76,14 @@ static std::string ExtractTexture(const tinygltf::Model& model, const int textur
             return "";
         }
     }
-
-    ResourceManager::Get().LoadTexture(outPath);
+    
     return outPath;
 }
 
 std::shared_ptr<Material> BuildMaterial(const tinygltf::Model& model, const int materialIndex, const std::string& gltfPath) {
     const std::string materialID = gltfPath + "#mat" + std::to_string(materialIndex);
     if (materialIndex >= 0) {
-        if (auto existing = ResourceManager::Get().GetMaterial(materialID)) {
+        if (auto existing = ResourceManager::Get().Get<Material>(materialID)) {
             return existing;
         }
     }
@@ -145,7 +144,7 @@ std::shared_ptr<Material> BuildMaterial(const tinygltf::Model& model, const int 
     mat->SetNormalStrength(static_cast<float>(gltfMat.normalTexture.scale));
     mat->SetAOStrength(static_cast<float>(gltfMat.occlusionTexture.strength));
 
-    ResourceManager::Get().RegisterMaterial(materialID, mat);
+    ResourceManager::Get().Register<Material>(materialID, mat);
     return mat;
 }
 
@@ -298,7 +297,7 @@ std::unique_ptr<Node3d> GltfLoader::Load(const std::string& path, std::shared_pt
                     meshCache[gltfNode.mesh].push_back(sharedMesh);
                 }
 
-                ResourceManager::Get().RegisterMesh(meshID, sharedMesh);
+                ResourceManager::Get().Register<Mesh>(meshID, sharedMesh);
 
                 auto meshNode = std::make_unique<MeshNode3d>(sharedMesh, shader);
                 meshNode->SetMeshByName(meshID);

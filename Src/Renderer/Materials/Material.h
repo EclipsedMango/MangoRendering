@@ -18,6 +18,7 @@ public:
     void Bind(const Shader& shader) const;
 
     void SetName(const std::string& name);
+    void SetFilePath(const std::string& path);
     void SetAlbedoColor(const glm::vec4& color);
     void SetMetallicValue(float value);
     void SetRoughnessValue(float value);
@@ -38,6 +39,7 @@ public:
     [[nodiscard]] std::string GetPropertyHolderType() const override { return "Material"; }
 
     [[nodiscard]] std::string GetName() const { return m_name; }
+    [[nodiscard]] std::string GetFilePath() const { return m_filePath; }
     [[nodiscard]] glm::vec4 GetAlbedoColor() const { return m_albedoColor; }
     [[nodiscard]] float GetMetallicValue() const { return m_metallicValue; }
     [[nodiscard]] float GetRoughnessValue() const { return m_roughnessValue; }
@@ -73,9 +75,10 @@ public:
 
 private:
     std::string m_name;
+    std::string m_filePath;
 
     glm::vec4 m_albedoColor = glm::vec4(1.0f);
-    float m_metallicValue = 0.0f; // used when no metallic tex bound
+    float m_metallicValue = 0.0f;
     float m_roughnessValue = 1.0f;
     float m_aoStrength = 1.0f;
     float m_normalStrength = 1.0f;

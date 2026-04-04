@@ -417,7 +417,7 @@ void RenderApi::RenderTransparentPass(const CameraNode3d* camera, const std::vec
     glDepthFunc(GL_LEQUAL);
 }
 
-void RenderApi::RenderPortalPasses(const CameraNode3d *camera, const Framebuffer *targetFbo, int remainingDepth, int currentStencil) const {
+void RenderApi::RenderPortalPasses(const CameraNode3d *camera, const Framebuffer *targetFbo, const int remainingDepth, const int currentStencil) const {
     if (remainingDepth <= 0 || m_portalQueue.empty() || !camera || !targetFbo) {
         return;
     }
@@ -451,7 +451,8 @@ void RenderApi::RenderPortalPasses(const CameraNode3d *camera, const Framebuffer
         }
 
         const float distance = glm::length(camToPortal);
-        if (currentStencil > 1 && distance > 20.0f) {
+        const float estimatedScreenSize = worldRadius / distance * (camera->GetFov() / 90.0f);
+        if (currentStencil > 1 && estimatedScreenSize < 0.01f) {
             continue;
         }
 

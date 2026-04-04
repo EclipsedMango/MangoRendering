@@ -207,6 +207,11 @@ void Material::SetName(const std::string &name) {
     m_dirty = true;
 }
 
+void Material::SetFilePath(const std::string &path) {
+    m_filePath = path;
+    m_dirty = true;
+}
+
 void Material::SetAlbedoColor(const glm::vec4 &color) {
     m_albedoColor = color;
     m_dirty = true;
@@ -287,36 +292,36 @@ void Material::SetUVOffset(const glm::vec2 &offset) {
 }
 
 void Material::SetDiffuse(const std::string &path) {
-    m_diffuse = ResourceManager::Get().LoadTexture(path);
+    m_diffuse = ResourceManager::Get().Load<Texture>(path);
     m_dirty = true;
 }
 
 void Material::SetAmbientOcclusion(const std::string &path) {
-    m_ambientOcclusion = ResourceManager::Get().LoadTexture(path);
+    m_ambientOcclusion = ResourceManager::Get().Load<Texture>(path);
     m_dirty = true;
 }
 
 void Material::SetNormal(const std::string &path) {
-    m_normal = ResourceManager::Get().LoadTexture(path);
+    m_normal = ResourceManager::Get().Load<Texture>(path);
     m_dirty = true;
 }
 
 void Material::SetRoughness(const std::string &path) {
-    m_roughness = ResourceManager::Get().LoadTexture(path);
+    m_roughness = ResourceManager::Get().Load<Texture>(path);
     m_dirty = true;
 }
 
 void Material::SetMetallic(const std::string &path) {
-    m_metallic = ResourceManager::Get().LoadTexture(path);
+    m_metallic = ResourceManager::Get().Load<Texture>(path);
     m_dirty = true;
 }
 
 void Material::SetDisplacement(const std::string &path) {
-    m_displacement = ResourceManager::Get().LoadTexture(path);
+    m_displacement = ResourceManager::Get().Load<Texture>(path);
     m_dirty = true;
 }
 
 void Material::SetEmissive(const std::string &path) {
-    m_emissive = ResourceManager::Get().LoadTexture(path);
+    m_emissive = ResourceManager::Get().Load<Texture>(path);
     m_dirty = true;
 }

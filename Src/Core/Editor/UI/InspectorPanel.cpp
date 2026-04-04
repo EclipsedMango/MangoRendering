@@ -428,7 +428,7 @@ std::shared_ptr<Texture> InspectorPanel::GetCachedTexture(const std::string &pat
         return it->second;
     }
 
-    auto tex = ResourceManager::Get().LoadTexture(path);
+    auto tex = ResourceManager::Get().Load<Texture>(path);
     if (tex) {
         m_textureCache[path] = tex;
     }

@@ -1,6 +1,8 @@
 
 #include "Editor.h"
 
+#include <iostream>
+
 #include "EditorCameraController.h"
 #include "Utils/DebugDraw.h"
 #include "../Input.h"

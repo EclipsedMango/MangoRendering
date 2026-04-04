@@ -16,9 +16,6 @@ struct PackedNode {
     std::unordered_map<std::string, PropertyValue> properties;
     std::vector<PackedNode> children;
     std::string type;
-
-private:
-    static PropertyValue DeserializePropertyValue(const fkyaml::node& val);
 };
 
 class PackedScene {

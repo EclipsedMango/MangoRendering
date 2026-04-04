@@ -1,6 +1,8 @@
 
 #include "IBLPrecomputer.h"
 
+#include <iostream>
+
 #include "Core/ResourceManager.h"
 #include "glad/gl.h"
 #include "glm/glm.hpp"

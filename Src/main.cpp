@@ -19,8 +19,8 @@ int main() {
     const auto cubeMesh = std::make_shared<CubeMesh>();
     const auto sphereMesh = std::make_shared<SphereMesh>();
 
-    auto texture = ResourceManager::Get().LoadTexture("face.png");
-    auto teddyTexture = ResourceManager::Get().LoadTexture("sky_16_2k.png");
+    auto texture = ResourceManager::Get().Load<Texture>("face.png");
+    auto teddyTexture = ResourceManager::Get().Load<Texture>("sky_16_2k.png");
     auto shader = ResourceManager::Get().LoadShader("default", "test.vert", "test.frag");
     auto portalShader = ResourceManager::Get().LoadShader("portal_mask", "portal_mask.vert", "portal_mask.frag");
 

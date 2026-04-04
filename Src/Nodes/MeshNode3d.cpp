@@ -1,6 +1,8 @@
 
 #include "MeshNode3d.h"
 
+#include <iostream>
+
 #include "Core/RenderApi.h"
 #include "Core/ResourceManager.h"
 
@@ -43,7 +45,7 @@ std::unique_ptr<Node3d> MeshNode3d::Clone() {
 
 void MeshNode3d::SetMeshByName(const std::string &name) {
     m_meshName = name;
-    m_mesh = ResourceManager::Get().LoadMesh(name);
+    m_mesh = ResourceManager::Get().Load<Mesh>(name);
 }
 
 void MeshNode3d::Init() {
@@ -54,7 +56,7 @@ void MeshNode3d::Init() {
         [this]() -> PropertyValue { return m_shaderPath; },
         [this](const PropertyValue& v) {
             m_shaderPath = std::get<std::string>(v);
-            m_shader = ResourceManager::Get().GetShader(m_shaderPath);
+            m_shader = ResourceManager::Get().Load<Shader>(m_shaderPath);
             if (!m_shader) {
                 std::cerr << "[MeshNode3d] WARNING: Shader '" << m_shaderPath << "' is null! Did you preload it?\n";
             }
@@ -66,7 +68,7 @@ void MeshNode3d::Init() {
        [this](const PropertyValue& v) {
            m_materialPath = std::get<std::string>(v);
            if (!m_materialPath.empty()) {
-               m_material = ResourceManager::Get().LoadMaterial(m_materialPath);
+               m_material = ResourceManager::Get().Load<Material>(m_materialPath);
            }
        }
    );
@@ -75,7 +77,7 @@ void MeshNode3d::Init() {
         [this]() -> PropertyValue { return m_meshName; },
         [this](const PropertyValue& v) {
             m_meshName = std::get<std::string>(v);
-            m_mesh = ResourceManager::Get().LoadMesh(m_meshName);
+            m_mesh = ResourceManager::Get().Load<Mesh>(m_meshName);
         }
     );
 

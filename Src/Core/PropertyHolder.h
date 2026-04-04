@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <string>
 #include <variant>
+#include <fkYAML/node.hpp>
 
 #include "PropertyRegistry.h"
 #include "glm/glm.hpp"
@@ -82,6 +83,8 @@ public:
         if (!it->second.setter) return;
         it->second.setter(value);
     }
+
+    static PropertyValue DeserializePropertyValue(const fkyaml::node& val);
 
 private:
     std::map<std::string, Property> m_properties;

@@ -212,7 +212,7 @@ void Editor::DrawMenuBar() {
         if (ImGui::MenuItem("Save Scene")) {
             const Node3d* activeScene = m_state == State::Playing ? m_core.GetScene() : m_activeViewport->GetScene();
             if (activeScene) {
-                PackedScene scene(activeScene);
+                const PackedScene scene(activeScene);
                 scene.SaveToFile("john.yml");
             }
         }

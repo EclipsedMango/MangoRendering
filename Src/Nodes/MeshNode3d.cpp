@@ -33,6 +33,8 @@ std::unique_ptr<Node3d> MeshNode3d::Clone() {
         clone->SetMaterialOverride(overrideCopy);
     }
 
+    CopyBaseStateTo(*clone);
+
     for (Node3d* child : GetChildren()) {
         clone->AddChild(child->Clone());
     }

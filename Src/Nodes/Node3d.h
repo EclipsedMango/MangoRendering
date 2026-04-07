@@ -18,7 +18,7 @@ class TreeListener;
 class Node3d : public PropertyHolder {
 public:
     Node3d();
-    virtual ~Node3d();
+    ~Node3d() override;
 
     void AddChild(std::unique_ptr<Node3d> child);
     void RemoveChild(Node3d* child);
@@ -33,6 +33,9 @@ public:
     virtual void Process(float deltaTime);
 
     void UpdateWorldTransform(const glm::mat4& parentWorld = glm::mat4(1.0f));
+
+    void SetScript(const std::string& path);
+    [[nodiscard]] std::string GetScriptPath() const { return m_scriptPath; }
 
     void SetRoot();
     void SetName(const std::string& name) { m_name = name; }
@@ -59,6 +62,9 @@ public:
     [[nodiscard]] glm::mat4 GetLocalMatrix();
     [[nodiscard]] glm::mat4 GetWorldMatrix() const { return m_worldMatrix; }
 
+protected:
+    void CopyBaseStateTo(Node3d& clone) const;
+
 private:
     uint32_t m_id;
     inline static std::atomic<uint32_t> s_nextId = 1;
@@ -67,18 +73,21 @@ private:
     TreeListener* m_treeListener = nullptr;
 
     Node3d* m_parent = nullptr;
+    // TODO: change to unique ptrs
     std::vector<Node3d*> m_children;
 
     glm::vec3 m_position = glm::vec3(0.0f);
     glm::quat m_rotation = glm::quat(1, 0, 0, 0);
     glm::vec3 m_scale = glm::vec3(1.0f);
 
-    glm::mat4 m_localMatrix = glm::mat4(1.0f); // rebuilt from TRS on demand
+    glm::mat4 m_localMatrix = glm::mat4(1.0f);
     glm::mat4 m_worldMatrix = glm::mat4(1.0f);
     bool m_localDirty = false;
 
     bool m_visible = true;
     bool m_is_root = false;
+
+    std::string m_scriptPath;
 };
 
 

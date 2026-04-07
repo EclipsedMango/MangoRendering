@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 4.1)
 project(MangoRendering)
 
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 include(FetchContent)
 
@@ -32,6 +33,12 @@ FetchContent_MakeAvailable(tinygltf)
 FetchContent_Declare(fkYAML GIT_REPOSITORY https://github.com/fktn-k/fkYAML.git GIT_TAG v0.4.2)
 FetchContent_MakeAvailable(fkYAML)
 
+FetchContent_Declare(lua GIT_REPOSITORY https://github.com/marovira/lua.git GIT_TAG 5.4.8)
+FetchContent_MakeAvailable(lua)
+
+FetchContent_Declare(sol2 GIT_REPOSITORY https://github.com/ThePhD/sol2.git GIT_TAG develop)
+FetchContent_MakeAvailable(sol2)
+
 add_library(imgui STATIC
         ${imgui_SOURCE_DIR}/imgui.cpp
         ${imgui_SOURCE_DIR}/imgui_draw.cpp
@@ -44,7 +51,6 @@ add_library(imgui STATIC
 
 target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends ${imguizmo_SOURCE_DIR})
 target_link_libraries(imgui PUBLIC SDL3::SDL3 glad_gl)
-target_compile_definitions(imgui PUBLIC IMGUI_HAS_DOCK)
 
 add_executable(MangoRendering Src/main.cpp
         Src/Core/RenderApi.h
@@ -153,10 +159,23 @@ add_executable(MangoRendering Src/main.cpp
         Src/Nodes/PortalNode3d.cpp
         Src/Nodes/PortalNode3d.h
         Src/Core/ResourceManager.cpp
+        Src/Core/ScriptManager.cpp
+        Src/Core/ScriptManager.h
 )
 
-target_link_libraries(MangoRendering SDL3::SDL3 glad_gl imgui ${CMAKE_DL_LIBS} fkYAML::fkYAML)
-target_include_directories(MangoRendering PRIVATE ${CMAKE_SOURCE_DIR}/Src include ${glm_SOURCE_DIR} ${stb_SOURCE_DIR} ${tinygltf_SOURCE_DIR})
+target_link_libraries(MangoRendering PRIVATE SDL3::SDL3 glad_gl imgui ${CMAKE_DL_LIBS} fkYAML::fkYAML lua::lua sol2::sol2)
+target_compile_definitions(MangoRendering PRIVATE SOL_LUA_VERSION=504)
+
+set_property(TARGET MangoRendering PROPERTY CXX_SCAN_FOR_MODULES OFF)
+set_property(TARGET imgui PROPERTY CXX_SCAN_FOR_MODULES OFF)
+
+target_include_directories(MangoRendering PRIVATE
+        ${CMAKE_SOURCE_DIR}/Src
+        ${CMAKE_SOURCE_DIR}/include
+        ${glm_SOURCE_DIR}
+        ${stb_SOURCE_DIR}
+        ${tinygltf_SOURCE_DIR}
+)
 
 add_custom_target(copy_assets ALL
         COMMAND ${CMAKE_COMMAND} -E copy_directory

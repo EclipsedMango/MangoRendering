@@ -64,14 +64,15 @@ PackedScene PackedScene::LoadFromFile(const std::string &path) {
     return scene;
 }
 
-void PackedScene::SaveToFile(const std::string &path) {
+void PackedScene::SaveToFile(const std::string &path) const {
     std::ofstream file(path);
     file << fkyaml::node::serialize(FromPackedNode(*m_node));
 }
 
 std::unique_ptr<Node3d> PackedScene::Instantiate() const {
-    if (!m_node)
+    if (!m_node) {
         throw std::runtime_error("PackedScene: Cannot instantiate scene without a node");
+    }
 
     auto root = InstantiateNode(*m_node);
     RelinkPortals(root.get());

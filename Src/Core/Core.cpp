@@ -14,6 +14,7 @@
 #include <algorithm>
 
 #include "ResourceManager.h"
+#include "ScriptManager.h"
 #include "Editor/EditorStyle.h"
 #include "Nodes/PortalNode3d.h"
 
@@ -39,6 +40,7 @@ void Core::Init() {
     InitImGui();
 
     ResourceManager::Get().InitializeDefaultResources();
+    ScriptManager::Get().Init();
 
     if (m_currentScene) {
         m_currentScene->PropagateEnterTree(this);

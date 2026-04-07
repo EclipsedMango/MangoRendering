@@ -23,7 +23,7 @@ public:
     explicit PackedScene(const Node3d* node);
 
     [[nodiscard]] static PackedScene LoadFromFile(const std::string& path);
-    void SaveToFile(const std::string& path);
+    void SaveToFile(const std::string& path) const;
 
     [[nodiscard]] std::unique_ptr<Node3d> Instantiate() const;
 

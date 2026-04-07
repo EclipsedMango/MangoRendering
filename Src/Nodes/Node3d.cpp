@@ -4,6 +4,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include "Core/ScriptManager.h"
 #include "Core/TreeListener.h"
 
 REGISTER_NODE_TYPE(Node3d)
@@ -29,9 +30,15 @@ Node3d::Node3d() : m_id(++s_nextId) {
         [this]() -> PropertyValue { return IsVisible(); },
         [this](const PropertyValue& v) { SetVisible(std::get<bool>(v)); }
     );
+    AddProperty("script",
+        [this]() -> PropertyValue { return GetScriptPath(); },
+        [this](const PropertyValue& v) { SetScript(std::get<std::string>(v)); }
+    );
 }
 
 Node3d::~Node3d() {
+    ScriptManager::Get().ClearScript(this);
+
     for (const auto* child : m_children) {
         delete child;
     }
@@ -72,11 +79,13 @@ std::unique_ptr<Node3d> Node3d::DetachChild(Node3d *child) {
     return std::unique_ptr<Node3d>(child);
 }
 
-void Node3d::PhysicsProcess(float deltaTime) {
+void Node3d::PhysicsProcess(const float deltaTime) {
+    ScriptManager::Get().CallPhysicsProcess(this, deltaTime);
     // override in subclasses
 }
 
-void Node3d::Process(float deltaTime) {
+void Node3d::Process(const float deltaTime) {
+    ScriptManager::Get().CallProcess(this, deltaTime);
     // override in subclasses
 }
 
@@ -85,6 +94,11 @@ void Node3d::UpdateWorldTransform(const glm::mat4 &parentWorld) {
     for (auto* child : m_children) {
         child->UpdateWorldTransform(m_worldMatrix);
     }
+}
+
+void Node3d::SetScript(const std::string &path) {
+    m_scriptPath = path;
+    ScriptManager::Get().SetScript(this, path);
 }
 
 void Node3d::SetRoot() {
@@ -152,6 +166,22 @@ glm::mat4 Node3d::GetLocalMatrix() {
     return m_localMatrix;
 }
 
+void Node3d::CopyBaseStateTo(Node3d &clone) const {
+    clone.m_name = m_name;
+    clone.m_visible = m_visible;
+    clone.m_position = m_position;
+    clone.m_rotation = m_rotation;
+    clone.m_scale = m_scale;
+    clone.m_localDirty = true;
+    clone.m_is_root = m_is_root;
+
+    if (!m_scriptPath.empty()) {
+        clone.SetScript(m_scriptPath);
+    } else {
+        clone.m_scriptPath.clear();
+    }
+}
+
 void Node3d::PropagateEnterTree(TreeListener *listener) {
     m_treeListener = listener;
     m_treeListener->Notification(this, NodeNotification::EnterTree);
@@ -159,6 +189,8 @@ void Node3d::PropagateEnterTree(TreeListener *listener) {
     for (auto* child : m_children) {
         child->PropagateEnterTree(listener);
     }
+
+    ScriptManager::Get().CallReady(this);
 
     // ready fires bottom-up after the whole subtree has entered
     m_treeListener->Notification(this, NodeNotification::Ready);
@@ -176,12 +208,7 @@ void Node3d::PropagateExitTree() {
 [[nodiscard]] std::unique_ptr<Node3d> Node3d::Clone() {
     auto clone = std::make_unique<Node3d>();
 
-    clone->m_name = m_name;
-    clone->m_visible = m_visible;
-    clone->m_position = m_position;
-    clone->m_rotation = m_rotation;
-    clone->m_scale = m_scale;
-    clone->m_localDirty = true;
+    CopyBaseStateTo(*clone);
 
     for (const auto& child : m_children) {
         clone->AddChild(child->Clone());

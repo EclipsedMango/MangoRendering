@@ -1,4 +1,3 @@
-
 #include "Core/Core.h"
 #include "Core/ResourceManager.h"
 #include "Core/Editor/Editor.h"

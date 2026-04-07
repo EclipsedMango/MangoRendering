@@ -264,6 +264,10 @@ void ResourceManager::InitializeDefaultResources() {
     m_defaultShader = LoadShader("default", "test.vert", "test.frag");
 }
 
+void ResourceManager::ClearDefaultResources() {
+    m_defaultShader.reset();
+}
+
 std::shared_ptr<Texture> ResourceManager::LoadTextureFromMemory(const std::string& key, const unsigned char* data, int width, int height, int channels) {
     if (key.empty()) return nullptr;
     if (auto tex = Get<Texture>(key)) return tex;

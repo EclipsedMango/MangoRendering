@@ -32,6 +32,8 @@ public:
     void InitializeDefaultResources();
     [[nodiscard]] std::shared_ptr<Shader> GetDefaultShader() const { return m_defaultShader; }
 
+    void ClearDefaultResources();
+
     template<typename T> std::shared_ptr<T> Get(const std::string& name) {
         auto& cache = GetCache<T>();
         if (auto it = cache.find(name); it != cache.end()) {

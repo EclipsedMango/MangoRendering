@@ -24,6 +24,7 @@ Core::~Core() {
     m_mainFramebuffer.reset();
 
     IBLPrecomputer::Shutdown();
+    ResourceManager::Get().ClearDefaultResources();
     ResourceManager::Get().ReleaseAll();
 
     ImGui_ImplOpenGL3_Shutdown();

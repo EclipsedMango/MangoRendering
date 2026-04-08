@@ -305,7 +305,7 @@ void ContentBrowserWindow::NewFile(fs::path& path) {
 
         newFile.close();
     } catch (const std::exception& e) {
-        throw e;
+        throw e.what();
     }
 }
 

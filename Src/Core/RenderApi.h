@@ -90,7 +90,7 @@ private:
     void InitDepthPass();
 
     // for frustum culling
-    [[nodiscard]] static bool IsVisible(const MeshNode3d* node, const Frustum& frustum, RenderStats& stats);
+    [[nodiscard]] static bool IsCulled(const MeshNode3d* node, const Frustum& frustum, RenderStats& stats);
     static void SubmitToGpu(const MeshNode3d* node, const Shader* shader, RenderStats& stats);
     void DrawMeshNodeDepth(const MeshNode3d* node) const;
 
@@ -103,7 +103,7 @@ private:
     RenderStats RenderView(const CameraNode3d* camera, const Framebuffer* targetFbo, bool clearFbo, const PortalNode3d* excludedPortal = nullptr, bool isMainPass = true) const;
 
     void RenderMainPass(const CameraNode3d* camera, const Framebuffer* targetFbo, const std::vector<MeshNode3d*>& opaqueQueue, RenderStats& stats) const;
-    static void RenderTransparentPass(const CameraNode3d* camera, const std::vector<MeshNode3d*>& transparentQueue, RenderStats& stats);
+    static void RenderTransparentPass(const Frustum& frustum, const std::vector<MeshNode3d*>& transparentQueue, RenderStats& stats);
 
     void RenderPortalPasses(const CameraNode3d* camera, const Framebuffer* targetFbo, int remainingDepth, int currentStencil = 0) const;
     static glm::mat4 ComputePortalView(const CameraNode3d* mainCamera, const PortalNode3d* sourcePortal, const PortalNode3d* destPortal);

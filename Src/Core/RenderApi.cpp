@@ -151,7 +151,7 @@ void RenderApi::HandleResizeEvent(const SDL_Event &event) const {
     glViewport(0, 0, w, h);
 }
 
-bool RenderApi::IsVisible(const MeshNode3d *node, const Frustum &frustum, RenderStats& stats) {
+bool RenderApi::IsCulled(const MeshNode3d *node, const Frustum &frustum, RenderStats& stats) {
     const Mesh* mesh = node->GetMesh();
     const glm::vec3 worldCenter = glm::vec3(node->GetWorldMatrix() * glm::vec4(mesh->GetBoundsCenter(), 1.0f));
     const float worldRadius = mesh->GetBoundsRadius() * std::max({ node->GetScale().x, node->GetScale().y, node->GetScale().z });
@@ -305,23 +305,14 @@ void RenderApi::DrawGrid(const CameraNode3d *camera, const Framebuffer *targetFb
 }
 
 void RenderApi::RenderMainPass(const CameraNode3d* camera, const Framebuffer* targetFbo, const std::vector<MeshNode3d*>& opaqueQueue, RenderStats& stats) const {
-    const glm::mat4 viewProj = camera->GetProjectionMatrix() * camera->GetViewMatrix();
-    Frustum cameraFrustum{};
-    cameraFrustum.ExtractFromMatrix(viewProj);
 
-    auto sortedQueue = opaqueQueue;
-    std::ranges::sort(sortedQueue, [](const MeshNode3d* a, const MeshNode3d* b) {
-        if (a->GetActiveMaterial()->GetShader() != b->GetActiveMaterial()->GetShader())
-            return a->GetActiveMaterial()->GetShader() < b->GetActiveMaterial()->GetShader();
-        return a->GetActiveMaterial() < b->GetActiveMaterial();
-    });
+
+
 
     const Shader* lastShader = nullptr;
     const Material* lastMaterial = nullptr;
 
-    for (const MeshNode3d* node : sortedQueue) {
-        if (IsVisible(node, cameraFrustum, stats)) continue;
-
+    for (const MeshNode3d* node : opaqueQueue) {
         const Shader* currentShader = node->GetActiveMaterial()->GetShader().get();
         const Material* currentMat = node->GetActiveMaterial();
 
@@ -367,16 +358,12 @@ void RenderApi::RenderMainPass(const CameraNode3d* camera, const Framebuffer* ta
     }
 }
 
-void RenderApi::RenderTransparentPass(const CameraNode3d* camera, const std::vector<MeshNode3d*>& transparentQueue, RenderStats& stats) {
+void RenderApi::RenderTransparentPass(const Frustum& frustum, const std::vector<MeshNode3d*>& transparentQueue, RenderStats& stats) {
     if (transparentQueue.empty()) {
         glDepthMask(GL_TRUE);
         glDepthFunc(GL_LEQUAL);
         return;
     }
-
-    const glm::mat4 viewProj = camera->GetProjectionMatrix() * camera->GetViewMatrix();
-    Frustum cameraFrustum{};
-    cameraFrustum.ExtractFromMatrix(viewProj);
 
     glEnable(GL_BLEND);
     glDepthMask(GL_FALSE);
@@ -386,7 +373,7 @@ void RenderApi::RenderTransparentPass(const CameraNode3d* camera, const std::vec
     const Material* lastMaterial = nullptr;
 
     for (const MeshNode3d* node : transparentQueue) {
-        if (IsVisible(node, cameraFrustum, stats)) continue;
+        if (IsCulled(node, frustum, stats)) continue;
 
         if (node->GetActiveMaterial()->GetBlendMode() == BlendMode::Additive) {
             glBlendFunc(GL_SRC_ALPHA, GL_ONE);
@@ -610,6 +597,10 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
         return stats;
     }
 
+    const glm::mat4 viewProj = camera->GetProjectionMatrix() * camera->GetViewMatrix();
+    Frustum cameraFrustum{};
+    cameraFrustum.ExtractFromMatrix(viewProj);
+
     std::vector<MeshNode3d*> transparentQueue;
     std::vector<MeshNode3d*> opaqueQueue;
 
@@ -627,6 +618,19 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
         opaqueQueue.push_back(node);
     }
 
+    std::vector<MeshNode3d*> culledOpaque;
+    for (MeshNode3d* node : opaqueQueue) {
+        if (!IsCulled(node, cameraFrustum, stats)) {
+            culledOpaque.push_back(node);
+        }
+    }
+
+    std::ranges::sort(culledOpaque, [](const MeshNode3d* a, const MeshNode3d* b) {
+        if (a->GetActiveMaterial()->GetShader() != b->GetActiveMaterial()->GetShader())
+            return a->GetActiveMaterial()->GetShader() < b->GetActiveMaterial()->GetShader();
+        return a->GetActiveMaterial() < b->GetActiveMaterial();
+    });
+
     const glm::vec3 camPos = camera->GetPosition();
     const glm::vec3 forward = camera->GetFront();
 
@@ -636,7 +640,7 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
         return depthA > depthB;
     });
 
-    stats.submitted = static_cast<uint32_t>(opaqueQueue.size() + transparentQueue.size());
+    stats.submitted = static_cast<uint32_t>(culledOpaque.size() + transparentQueue.size());
 
     UploadCameraData(camera);
     m_lightManager->Upload();
@@ -699,7 +703,7 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
 
     BeginZPrepass();
     m_depthShader->Bind();
-    for (const MeshNode3d* mesh : opaqueQueue) {
+    for (const MeshNode3d* mesh : culledOpaque) {
         DrawMeshNodeDepth(mesh);
     }
     EndZPrepass();
@@ -707,13 +711,13 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
     RunLightCulling();
     m_shadowRenderer->BindPointShadowTexture();
 
-    RenderMainPass(camera, targetFbo, opaqueQueue, stats);
+    RenderMainPass(camera, targetFbo, culledOpaque, stats);
 
     if (m_skybox) {
         m_skybox->GetSkybox()->Draw(camera->GetViewMatrix(), camera->GetProjectionMatrix());
     }
 
-    RenderTransparentPass(camera, transparentQueue, stats);
+    RenderTransparentPass(cameraFrustum, transparentQueue, stats);
 
     Framebuffer::Unbind();
     return stats;

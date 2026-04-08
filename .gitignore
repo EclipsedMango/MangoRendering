@@ -1,3 +1,5 @@
 .idea
 cmake-build-debug
+cmake-build-debug-event-trace
+cmake-build-release
 imgui.ini

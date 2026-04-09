@@ -40,12 +40,15 @@ std::unique_ptr<Node3d> CameraNode3d::Clone() {
     auto clone = std::make_unique<CameraNode3d>(GetPosition(), m_fov, m_aspectRatio);
 
     clone->SetName(GetName());
+    clone->SetLocalTransform(GetLocalMatrix());
+
     clone->SetYaw(m_yaw);
     clone->SetPitch(m_pitch);
     clone->SetNearPlane(m_nearPlane);
     clone->SetFarPlane(m_farPlane);
     clone->SetAsGameCamera(m_isGameCamera);
-    clone->SetLocalTransform(GetLocalMatrix());
+
+    CopyBaseStateTo(*clone);
 
     for (Node3d* child : GetChildren()) {
         clone->AddChild(child->Clone());

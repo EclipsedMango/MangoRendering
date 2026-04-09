@@ -23,8 +23,6 @@ public:
     void ClearViewMatrixOverride();
     void ClearProjectionMatrixOverride();
 
-    void Process(float deltaTime) override {}
-
     [[nodiscard]] std::string GetNodeType() const override { return "CameraNode3d"; }
     [[nodiscard]] glm::mat4 GetViewMatrix() const;
     [[nodiscard]] glm::mat4 GetProjectionMatrix() const;

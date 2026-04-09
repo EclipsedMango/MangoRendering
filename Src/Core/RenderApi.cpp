@@ -15,6 +15,7 @@
 #include "Nodes/MeshNode3d.h"
 #include "Nodes/PortalNode3d.h"
 #include "Scene/Frustum.h"
+#include "sol/types.hpp"
 
 namespace {
     CameraNode3d BuildPortalRenderCamera(const CameraNode3d* sourceCamera, const Framebuffer* targetFbo, const glm::mat4& virtualView) {
@@ -240,11 +241,11 @@ void RenderApi::SetSkybox(SkyboxNode3d* skybox) {
     }
 }
 
-RenderStats RenderApi::RenderScene(const CameraNode3d* camera, const Framebuffer* targetFbo, bool clearFbo) const {
+RenderStats RenderApi::RenderScene(const CameraNode3d* camera, const Framebuffer* targetFbo, bool clearFbo) {
     return RenderView(camera, targetFbo, clearFbo, nullptr);
 }
 
-RenderStats RenderApi::RenderSceneWithPortals(const CameraNode3d *camera, const Framebuffer *targetFbo, const int maxPortalDepth) const {
+RenderStats RenderApi::RenderSceneWithPortals(const CameraNode3d *camera, const Framebuffer *targetFbo, const int maxPortalDepth) {
     const RenderStats stats = RenderView(camera, targetFbo, true, nullptr, true);
 
     if (maxPortalDepth > 0) {
@@ -305,9 +306,6 @@ void RenderApi::DrawGrid(const CameraNode3d *camera, const Framebuffer *targetFb
 }
 
 void RenderApi::RenderMainPass(const CameraNode3d* camera, const Framebuffer* targetFbo, const std::vector<MeshNode3d*>& opaqueQueue, RenderStats& stats) const {
-
-
-
 
     const Shader* lastShader = nullptr;
     const Material* lastMaterial = nullptr;
@@ -404,7 +402,7 @@ void RenderApi::RenderTransparentPass(const Frustum& frustum, const std::vector<
     glDepthFunc(GL_LEQUAL);
 }
 
-void RenderApi::RenderPortalPasses(const CameraNode3d *camera, const Framebuffer *targetFbo, const int remainingDepth, const int currentStencil) const {
+void RenderApi::RenderPortalPasses(const CameraNode3d *camera, const Framebuffer *targetFbo, const int remainingDepth, const int currentStencil) {
     if (remainingDepth <= 0 || m_portalQueue.empty() || !camera || !targetFbo) {
         return;
     }
@@ -591,7 +589,7 @@ void RenderApi::RunLightCulling() const {
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 }
 
-RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer *targetFbo, bool clearFbo, const PortalNode3d *excludedPortal, bool isMainPass) const {
+RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer *targetFbo, bool clearFbo, const PortalNode3d *excludedPortal, bool isMainPass) {
     RenderStats stats = {};
     if (!camera || !targetFbo) {
         return stats;
@@ -659,10 +657,10 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
     GLint savedStencilPassDepthPass = 0;
 
     const bool stencilEnabled = glIsEnabled(GL_STENCIL_TEST);
-    glGetIntegerv(GL_STENCIL_FUNC,            &savedStencilFunc);
-    glGetIntegerv(GL_STENCIL_REF,             &savedStencilRef);
-    glGetIntegerv(GL_STENCIL_VALUE_MASK,      &savedStencilMask);
-    glGetIntegerv(GL_STENCIL_FAIL,            &savedStencilFail);
+    glGetIntegerv(GL_STENCIL_FUNC, &savedStencilFunc);
+    glGetIntegerv(GL_STENCIL_REF, &savedStencilRef);
+    glGetIntegerv(GL_STENCIL_VALUE_MASK, &savedStencilMask);
+    glGetIntegerv(GL_STENCIL_FAIL, &savedStencilFail);
     glGetIntegerv(GL_STENCIL_PASS_DEPTH_FAIL, &savedStencilPassDepthFail);
     glGetIntegerv(GL_STENCIL_PASS_DEPTH_PASS, &savedStencilPassDepthPass);
 
@@ -670,27 +668,38 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
 
     const glm::vec2 targetSize(targetFbo->GetWidth(), targetFbo->GetHeight());
 
+    const auto& allPointLights = m_lightManager->GetPointLights();
+    const int totalLights = static_cast<int>(allPointLights.size());
+    std::vector<PointLight*> lightsToRender;
+
+    if (totalLights > 0) {
+        constexpr int batchCount = 4;
+        const int batchSize = (totalLights + batchCount - 1) / batchCount;
+        const int start = m_pointLightShadowBatch * batchSize;
+        const int end = std::min(start + batchSize, totalLights);
+
+        for (int i = start; i < end; i++) {
+            lightsToRender.push_back(allPointLights[i]);
+        }
+
+        if (isMainPass) {
+            m_pointLightShadowBatch = (m_pointLightShadowBatch + 1) % batchCount;
+        }
+    }
+
     if (isMainPass) {
         glEnable(GL_POLYGON_OFFSET_FILL);
         glPolygonOffset(1.5f, 4.0f);
         m_shadowRenderer->RenderDirectionalShadows(*camera, opaqueQueue, targetSize);
-        m_shadowRenderer->RenderPointLightShadows(*camera, m_lightManager->GetPointLights(), opaqueQueue, targetSize);
+        m_shadowRenderer->RenderPointLightShadows(*camera, lightsToRender, opaqueQueue, targetSize);
         glDisable(GL_POLYGON_OFFSET_FILL);
         stats.shadowDrawCalls = m_shadowRenderer->GetShadowDrawCallCount();
     }
 
     if (stencilEnabled) {
         glEnable(GL_STENCIL_TEST);
-        glStencilFunc(
-            static_cast<GLenum>(savedStencilFunc),
-            savedStencilRef,
-            static_cast<GLuint>(savedStencilMask)
-        );
-        glStencilOp(
-            static_cast<GLenum>(savedStencilFail),
-            static_cast<GLenum>(savedStencilPassDepthFail),
-            static_cast<GLenum>(savedStencilPassDepthPass)
-        );
+        glStencilFunc(static_cast<GLenum>(savedStencilFunc), savedStencilRef, static_cast<GLuint>(savedStencilMask));
+        glStencilOp(static_cast<GLenum>(savedStencilFail), static_cast<GLenum>(savedStencilPassDepthFail), static_cast<GLenum>(savedStencilPassDepthPass));
     }
 
     targetFbo->Bind();

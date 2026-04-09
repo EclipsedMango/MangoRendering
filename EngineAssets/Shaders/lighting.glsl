@@ -168,7 +168,7 @@ float PointShadow(vec3 fragPos, vec3 normal, uint lightIndex, PointLight light) 
     float angle = Hash12(gl_FragCoord.xy) * 6.28318530718;
     mat2 R = Rotate2D(angle);
 
-    float zBias = biasBase * 0.05;
+    float zBias = biasBase;
     float shadow = 0.0;
     for (int i = 0; i < 16; i++) {
         vec2 offset = (R * poissonDisk[i]) * diskRadius;

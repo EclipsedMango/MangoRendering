@@ -72,8 +72,8 @@ public:
     [[nodiscard]] const std::vector<ShadowedPointLightDebug>& GetShadowedPointLightsDebug() const { return m_shadowRenderer->GetShadowedPointLightsDebug(); }
 
     static void ApplyMaterialCull(const Material* mat);
-    RenderStats RenderScene(const CameraNode3d* camera, const Framebuffer* targetFbo, bool clearFbo) const;
-    RenderStats RenderSceneWithPortals(const CameraNode3d* camera, const Framebuffer* targetFbo, int maxPortalDepth) const;
+    RenderStats RenderScene(const CameraNode3d* camera, const Framebuffer* targetFbo, bool clearFbo);
+    RenderStats RenderSceneWithPortals(const CameraNode3d* camera, const Framebuffer* targetFbo, int maxPortalDepth);
     void DrawGrid(const CameraNode3d* camera, const Framebuffer* targetFbo) const;
     static void DrawMesh(const Mesh& mesh, const Shader& shader);
 
@@ -100,12 +100,12 @@ private:
     void RebuildClusters(const CameraNode3d* camera, const Framebuffer* targetFbo) const;
     void RunLightCulling() const;
 
-    RenderStats RenderView(const CameraNode3d* camera, const Framebuffer* targetFbo, bool clearFbo, const PortalNode3d* excludedPortal = nullptr, bool isMainPass = true) const;
+    RenderStats RenderView(const CameraNode3d* camera, const Framebuffer* targetFbo, bool clearFbo, const PortalNode3d* excludedPortal = nullptr, bool isMainPass = true);
 
     void RenderMainPass(const CameraNode3d* camera, const Framebuffer* targetFbo, const std::vector<MeshNode3d*>& opaqueQueue, RenderStats& stats) const;
     static void RenderTransparentPass(const Frustum& frustum, const std::vector<MeshNode3d*>& transparentQueue, RenderStats& stats);
 
-    void RenderPortalPasses(const CameraNode3d* camera, const Framebuffer* targetFbo, int remainingDepth, int currentStencil = 0) const;
+    void RenderPortalPasses(const CameraNode3d* camera, const Framebuffer* targetFbo, int remainingDepth, int currentStencil = 0);
     static glm::mat4 ComputePortalView(const CameraNode3d* mainCamera, const PortalNode3d* sourcePortal, const PortalNode3d* destPortal);
     static glm::mat4 ObliqueProjection(const glm::mat4& projMat, const glm::mat4& virtualView, const PortalNode3d* destPortal);
 
@@ -138,6 +138,8 @@ private:
 
     int m_debugMode = 0;
     int m_debugCascade = 0;
+
+    int m_pointLightShadowBatch = 0;
 };
 
 #endif //MANGORENDERING_RENDERAPI_H

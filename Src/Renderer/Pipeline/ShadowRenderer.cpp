@@ -113,7 +113,7 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
     for (auto& [slot, farPlane, bias, pad] : meta) {
         slot = 0xFFFFFFFFu;
         farPlane = 1.0f;
-        bias = 0.02f;
+        bias = 0.03f;
         pad = 0.0f;
     }
 
@@ -192,7 +192,7 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
             m_pointShadowDepthShader->SetMatrix4("u_Model", node->GetWorldMatrix());
             node->GetMesh()->GetBuffer()->Bind();
             glDrawElements(GL_TRIANGLES, node->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
-            m_shadowDrawCallCount++;
+            m_shadowDrawCallCount += 6;
         }
     }
 

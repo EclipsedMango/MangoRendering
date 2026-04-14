@@ -11,6 +11,25 @@
 #include "Core/ResourceManager.h"
 #include "Renderer/Buffers/ShaderStorageBuffer.h"
 
+namespace {
+    constexpr int MAX_SKIN_JOINTS = 128;
+
+    void UploadSkinningUniforms(const MeshNode3d* node, const Shader* shader) {
+        if (!node->HasSkinning()) {
+            shader->SetBool("u_Skinned", false);
+            return;
+        }
+
+        shader->SetBool("u_Skinned", true);
+        const auto& skinMatrices = node->GetSkinMatrices();
+        const int jointCount = std::min(static_cast<int>(skinMatrices.size()), MAX_SKIN_JOINTS);
+        shader->SetInt("u_SkinMatrixCount", jointCount);
+        for (int i = 0; i < jointCount; ++i) {
+            shader->SetMatrix4("u_SkinMatrices[" + std::to_string(i) + "]", skinMatrices[static_cast<size_t>(i)]);
+        }
+    }
+}
+
 ShadowRenderer::ShadowRenderer() {
     m_shadowDepthShader = ResourceManager::Get().LoadShader("ShadowDepth", "shadow_depth.vert", "shadow_depth.frag");
     m_pointShadowDepthShader = ResourceManager::Get().LoadShaderWithGeom("PointShadowDepth", "point_shadow_depth.vert", "point_shadow_depth.frag", "point_shadow_depth.geom");
@@ -87,6 +106,7 @@ void ShadowRenderer::RenderDirectionalShadows(const CameraNode3d& camera, const 
                 }
 
                 m_shadowDepthShader->SetMatrix4("u_Model", node->GetWorldMatrix());
+                UploadSkinningUniforms(node, m_shadowDepthShader.get());
 
                 node->GetMesh()->GetBuffer()->Bind();
                 glDrawElements(GL_TRIANGLES, node->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, nullptr);
@@ -113,7 +133,7 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
     for (auto& [slot, farPlane, bias, pad] : meta) {
         slot = 0xFFFFFFFFu;
         farPlane = 1.0f;
-        bias = 0.03f;
+        bias = 0.01f;
         pad = 0.0f;
     }
 
@@ -151,6 +171,7 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
 
         meta[lightIndex].slot = slot;
         meta[lightIndex].farPlane = farPlane;
+        meta[lightIndex].bias = glm::clamp(farPlane * 0.0015f, 0.003f, 0.03f);
 
         glm::mat4 vp[6];
         BuildPointShadowFaceMatrices(L->GetPosition(), 0.1f, farPlane, vp);
@@ -190,6 +211,7 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
             }
 
             m_pointShadowDepthShader->SetMatrix4("u_Model", node->GetWorldMatrix());
+            UploadSkinningUniforms(node, m_pointShadowDepthShader.get());
             node->GetMesh()->GetBuffer()->Bind();
             glDrawElements(GL_TRIANGLES, node->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
             m_shadowDrawCallCount += 6;

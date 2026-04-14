@@ -138,8 +138,6 @@ private:
 
     int m_debugMode = 0;
     int m_debugCascade = 0;
-
-    int m_pointLightShadowBatch = 0;
 };
 
 #endif //MANGORENDERING_RENDERAPI_H

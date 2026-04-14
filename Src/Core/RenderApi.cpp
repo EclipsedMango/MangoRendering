@@ -18,6 +18,23 @@
 #include "sol/types.hpp"
 
 namespace {
+    constexpr int MAX_SKIN_JOINTS = 128;
+
+    void UploadSkinningUniforms(const MeshNode3d* node, const Shader* shader) {
+        if (!node->HasSkinning()) {
+            shader->SetBool("u_Skinned", false);
+            return;
+        }
+
+        shader->SetBool("u_Skinned", true);
+        const auto& skinMatrices = node->GetSkinMatrices();
+        const int jointCount = std::min(static_cast<int>(skinMatrices.size()), MAX_SKIN_JOINTS);
+        shader->SetInt("u_SkinMatrixCount", jointCount);
+        for (int i = 0; i < jointCount; ++i) {
+            shader->SetMatrix4("u_SkinMatrices[" + std::to_string(i) + "]", skinMatrices[static_cast<size_t>(i)]);
+        }
+    }
+
     CameraNode3d BuildPortalRenderCamera(const CameraNode3d* sourceCamera, const Framebuffer* targetFbo, const glm::mat4& virtualView) {
         const float aspect = static_cast<float>(targetFbo->GetWidth()) / static_cast<float>(targetFbo->GetHeight());
 
@@ -169,6 +186,7 @@ bool RenderApi::IsCulled(const MeshNode3d *node, const Frustum &frustum, RenderS
 void RenderApi::SubmitToGpu(const MeshNode3d *node, const Shader *shader, RenderStats& stats) {
     shader->SetMatrix4("u_Model", node->GetWorldMatrix());
     shader->SetMatrix4("u_NormalMatrix", glm::transpose(glm::inverse(node->GetWorldMatrix())));
+    UploadSkinningUniforms(node, shader);
 
     node->GetMesh()->GetBuffer()->Bind();
     glDrawElements(GL_TRIANGLES, node->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
@@ -334,7 +352,7 @@ void RenderApi::RenderMainPass(const CameraNode3d* camera, const Framebuffer* ta
                 m_ibl.prefiltered->Bind(21);
                 currentShader->SetInt("u_IrradianceMap", 20);
                 currentShader->SetInt("u_PrefilteredEnvMap", 21);
-                currentShader->SetInt("u_MaxPrefilteredMipLevel", IBLPrecomputer::PREFILTER_MIP_LEVELS);
+                currentShader->SetInt("u_MaxPrefilteredMipLevel", IBLPrecomputer::PREFILTER_MIP_LEVELS - 1);
                 currentShader->SetBool("u_HasIbl", true);
                 currentShader->SetFloat("u_IblDiffuseIntensity", m_skybox->GetIntensity());
                 currentShader->SetFloat("u_IblSpecularIntensity", m_skybox->GetSpecularIntensity());
@@ -668,30 +686,11 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
 
     const glm::vec2 targetSize(targetFbo->GetWidth(), targetFbo->GetHeight());
 
-    const auto& allPointLights = m_lightManager->GetPointLights();
-    const int totalLights = static_cast<int>(allPointLights.size());
-    std::vector<PointLight*> lightsToRender;
-
-    if (totalLights > 0) {
-        constexpr int batchCount = 4;
-        const int batchSize = (totalLights + batchCount - 1) / batchCount;
-        const int start = m_pointLightShadowBatch * batchSize;
-        const int end = std::min(start + batchSize, totalLights);
-
-        for (int i = start; i < end; i++) {
-            lightsToRender.push_back(allPointLights[i]);
-        }
-
-        if (isMainPass) {
-            m_pointLightShadowBatch = (m_pointLightShadowBatch + 1) % batchCount;
-        }
-    }
-
     if (isMainPass) {
         glEnable(GL_POLYGON_OFFSET_FILL);
         glPolygonOffset(1.5f, 4.0f);
         m_shadowRenderer->RenderDirectionalShadows(*camera, opaqueQueue, targetSize);
-        m_shadowRenderer->RenderPointLightShadows(*camera, lightsToRender, opaqueQueue, targetSize);
+        m_shadowRenderer->RenderPointLightShadows(*camera, m_lightManager->GetPointLights(), opaqueQueue, targetSize);
         glDisable(GL_POLYGON_OFFSET_FILL);
         stats.shadowDrawCalls = m_shadowRenderer->GetShadowDrawCallCount();
     }
@@ -742,6 +741,7 @@ void RenderApi::DrawMeshNodeDepth(const MeshNode3d *node) const {
     ApplyMaterialCull(mat);
 
     m_depthShader->SetMatrix4("u_Model", node->GetWorldMatrix());
+    UploadSkinningUniforms(node, m_depthShader.get());
 
     m_depthShader->SetBool("u_AlphaScissor", mat->GetBlendMode() == BlendMode::AlphaScissor);
     m_depthShader->SetFloat("u_AlphaScissorThreshold", mat->GetAlphaScissorThreshold());

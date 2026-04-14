@@ -52,6 +52,11 @@ int main() {
     house->SetPosition({0, -4, -15});
     liveScene->AddChild(std::move(house));
 
+    const std::string dancingPath = ResourceManager::Get().ResolveAssetPath("Silly Dancing.glb");
+    auto dancing = std::unique_ptr(GltfLoader::Load(dancingPath, shader));
+    dancing->SetScale({0.15f, 0.15f, 0.15f});
+    liveScene->AddChild(std::move(dancing));
+
     auto cube1 = std::make_unique<MeshNode3d>();
     cube1->SetMeshByName("Cube");
     cube1->SetPosition({0, -4.9, 2});

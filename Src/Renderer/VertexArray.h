@@ -10,6 +10,8 @@ struct Vertex {
     glm::vec3 normal;
     glm::vec2 texCoord;
     glm::vec4 tangent;
+    glm::uvec4 joints = glm::uvec4(0);
+    glm::vec4 weights = glm::vec4(0.0f);
 };
 
 class VertexArray {

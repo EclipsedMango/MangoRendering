@@ -83,10 +83,14 @@ void CascadedShadowMap::Update(const CameraNode3d& camera) {
         minY = std::floor(minY / texelSize) * texelSize;
         maxY = std::floor(maxY / texelSize) * texelSize;
 
-        constexpr float zPullback = 50.0f;
+        const float cascadeDepth = splits[i + 1] - splits[i];
+        const float cascadeFootprint = glm::length(glm::vec2(worldWidth, worldHeight));
 
-        float zNear = -maxZ - zPullback;
-        float zFar = -minZ + zPullback;
+        // Keep enough depth slack for off-camera casters that can still project into the visible cascade
+        const float zPadding = glm::max(glm::max(64.0f, cascadeDepth), cascadeFootprint);
+
+        float zNear = -maxZ - zPadding;
+        float zFar = -minZ + zPadding;
 
         m_lightSpaceMatrices[i] = glm::ortho(minX, maxX, minY, maxY, zNear, zFar) * lightView;
     }

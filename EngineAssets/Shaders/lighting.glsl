@@ -87,7 +87,12 @@ float SampleShadowMap(int cascade, vec2 uv) {
 }
 
 float TexelSize(int cascade) {
-    return 1.0 / 1024.0;
+    switch (cascade) {
+        case 0: return 1.0 / float(textureSize(u_ShadowMap0, 0).x);
+        case 1: return 1.0 / float(textureSize(u_ShadowMap1, 0).x);
+        case 2: return 1.0 / float(textureSize(u_ShadowMap2, 0).x);
+        default: return 1.0 / float(textureSize(u_ShadowMap3, 0).x);
+    }
 }
 
 vec3 Heatmap(float t) {

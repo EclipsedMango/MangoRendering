@@ -98,7 +98,8 @@ void ViewportWindow::Draw() {
         if (shouldRender) {
             const CameraNode3d* renderCam = m_camera.get();
             if (m_editor->GetState() == Editor::State::Playing) {
-                if (const CameraNode3d* gameCam = m_editor->GetCore().GetGameCamera()) {
+                if (CameraNode3d* gameCam = m_editor->GetCore().GetGameCamera()) {
+                    gameCam->SetAspectRatio(viewportSize.x / viewportSize.y);
                     renderCam = gameCam;
                 }
             }
@@ -184,7 +185,8 @@ void ViewportWindow::DrawContent() {
         if (shouldRender) {
             const CameraNode3d* renderCam = m_camera.get();
             if (m_editor->GetState() == Editor::State::Playing) {
-                if (const CameraNode3d* gameCam = m_editor->GetCore().GetGameCamera()) {
+                if (CameraNode3d* gameCam = m_editor->GetCore().GetGameCamera()) {
+                    gameCam->SetAspectRatio(viewportSize.x / viewportSize.y);
                     renderCam = gameCam;
                 }
             }

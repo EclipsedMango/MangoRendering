@@ -6,12 +6,15 @@
 #include "Renderer/Materials/Material.h"
 #include "Renderer/Meshes/Mesh.h"
 
+class Animator;
+
 class MeshNode3d : public RenderableNode3d {
 public:
     MeshNode3d();
     explicit MeshNode3d(std::shared_ptr<Mesh> mesh);
 
     [[nodiscard]] std::unique_ptr<Node3d> Clone() override;
+    void Process(float deltaTime) override;
 
     void SetMesh(std::shared_ptr<Mesh> mesh) { m_mesh = std::move(mesh); }
     void SetMeshByName(const std::string& name);
@@ -25,6 +28,10 @@ public:
     [[nodiscard]] Material* GetActiveMaterial() { return m_materialOverride ? m_materialOverride.get() : m_material.get(); }
     [[nodiscard]] const Material* GetActiveMaterial() const { return m_materialOverride ? m_materialOverride.get() : m_material.get(); }
     [[nodiscard]] std::shared_ptr<Material> GetMaterialPtr() { return m_material; }
+    void SetAnimator(std::shared_ptr<Animator> animator) { m_animator = std::move(animator); }
+    [[nodiscard]] std::shared_ptr<Animator> GetAnimator() const { return m_animator; }
+    [[nodiscard]] bool HasSkinning() const;
+    [[nodiscard]] const std::vector<glm::mat4>& GetSkinMatrices() const;
 
     [[nodiscard]] std::string GetNodeType() const override { return "MeshNode3d"; }
 
@@ -36,6 +43,7 @@ private:
     std::shared_ptr<Mesh> m_mesh;
     std::shared_ptr<Material> m_material;
     std::shared_ptr<Material> m_materialOverride;
+    std::shared_ptr<Animator> m_animator;
 };
 
 

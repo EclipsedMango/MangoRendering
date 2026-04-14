@@ -56,5 +56,13 @@ void VertexArray::Setup(const std::vector<Vertex>& vertices, const std::vector<u
     glEnableVertexAttribArray(3);
     glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), reinterpret_cast<void*>(offsetof(Vertex, tangent)));
 
+    // Joints (uvec4)
+    glEnableVertexAttribArray(4);
+    glVertexAttribIPointer(4, 4, GL_UNSIGNED_INT, sizeof(Vertex), reinterpret_cast<void*>(offsetof(Vertex, joints)));
+
+    // Weights (vec4)
+    glEnableVertexAttribArray(5);
+    glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), reinterpret_cast<void*>(offsetof(Vertex, weights)));
+
     glBindVertexArray(0);
 }

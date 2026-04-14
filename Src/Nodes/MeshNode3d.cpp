@@ -5,6 +5,7 @@
 
 #include "Core/RenderApi.h"
 #include "Core/ResourceManager.h"
+#include "Renderer/Animation/Animator.h"
 
 REGISTER_NODE_TYPE(MeshNode3d)
 
@@ -32,6 +33,7 @@ std::unique_ptr<Node3d> MeshNode3d::Clone() {
         const auto overrideCopy = std::make_shared<Material>(*m_materialOverride);
         clone->SetMaterialOverride(overrideCopy);
     }
+    clone->SetAnimator(m_animator);
 
     CopyBaseStateTo(*clone);
 
@@ -40,6 +42,13 @@ std::unique_ptr<Node3d> MeshNode3d::Clone() {
     }
 
     return clone;
+}
+
+void MeshNode3d::Process(const float deltaTime) {
+    Node3d::Process(deltaTime);
+    if (m_animator) {
+        m_animator->Update(deltaTime);
+    }
 }
 
 void MeshNode3d::SetMeshByName(const std::string &name) {
@@ -109,4 +118,17 @@ void MeshNode3d::Init() {
             }
         }
     );
+}
+
+bool MeshNode3d::HasSkinning() const {
+    return m_animator && m_animator->HasSkeleton() && !m_animator->GetSkinMatrices().empty();
+}
+
+const std::vector<glm::mat4>& MeshNode3d::GetSkinMatrices() const {
+    static constexpr std::vector<glm::mat4> kEmpty;
+    if (!m_animator) {
+        return kEmpty;
+    }
+
+    return m_animator->GetSkinMatrices();
 }

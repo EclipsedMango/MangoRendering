@@ -31,6 +31,9 @@ struct RenderStats {
     uint32_t culled = 0;
     uint32_t triangles = 0;
     uint32_t submitted = 0;
+    float animatorUpdateMs = 0.0f;
+    float skinUploadMs = 0.0f;
+    float drawSubmitMs = 0.0f;
 };
 
 class RenderApi {
@@ -92,7 +95,7 @@ private:
     // for frustum culling
     [[nodiscard]] static bool IsCulled(const MeshNode3d* node, const Frustum& frustum, RenderStats& stats);
     static void SubmitToGpu(const MeshNode3d* node, const Shader* shader, RenderStats& stats);
-    void DrawMeshNodeDepth(const MeshNode3d* node) const;
+    void DrawMeshNodeDepth(const MeshNode3d* node, RenderStats& stats) const;
 
     static void BeginZPrepass();
     static void EndZPrepass();

@@ -617,6 +617,7 @@ GltfLoader::LoadResult GltfLoader::LoadWithSkeletonData(const std::string& path,
 
                 if (gltfNode.skin >= 0 && gltfNode.skin < static_cast<int>(result.skeletons.size())) {
                     auto animator = std::make_shared<Animator>(result.skeletons[static_cast<size_t>(gltfNode.skin)]);
+                    animator->SetAvailableClips(result.animations);
                     if (const auto* clip = FindFirstClipForSkeleton(result.animations, result.skeletons[static_cast<size_t>(gltfNode.skin)])) {
                         animator->SetClip(*clip);
                         animator->Play(true);

@@ -9,7 +9,9 @@ uniform mat4 u_LightSpaceMatrix;
 uniform mat4 u_Model;
 uniform bool u_Skinned;
 uniform int u_SkinMatrixCount;
-uniform mat4 u_SkinMatrices[128];
+layout (std140, binding = 9) uniform SkinMatrices {
+    mat4 u_SkinMatrices[128];
+};
 
 out vec2 v_Uv;
 

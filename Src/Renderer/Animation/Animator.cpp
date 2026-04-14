@@ -1,10 +1,15 @@
 #include "Animator.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
+
+namespace {
+    float s_frameAnimatorUpdateMs = 0.0f;
+}
 
 Animator::Animator(std::shared_ptr<Skeleton> skeleton) {
     SetSkeleton(std::move(skeleton));
@@ -12,23 +17,31 @@ Animator::Animator(std::shared_ptr<Skeleton> skeleton) {
 
 void Animator::SetSkeleton(std::shared_ptr<Skeleton> skeleton) {
     m_skeleton = std::move(skeleton);
+    m_poseDirty = true;
     ResetPoseFromSkeleton();
     EvaluateGlobalAndSkinMatrices();
+    m_poseVersion++;
+    m_poseDirty = false;
 }
 
 void Animator::SetClip(const GltfLoader::AnimationClipData& clip) {
     m_clip = clip;
     m_hasClip = true;
     m_currentTime = m_clip.startTime;
+    m_poseDirty = true;
     EvaluateAt(m_currentTime);
 }
 
-bool Animator::SetClipByName(const std::vector<GltfLoader::AnimationClipData>& clips, const std::string& clipName) {
-    const auto it = std::ranges::find_if(clips, [&](const GltfLoader::AnimationClipData& clip) {
+void Animator::SetAvailableClips(std::vector<GltfLoader::AnimationClipData> clips) {
+    m_availableClips = std::move(clips);
+}
+
+bool Animator::SetClipByName(const std::string& clipName) {
+    const auto it = std::ranges::find_if(m_availableClips, [&](const GltfLoader::AnimationClipData& clip) {
         return clip.name == clipName;
     });
 
-    if (it == clips.end()) {
+    if (it == m_availableClips.end()) {
         return false;
     }
 
@@ -56,6 +69,7 @@ void Animator::Stop() {
     } else {
         m_currentTime = 0.0f;
     }
+    m_poseDirty = true;
     EvaluateAt(m_currentTime);
 }
 
@@ -82,11 +96,22 @@ void Animator::Update(const float deltaTime) {
         m_isPlaying = false;
     }
 
+    const auto t0 = std::chrono::high_resolution_clock::now();
+    const uint64_t prevVersion = m_poseVersion;
     EvaluateAt(nextTime);
+    const auto t1 = std::chrono::high_resolution_clock::now();
+    if (m_poseVersion != prevVersion) {
+        s_frameAnimatorUpdateMs += std::chrono::duration<float, std::milli>(t1 - t0).count();
+    }
 }
 
 void Animator::EvaluateAt(const float timeSeconds) {
     if (!m_skeleton) {
+        return;
+    }
+
+    constexpr float timeEps = 1e-6f;
+    if (!m_poseDirty && std::abs(timeSeconds - m_currentTime) <= timeEps) {
         return;
     }
 
@@ -130,6 +155,8 @@ void Animator::EvaluateAt(const float timeSeconds) {
     }
 
     EvaluateGlobalAndSkinMatrices();
+    m_poseVersion++;
+    m_poseDirty = false;
 }
 
 Animator::JointPose Animator::PoseFromMatrix(const glm::mat4& matrix) {
@@ -284,4 +311,10 @@ glm::mat4 Animator::ComputeJointGlobalMatrix(const int jointIndex, std::vector<c
 
     computed[jointIndex] = 1;
     return m_globalJointMatrices[static_cast<size_t>(jointIndex)];
+}
+
+float Animator::ConsumeFrameUpdateMs() {
+    const float value = s_frameAnimatorUpdateMs;
+    s_frameAnimatorUpdateMs = 0.0f;
+    return value;
 }

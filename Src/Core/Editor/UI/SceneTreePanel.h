@@ -3,6 +3,7 @@
 #define MANGORENDERING_SCENETREEPANEL_H
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "imgui.h"
@@ -29,8 +30,16 @@ public:
     void DuplicateSelectedNodes();
 
 private:
+    struct ReparentRequest {
+        std::vector<uint32_t> nodeIds;
+        uint32_t targetId = 0;
+    };
+
     [[nodiscard]] static Node3d* FindNodeById(Node3d* root, uint32_t id);
     [[nodiscard]] static int CountNodesRecursive(const Node3d* root);
+    static bool IsDescendantOf(const Node3d* node, const Node3d* potentialAncestor);
+    void QueueReparentRequest(const uint32_t targetId, uint32_t draggedId);
+    void ProcessReparentRequests();
 
     Editor* m_editor = nullptr;
 
@@ -44,6 +53,7 @@ private:
     char m_renameBuf[256] = {};
 
     std::vector<uint32_t> m_pendingDeletes;
+    std::vector<ReparentRequest> m_pendingReparents;
 };
 
 

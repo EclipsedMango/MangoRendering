@@ -8,7 +8,9 @@ layout (location = 5) in vec4 a_Weights;
 uniform mat4 u_Model;
 uniform bool u_Skinned;
 uniform int u_SkinMatrixCount;
-uniform mat4 u_SkinMatrices[128];
+layout (std140, binding = 9) uniform SkinMatrices {
+    mat4 u_SkinMatrices[128];
+};
 
 out vec3 v_WorldPos;
 out vec2 v_Uv;

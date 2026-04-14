@@ -98,6 +98,8 @@ add_executable(MangoRendering Src/main.cpp
         Src/Renderer/Skybox.h
         Src/Nodes/Node3d.cpp
         Src/Nodes/Node3d.h
+        Src/Nodes/AnimationControllerNode3d.cpp
+        Src/Nodes/AnimationControllerNode3d.h
         Src/Core/Core.cpp
         Src/Core/Core.h
         Src/Renderer/Pipeline/ShadowRenderer.cpp

@@ -6,6 +6,7 @@
 REGISTER_PROPERTY_TYPE(Mesh)
 
 Mesh::Mesh(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices) : m_vertices(vertices), m_indices(indices) {
+    ComputeSkinWeightsUsage();
     Upload();
     RegisterProperties();
 }
@@ -37,6 +38,7 @@ void Mesh::Upload() {
 void Mesh::Regenerate(const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices) {
     m_vertices = vertices;
     m_indices = indices;
+    ComputeSkinWeightsUsage();
     m_buffer.reset(); // destroy old GPU buffer
     m_buffer = std::make_unique<VertexArray>(m_vertices, m_indices);
     ComputeBounds();
@@ -76,6 +78,16 @@ void Mesh::ComputeBounds() {
         const float dist = glm::distance(m_boundsCenter, v.position);
         if (dist > m_boundsRadius) {
             m_boundsRadius = dist;
+        }
+    }
+}
+
+void Mesh::ComputeSkinWeightsUsage() {
+    m_hasSkinWeights = false;
+    for (const auto& v : m_vertices) {
+        if (v.weights.x > 0.0f || v.weights.y > 0.0f || v.weights.z > 0.0f || v.weights.w > 0.0f) {
+            m_hasSkinWeights = true;
+            break;
         }
     }
 }

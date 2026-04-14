@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <cstdint>
 
 #include <glm/mat4x4.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -25,7 +26,8 @@ public:
 
     void SetSkeleton(std::shared_ptr<Skeleton> skeleton);
     void SetClip(const GltfLoader::AnimationClipData& clip);
-    [[nodiscard]] bool SetClipByName(const std::vector<GltfLoader::AnimationClipData>& clips, const std::string& clipName);
+    void SetAvailableClips(std::vector<GltfLoader::AnimationClipData> clips);
+    [[nodiscard]] bool SetClipByName(const std::string& clipName);
 
     void Play(bool loop = true);
     void Pause();
@@ -39,6 +41,8 @@ public:
     [[nodiscard]] float GetCurrentTime() const { return m_currentTime; }
     [[nodiscard]] float GetClipStartTime() const { return m_clip.startTime; }
     [[nodiscard]] float GetClipEndTime() const { return m_clip.endTime; }
+    [[nodiscard]] uint64_t GetPoseVersion() const { return m_poseVersion; }
+    [[nodiscard]] static float ConsumeFrameUpdateMs();
 
     [[nodiscard]] const std::vector<JointPose>& GetLocalPoses() const { return m_localPose; }
     [[nodiscard]] const std::vector<glm::mat4>& GetGlobalJointMatrices() const { return m_globalJointMatrices; }
@@ -61,10 +65,13 @@ private:
 
     std::shared_ptr<Skeleton> m_skeleton;
     GltfLoader::AnimationClipData m_clip;
+    std::vector<GltfLoader::AnimationClipData> m_availableClips;
     bool m_hasClip = false;
     bool m_isPlaying = false;
     bool m_loop = true;
     float m_currentTime = 0.0f;
+    uint64_t m_poseVersion = 0;
+    bool m_poseDirty = true;
 
     std::vector<JointPose> m_localPose;
     std::vector<glm::mat4> m_globalJointMatrices;

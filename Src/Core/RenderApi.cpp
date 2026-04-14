@@ -1,6 +1,7 @@
 #include "RenderApi.h"
 
 #include <algorithm>
+#include <chrono>
 #include <iostream>
 #include <ostream>
 #include <SDL3/SDL_video.h>
@@ -14,27 +15,11 @@
 #include "glm/gtc/type_ptr.hpp"
 #include "Nodes/MeshNode3d.h"
 #include "Nodes/PortalNode3d.h"
+#include "Renderer/Animation/Animator.h"
 #include "Scene/Frustum.h"
 #include "sol/types.hpp"
 
 namespace {
-    constexpr int MAX_SKIN_JOINTS = 128;
-
-    void UploadSkinningUniforms(const MeshNode3d* node, const Shader* shader) {
-        if (!node->HasSkinning()) {
-            shader->SetBool("u_Skinned", false);
-            return;
-        }
-
-        shader->SetBool("u_Skinned", true);
-        const auto& skinMatrices = node->GetSkinMatrices();
-        const int jointCount = std::min(static_cast<int>(skinMatrices.size()), MAX_SKIN_JOINTS);
-        shader->SetInt("u_SkinMatrixCount", jointCount);
-        for (int i = 0; i < jointCount; ++i) {
-            shader->SetMatrix4("u_SkinMatrices[" + std::to_string(i) + "]", skinMatrices[static_cast<size_t>(i)]);
-        }
-    }
-
     CameraNode3d BuildPortalRenderCamera(const CameraNode3d* sourceCamera, const Framebuffer* targetFbo, const glm::mat4& virtualView) {
         const float aspect = static_cast<float>(targetFbo->GetWidth()) / static_cast<float>(targetFbo->GetHeight());
 
@@ -186,10 +171,13 @@ bool RenderApi::IsCulled(const MeshNode3d *node, const Frustum &frustum, RenderS
 void RenderApi::SubmitToGpu(const MeshNode3d *node, const Shader *shader, RenderStats& stats) {
     shader->SetMatrix4("u_Model", node->GetWorldMatrix());
     shader->SetMatrix4("u_NormalMatrix", glm::transpose(glm::inverse(node->GetWorldMatrix())));
-    UploadSkinningUniforms(node, shader);
+    node->BindSkinning(*shader);
 
+    const auto drawStart = std::chrono::high_resolution_clock::now();
     node->GetMesh()->GetBuffer()->Bind();
     glDrawElements(GL_TRIANGLES, node->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
+    const auto drawEnd = std::chrono::high_resolution_clock::now();
+    stats.drawSubmitMs += std::chrono::duration<float, std::milli>(drawEnd - drawStart).count();
 
     stats.drawCalls++;
     stats.triangles += node->GetMesh()->GetBuffer()->GetIndexCount() / 3;
@@ -613,6 +601,9 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
         return stats;
     }
 
+    stats.animatorUpdateMs = Animator::ConsumeFrameUpdateMs();
+    stats.skinUploadMs = MeshNode3d::ConsumeFrameSkinUploadMs();
+
     const glm::mat4 viewProj = camera->GetProjectionMatrix() * camera->GetViewMatrix();
     Frustum cameraFrustum{};
     cameraFrustum.ExtractFromMatrix(viewProj);
@@ -712,7 +703,7 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
     BeginZPrepass();
     m_depthShader->Bind();
     for (const MeshNode3d* mesh : culledOpaque) {
-        DrawMeshNodeDepth(mesh);
+        DrawMeshNodeDepth(mesh, stats);
     }
     EndZPrepass();
 
@@ -731,7 +722,7 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
     return stats;
 }
 
-void RenderApi::DrawMeshNodeDepth(const MeshNode3d *node) const {
+void RenderApi::DrawMeshNodeDepth(const MeshNode3d *node, RenderStats& stats) const {
     if (!node || !node->GetMesh()->IsUploaded()) {
         std::cerr << "DrawObjectDepth called with null Object/Mesh" << std::endl;
         return;
@@ -741,7 +732,7 @@ void RenderApi::DrawMeshNodeDepth(const MeshNode3d *node) const {
     ApplyMaterialCull(mat);
 
     m_depthShader->SetMatrix4("u_Model", node->GetWorldMatrix());
-    UploadSkinningUniforms(node, m_depthShader.get());
+    node->BindSkinning(*m_depthShader);
 
     m_depthShader->SetBool("u_AlphaScissor", mat->GetBlendMode() == BlendMode::AlphaScissor);
     m_depthShader->SetFloat("u_AlphaScissorThreshold", mat->GetAlphaScissorThreshold());
@@ -755,8 +746,11 @@ void RenderApi::DrawMeshNodeDepth(const MeshNode3d *node) const {
         m_depthShader->SetInt("u_Diffuse", 0);
     }
 
+    const auto drawStart = std::chrono::high_resolution_clock::now();
     node->GetMesh()->GetBuffer()->Bind();
     glDrawElements(GL_TRIANGLES, node->GetMesh()->GetBuffer()->GetIndexCount(), GL_UNSIGNED_INT, 0);
+    const auto drawEnd = std::chrono::high_resolution_clock::now();
+    stats.drawSubmitMs += std::chrono::duration<float, std::milli>(drawEnd - drawStart).count();
 }
 
 void RenderApi::DrawMesh(const Mesh &mesh, const Shader& shader) {

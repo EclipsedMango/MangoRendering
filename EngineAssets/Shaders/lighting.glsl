@@ -192,7 +192,8 @@ float ShadowCalculation(vec3 fragPos, int cascade, vec3 normal, vec3 lightDirWS)
     float texelWU = u_CascadeWorldUnits[cascade];
     float NdotL = clamp(dot(normal, lightDirWS), 0.0, 1.0);
 
-    float normalOffsetScale = texelWU * clamp(0.5 * (1.0 - NdotL), 0.05, 0.3);
+    float grazingFactor = sqrt(max(1.0 - NdotL * NdotL, 0.0)) / max(NdotL, 0.2);
+    float normalOffsetScale = texelWU * clamp(0.35 + 0.75 * grazingFactor, 0.35, 2.5);
     vec3 biasedFragPos = fragPos + normal * normalOffsetScale;
 
     vec4 fragPosLightSpace = u_LightSpaceMatrix[cascade] * vec4(biasedFragPos, 1.0);
@@ -206,8 +207,6 @@ float ShadowCalculation(vec3 fragPos, int cascade, vec3 normal, vec3 lightDirWS)
     float currentDepth = clamp(projCoords.z, 0.0, 1.0);
     float texel = TexelSize(cascade);
 
-    float zBias = 0.0005;
-
     float filterRadiusWU = 0.05;
     float diskRadius = (filterRadiusWU / texelWU) * texel;
     diskRadius = clamp(diskRadius, 0.1 * texel, 1.0 * texel);
@@ -215,11 +214,15 @@ float ShadowCalculation(vec3 fragPos, int cascade, vec3 normal, vec3 lightDirWS)
     float angle = Hash12(gl_FragCoord.xy) * 6.28318530718;
     mat2 R = Rotate2D(angle);
 
+    // Scale the compare bias from the receiver's local depth slope instead of using a fixed magic number.
+    float receiverPlaneDepthBias = max(0.00003, 1.5 * length(vec2(dFdx(currentDepth), dFdy(currentDepth))));
+
     float shadow = 0.0;
     for (int i = 0; i < 16; i++) {
         vec2 offset = (R * poissonDisk[i]) * diskRadius;
         float pcfDepth = SampleShadowMap(cascade, projCoords.xy + offset);
-        shadow += (currentDepth - zBias) > pcfDepth ? 1.0 : 0.0;
+        float sampleBias = receiverPlaneDepthBias * (1.0 + length(offset / texel));
+        shadow += (currentDepth - sampleBias) > pcfDepth ? 1.0 : 0.0;
     }
 
     return shadow / 16.0;

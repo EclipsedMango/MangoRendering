@@ -1,0 +1,52 @@
+#version 460 core
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(binding = 0) uniform sampler2D u_ViewDepth;
+layout(binding = 1) uniform sampler2D u_RawAO;
+layout(r16f, binding = 0) writeonly uniform image2D u_FilteredAOImage;
+
+uniform vec2 u_Resolution;
+uniform vec2 u_InvResolution;
+uniform float u_FarPlane;
+
+const float gaussian[7] = float[](0.015625, 0.09375, 0.234375, 0.3125, 0.234375, 0.09375, 0.015625);
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    if (coord.x >= int(u_Resolution.x) || coord.y >= int(u_Resolution.y)) {
+        return;
+    }
+
+    float centerDepth = texelFetch(u_ViewDepth, coord, 0).r;
+    if (centerDepth <= 0.0 || centerDepth >= u_FarPlane * 0.999) {
+        imageStore(u_FilteredAOImage, coord, vec4(1.0, 0.0, 0.0, 1.0));
+        return;
+    }
+
+    ivec2 maxCoord = ivec2(u_Resolution) - ivec2(1);
+    float centerAo = texelFetch(u_RawAO, coord, 0).r;
+    float depthSigma = max(centerDepth * 0.03, 0.0035);
+    float aoSigma = 0.25;
+    float sum = 0.0;
+    float weightSum = 0.0;
+
+    for (int y = -3; y <= 3; ++y) {
+        for (int x = -3; x <= 3; ++x) {
+            ivec2 sampleCoord = clamp(coord + ivec2(x, y), ivec2(0), maxCoord);
+            float sampleDepth = texelFetch(u_ViewDepth, sampleCoord, 0).r;
+            float sampleAo = texelFetch(u_RawAO, sampleCoord, 0).r;
+
+            float spatialWeight = gaussian[x + 3] * gaussian[y + 3];
+            float depthWeight = exp(-abs(sampleDepth - centerDepth) / depthSigma);
+            float aoWeight = exp(-abs(sampleAo - centerAo) / aoSigma);
+            float weight = spatialWeight * depthWeight * aoWeight;
+
+            sum += sampleAo * weight;
+            weightSum += weight;
+        }
+    }
+
+    float filteredAo = weightSum > 1e-4 ? sum / weightSum : texelFetch(u_RawAO, coord, 0).r;
+    imageStore(u_FilteredAOImage, coord, vec4(filteredAo, 0.0, 0.0, 1.0));
+}

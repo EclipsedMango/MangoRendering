@@ -1,6 +1,7 @@
 
 #include "Editor.h"
 
+#include <algorithm>
 #include <iostream>
 
 #include "EditorCameraController.h"
@@ -57,7 +58,14 @@ void Editor::Run() {
 
         const uint64_t cpuStart = SDL_GetTicksNS();
 
-        m_core.PollEvents();
+        if (!m_core.PollEvents()) {
+            break;
+        }
+
+        auto& aoSettings = m_core.GetRenderer().GetXeGtaoSettings();
+        if (Input::IsKeyJustPressed(SDL_SCANCODE_F6)) {
+            aoSettings.enabled = !aoSettings.enabled;
+        }
 
         if (Input::IsKeyJustPressed(SDL_SCANCODE_ESCAPE)) {
             m_sceneTree.ClearSelection();
@@ -163,10 +171,10 @@ void Editor::DrawViewportTabs() {
                     m_core.SetEditorCamera(m_activeViewport->GetCamera());
                 }
 
-                m_viewports[i]->DetachScene();
-                m_viewports.erase(m_viewports.begin() + i);
+                [[maybe_unused]] auto detachedScene = m_viewports[i]->DetachScene();
+                const auto nextViewport = m_viewports.erase(m_viewports.begin() + i);
                 m_sceneTree.ClearSelection();
-                i--;
+                i = static_cast<int>(nextViewport - m_viewports.begin()) - 1;
             }
         }
 
@@ -229,6 +237,37 @@ void Editor::DrawMenuBar() {
     if (ImGui::BeginMenu("Edit")) {
         if (ImGui::MenuItem("Undo")) { /* TODO */ }
         if (ImGui::MenuItem("Redo")) { /* TODO */ }
+        ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("Render")) {
+        auto& aoSettings = m_core.GetRenderer().GetXeGtaoSettings();
+        ImGui::MenuItem("Enable XeGTAO", "F6", &aoSettings.enabled);
+
+        if (aoSettings.enabled) {
+            ImGui::MenuItem("Denoise", nullptr, &aoSettings.denoise);
+
+            const char* qualityItems[] = {"Low", "Medium", "High"};
+            int qualityIndex = std::clamp(aoSettings.quality, 0, 2);
+            ImGui::SetNextItemWidth(140.0f);
+            if (ImGui::Combo("Quality", &qualityIndex, qualityItems, IM_ARRAYSIZE(qualityItems))) {
+                aoSettings.quality = qualityIndex;
+            }
+
+            ImGui::SetNextItemWidth(160.0f);
+            ImGui::SliderFloat("Radius", &aoSettings.radius, 0.1f, 4.0f, "%.2f");
+            ImGui::SetNextItemWidth(160.0f);
+            ImGui::SliderFloat("Falloff", &aoSettings.falloffRange, 0.05f, 1.0f, "%.2f");
+            ImGui::SetNextItemWidth(160.0f);
+            ImGui::SliderFloat("Intensity", &aoSettings.intensity, 0.0f, 2.0f, "%.2f");
+            ImGui::SetNextItemWidth(160.0f);
+            ImGui::SliderFloat("Final Power", &aoSettings.finalPower, 0.5f, 3.0f, "%.2f");
+            ImGui::SetNextItemWidth(160.0f);
+            ImGui::SliderFloat("Thin Occluder", &aoSettings.thinOccluderCompensation, 0.0f, 1.0f, "%.2f");
+            ImGui::SetNextItemWidth(160.0f);
+            ImGui::SliderFloat("Mip Bias", &aoSettings.depthMipSamplingOffset, 0.5f, 4.5f, "%.2f");
+        }
+
         ImGui::EndMenu();
     }
 

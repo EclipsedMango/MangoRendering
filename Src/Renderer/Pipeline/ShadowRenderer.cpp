@@ -11,6 +11,13 @@
 #include "Core/ResourceManager.h"
 #include "Renderer/Buffers/ShaderStorageBuffer.h"
 
+namespace {
+    constexpr float kDirectionalShadowPolygonOffsetFactor = 2.0f;
+    constexpr float kDirectionalShadowPolygonOffsetUnits = 4.0f;
+    constexpr float kPointShadowPolygonOffsetFactor = 1.5f;
+    constexpr float kPointShadowPolygonOffsetUnits = 3.0f;
+}
+
 ShadowRenderer::ShadowRenderer() {
     m_shadowDepthShader = ResourceManager::Get().LoadShader("ShadowDepth", "shadow_depth.vert", "shadow_depth.frag");
     m_pointShadowDepthShader = ResourceManager::Get().LoadShaderWithGeom("PointShadowDepth", "point_shadow_depth.vert", "point_shadow_depth.frag", "point_shadow_depth.geom");
@@ -58,6 +65,8 @@ void ShadowRenderer::RenderDirectionalShadows(const CameraNode3d& camera, const 
     glEnable(GL_DEPTH_TEST);
     glDepthMask(GL_TRUE);
     glDepthFunc(GL_LESS);
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(kDirectionalShadowPolygonOffsetFactor, kDirectionalShadowPolygonOffsetUnits);
 
     m_shadowDepthShader->Bind();
 
@@ -98,6 +107,7 @@ void ShadowRenderer::RenderDirectionalShadows(const CameraNode3d& camera, const 
         }
     }
 
+    glDisable(GL_POLYGON_OFFSET_FILL);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     glViewport(0, 0, static_cast<int>(viewportSize.x), static_cast<int>(viewportSize.y));
@@ -133,6 +143,8 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
     glEnable(GL_DEPTH_TEST);
     glDepthMask(GL_TRUE);
     glDepthFunc(GL_LESS);
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(kPointShadowPolygonOffsetFactor, kPointShadowPolygonOffsetUnits);
 
     m_pointShadowDepthShader->Bind();
 
@@ -200,6 +212,7 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
     }
 
     PointLightShadowMap::End();
+    glDisable(GL_POLYGON_OFFSET_FILL);
     m_pointShadowMetaSsbo->SetData(meta.data(), meta.size() * sizeof(GPUPointShadowMeta), 0);
 
     glEnable(GL_CULL_FACE);

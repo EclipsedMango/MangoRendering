@@ -47,6 +47,18 @@ public:
         Stylized = 4,
     };
 
+    struct XeGtaoSettings {
+        bool enabled = true;
+        bool denoise = true;
+        int quality = 2;
+        float intensity = 1.0f;
+        float radius = 1.0f;
+        float falloffRange = 0.45f;
+        float finalPower = 1.5f;
+        float thinOccluderCompensation = 0.0f;
+        float depthMipSamplingOffset = 3.15f;
+    };
+
     // initializes SDL and sets GL attributes, MUST be called before constructing RenderApi
     static void InitSDL();
 
@@ -99,6 +111,8 @@ public:
     [[nodiscard]] uint32_t GetPointLightCount() const { return m_lightManager->GetPointLightCount(); }
     [[nodiscard]] int GetDebugMode() const { return m_debugMode; }
     [[nodiscard]] int GetDebugCascade() const { return m_debugCascade; }
+    [[nodiscard]] XeGtaoSettings& GetXeGtaoSettings() { return m_xeGtaoSettings; }
+    [[nodiscard]] const XeGtaoSettings& GetXeGtaoSettings() const { return m_xeGtaoSettings; }
 
 private:
     void InitGLResources(); // called once after GLAD is loaded
@@ -114,8 +128,12 @@ private:
 
     void RebuildClusters(const CameraNode3d* camera, const Framebuffer* targetFbo) const;
     void RunLightCulling() const;
+    void EnsureXeGtaoResources(const Framebuffer* targetFbo);
+    void DestroyXeGtaoResources();
+    void RunXeGtao(const CameraNode3d* camera, const Framebuffer* sourceFbo);
     void EnsurePostProcessResources(const Framebuffer* targetFbo);
     void RunPostProcess(const Framebuffer* targetFbo) const;
+    [[nodiscard]] GLuint GetXeGtaoOutputTexture() const;
 
     RenderStats RenderView(const CameraNode3d* camera, const Framebuffer* targetFbo, bool clearFbo, const PortalNode3d* excludedPortal = nullptr, bool isMainPass = true);
 
@@ -146,9 +164,20 @@ private:
     std::shared_ptr<Shader> m_depthShader;
     std::shared_ptr<Shader> m_gridShader;
     std::shared_ptr<Shader> m_postProcessShader;
+    std::shared_ptr<Shader> m_xeGtaoPrefilterShader;
+    std::shared_ptr<Shader> m_xeGtaoMainShader;
+    std::shared_ptr<Shader> m_xeGtaoDenoiseShader;
     GLuint m_gridVao = 0;
     GLuint m_postProcessVao = 0;
     std::unique_ptr<Framebuffer> m_postProcessFramebuffer;
+    XeGtaoSettings m_xeGtaoSettings;
+    GLuint m_xeGtaoViewDepthTexture = 0;
+    GLuint m_xeGtaoRawAoTexture = 0;
+    GLuint m_xeGtaoFilteredAoTexture = 0;
+    uint32_t m_xeGtaoWidth = 0;
+    uint32_t m_xeGtaoHeight = 0;
+    uint32_t m_xeGtaoMipCount = 0;
+    bool m_hasValidXeGtao = false;
     float m_exposure = 1.0f;
     ToneMapOperator m_toneMapOperator = ToneMapOperator::Aces;
 

@@ -1,0 +1,72 @@
+#version 460 core
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(binding = 0) uniform sampler2D u_SourceDepth;
+layout(binding = 1) uniform sampler2D u_ViewDepth;
+layout(r16f, binding = 0) writeonly uniform image2D u_TargetMipImage;
+
+uniform int u_TargetMip;
+uniform vec2 u_TargetResolution;
+uniform float u_NearPlane;
+uniform float u_FarPlane;
+uniform float u_EffectRadius;
+uniform float u_FalloffRange;
+
+float LinearizeDepth(float depthSample) {
+    float ndcDepth = depthSample * 2.0 - 1.0;
+    return (2.0 * u_NearPlane * u_FarPlane) /
+        max((u_FarPlane + u_NearPlane) - ndcDepth * (u_FarPlane - u_NearPlane), 1e-5);
+}
+
+float ComputeDepthWeight(float sampleDepth, float furthestDepth) {
+    float filterRadius = max(u_EffectRadius * 0.75, 1e-4);
+    float fadeRange = max(filterRadius * u_FalloffRange, 1e-4);
+    float fadeStart = filterRadius * (1.0 - u_FalloffRange);
+    float weight = (furthestDepth - sampleDepth) * (-1.0 / fadeRange) + fadeStart / fadeRange + 1.0;
+    return clamp(weight, 0.0, 1.0);
+}
+
+float FilterDepth(vec4 depths) {
+    float furthestDepth = max(max(depths.x, depths.y), max(depths.z, depths.w));
+    vec4 weights = vec4(
+        ComputeDepthWeight(depths.x, furthestDepth),
+        ComputeDepthWeight(depths.y, furthestDepth),
+        ComputeDepthWeight(depths.z, furthestDepth),
+        ComputeDepthWeight(depths.w, furthestDepth)
+    );
+
+    float weightSum = dot(weights, vec4(1.0));
+    if (weightSum <= 1e-4) {
+        return dot(depths, vec4(0.25));
+    }
+
+    return dot(depths, weights) / weightSum;
+}
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    if (coord.x >= int(u_TargetResolution.x) || coord.y >= int(u_TargetResolution.y)) {
+        return;
+    }
+
+    float outputDepth = 0.0;
+    if (u_TargetMip == 0) {
+        outputDepth = LinearizeDepth(texelFetch(u_SourceDepth, coord, 0).r);
+    } else {
+        ivec2 sourceBase = coord * 2;
+        int sourceMip = u_TargetMip - 1;
+        ivec2 sourceMax = textureSize(u_ViewDepth, sourceMip) - ivec2(1);
+
+        vec4 depths = vec4(
+            texelFetch(u_ViewDepth, clamp(sourceBase + ivec2(0, 0), ivec2(0), sourceMax), sourceMip).r,
+            texelFetch(u_ViewDepth, clamp(sourceBase + ivec2(1, 0), ivec2(0), sourceMax), sourceMip).r,
+            texelFetch(u_ViewDepth, clamp(sourceBase + ivec2(0, 1), ivec2(0), sourceMax), sourceMip).r,
+            texelFetch(u_ViewDepth, clamp(sourceBase + ivec2(1, 1), ivec2(0), sourceMax), sourceMip).r
+        );
+
+        outputDepth = FilterDepth(depths);
+    }
+
+    imageStore(u_TargetMipImage, coord, vec4(outputDepth, 0.0, 0.0, 1.0));
+}

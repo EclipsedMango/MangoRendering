@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <iostream>
 #include <ostream>
 #include <SDL3/SDL_video.h>
@@ -20,6 +21,9 @@
 #include "sol/types.hpp"
 
 namespace {
+    constexpr uint32_t kXeGtaoGroupSize = 8;
+    constexpr GLuint kXeGtaoTextureUnit = 22;
+
     float ComputeMaxWorldScale(const glm::mat4& worldMatrix) {
         const float sx = glm::length(glm::vec3(worldMatrix[0]));
         const float sy = glm::length(glm::vec3(worldMatrix[1]));
@@ -59,6 +63,51 @@ namespace {
         portalCamera.SetViewMatrixOverride(virtualView);
 
         return portalCamera;
+    }
+
+    uint32_t ComputeMipCount(uint32_t width, uint32_t height) {
+        uint32_t mipCount = 1;
+        while (width > 1 || height > 1) {
+            width = std::max(1u, width / 2);
+            height = std::max(1u, height / 2);
+            ++mipCount;
+        }
+        return mipCount;
+    }
+
+    void DeleteTexture(GLuint& texture) {
+        if (texture != 0) {
+            glDeleteTextures(1, &texture);
+            texture = 0;
+        }
+    }
+
+    void CreateStorageTexture2D(GLuint& texture,
+        const uint32_t width,
+        const uint32_t height,
+        const uint32_t levels,
+        const GLenum internalFormat,
+        const GLint minFilter,
+        const GLint magFilter) {
+        glCreateTextures(GL_TEXTURE_2D, 1, &texture);
+        glTextureStorage2D(texture, static_cast<GLsizei>(levels), internalFormat, static_cast<GLsizei>(width), static_cast<GLsizei>(height));
+        glTextureParameteri(texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, minFilter);
+        glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, magFilter);
+        glTextureParameteri(texture, GL_TEXTURE_BASE_LEVEL, 0);
+        glTextureParameteri(texture, GL_TEXTURE_MAX_LEVEL, static_cast<GLint>(std::max(1u, levels) - 1));
+    }
+
+    glm::ivec2 ResolveXeGtaoKernel(const RenderApi::XeGtaoSettings& settings) {
+        switch (std::clamp(settings.quality, 0, 2)) {
+            case 0:
+                return {2, 2};
+            case 1:
+                return {2, 3};
+            default:
+                return {3, 3};
+        }
     }
 }
 
@@ -108,6 +157,9 @@ void RenderApi::InitGLResources() {
     m_gridShader = ResourceManager::Get().LoadShader("GridShader", "grid.vert", "grid.frag");
     glGenVertexArrays(1, &m_gridVao);
     m_postProcessShader = ResourceManager::Get().LoadShader("PostProcessShader", "post_process.vert", "post_process.frag");
+    m_xeGtaoPrefilterShader = ResourceManager::Get().LoadComputeShader("XeGtaoPrefilter", "xegtao_prefilter.comp");
+    m_xeGtaoMainShader = ResourceManager::Get().LoadComputeShader("XeGtaoMain", "xegtao_main.comp");
+    m_xeGtaoDenoiseShader = ResourceManager::Get().LoadComputeShader("XeGtaoDenoise", "xegtao_denoise.comp");
     glGenVertexArrays(1, &m_postProcessVao);
 
     m_clusterSystem = std::make_unique<ClusterSystem>();
@@ -126,7 +178,11 @@ RenderApi::~RenderApi() {
     m_depthShader.reset();
     m_gridShader.reset();
     m_postProcessShader.reset();
+    m_xeGtaoPrefilterShader.reset();
+    m_xeGtaoMainShader.reset();
+    m_xeGtaoDenoiseShader.reset();
     m_postProcessFramebuffer.reset();
+    DestroyXeGtaoResources();
     m_cameraUbo.reset();
     m_ibl = {};
     if (m_gridVao != 0) {
@@ -399,6 +455,14 @@ void RenderApi::RenderMainPass(const CameraNode3d* camera, const Framebuffer* ta
                 currentShader->SetBool("u_HasIbl", false);
             }
 
+            const bool hasScreenSpaceAo = m_hasValidXeGtao && GetXeGtaoOutputTexture() != 0;
+            currentShader->SetBool("u_HasScreenSpaceAO", hasScreenSpaceAo);
+            currentShader->SetFloat("u_ScreenSpaceAOIntensity", std::clamp(m_xeGtaoSettings.intensity, 0.0f, 2.0f));
+            if (hasScreenSpaceAo) {
+                glBindTextureUnit(kXeGtaoTextureUnit, GetXeGtaoOutputTexture());
+                currentShader->SetInt("u_ScreenSpaceAO", static_cast<int>(kXeGtaoTextureUnit));
+            }
+
             lastShader = currentShader;
             lastMaterial = nullptr;
         }
@@ -646,6 +710,154 @@ void RenderApi::RunLightCulling() const {
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 }
 
+void RenderApi::EnsureXeGtaoResources(const Framebuffer* targetFbo) {
+    if (!targetFbo) {
+        m_hasValidXeGtao = false;
+        return;
+    }
+
+    if (!m_xeGtaoSettings.enabled || !m_xeGtaoPrefilterShader || !m_xeGtaoMainShader) {
+        m_hasValidXeGtao = false;
+        return;
+    }
+
+    if (m_xeGtaoWidth == targetFbo->GetWidth() &&
+        m_xeGtaoHeight == targetFbo->GetHeight() &&
+        m_xeGtaoViewDepthTexture != 0 &&
+        m_xeGtaoRawAoTexture != 0 &&
+        m_xeGtaoFilteredAoTexture != 0) {
+        return;
+    }
+
+    DestroyXeGtaoResources();
+
+    m_xeGtaoWidth = targetFbo->GetWidth();
+    m_xeGtaoHeight = targetFbo->GetHeight();
+    m_xeGtaoMipCount = ComputeMipCount(m_xeGtaoWidth, m_xeGtaoHeight);
+
+    CreateStorageTexture2D(m_xeGtaoViewDepthTexture, m_xeGtaoWidth, m_xeGtaoHeight, m_xeGtaoMipCount, GL_R16F, GL_NEAREST_MIPMAP_NEAREST, GL_NEAREST);
+    CreateStorageTexture2D(m_xeGtaoRawAoTexture, m_xeGtaoWidth, m_xeGtaoHeight, 1, GL_R16F, GL_LINEAR, GL_LINEAR);
+    CreateStorageTexture2D(m_xeGtaoFilteredAoTexture, m_xeGtaoWidth, m_xeGtaoHeight, 1, GL_R16F, GL_LINEAR, GL_LINEAR);
+
+    const float clearValue = 1.0f;
+    glClearTexImage(m_xeGtaoRawAoTexture, 0, GL_RED, GL_FLOAT, &clearValue);
+    glClearTexImage(m_xeGtaoFilteredAoTexture, 0, GL_RED, GL_FLOAT, &clearValue);
+}
+
+void RenderApi::DestroyXeGtaoResources() {
+    DeleteTexture(m_xeGtaoViewDepthTexture);
+    DeleteTexture(m_xeGtaoRawAoTexture);
+    DeleteTexture(m_xeGtaoFilteredAoTexture);
+    m_xeGtaoWidth = 0;
+    m_xeGtaoHeight = 0;
+    m_xeGtaoMipCount = 0;
+    m_hasValidXeGtao = false;
+}
+
+GLuint RenderApi::GetXeGtaoOutputTexture() const {
+    if (!m_hasValidXeGtao) {
+        return 0;
+    }
+
+    if (m_xeGtaoSettings.denoise && m_xeGtaoDenoiseShader && m_xeGtaoFilteredAoTexture != 0) {
+        return m_xeGtaoFilteredAoTexture;
+    }
+
+    return m_xeGtaoRawAoTexture;
+}
+
+void RenderApi::RunXeGtao(const CameraNode3d* camera, const Framebuffer* sourceFbo) {
+    m_hasValidXeGtao = false;
+
+    if (!camera || !sourceFbo || !m_xeGtaoSettings.enabled || !m_xeGtaoPrefilterShader || !m_xeGtaoMainShader) {
+        return;
+    }
+
+    EnsureXeGtaoResources(sourceFbo);
+    if (m_xeGtaoViewDepthTexture == 0 || m_xeGtaoRawAoTexture == 0) {
+        return;
+    }
+
+    const float radius = std::clamp(m_xeGtaoSettings.radius, 0.05f, 8.0f);
+    const float falloffRange = std::clamp(m_xeGtaoSettings.falloffRange, 0.05f, 1.0f);
+    const float finalPower = std::clamp(m_xeGtaoSettings.finalPower, 0.5f, 3.5f);
+    const float thinOccluderCompensation = std::clamp(m_xeGtaoSettings.thinOccluderCompensation, 0.0f, 2.0f);
+    const float depthMipSamplingOffset = std::clamp(m_xeGtaoSettings.depthMipSamplingOffset, 0.0f, 5.0f);
+    const glm::ivec2 kernel = ResolveXeGtaoKernel(m_xeGtaoSettings);
+    const glm::mat4 projection = camera->GetProjectionMatrix();
+    const glm::vec2 resolution(static_cast<float>(m_xeGtaoWidth), static_cast<float>(m_xeGtaoHeight));
+    const glm::vec2 invResolution(1.0f / resolution.x, 1.0f / resolution.y);
+
+    glBindTextureUnit(0, sourceFbo->GetDepthAttachment());
+    glBindTextureUnit(1, m_xeGtaoViewDepthTexture);
+
+    m_xeGtaoPrefilterShader->Bind();
+    m_xeGtaoPrefilterShader->SetInt("u_SourceDepth", 0);
+    m_xeGtaoPrefilterShader->SetInt("u_ViewDepth", 1);
+    m_xeGtaoPrefilterShader->SetFloat("u_NearPlane", camera->GetNearPlane());
+    m_xeGtaoPrefilterShader->SetFloat("u_FarPlane", camera->GetFarPlane());
+    m_xeGtaoPrefilterShader->SetFloat("u_EffectRadius", radius);
+    m_xeGtaoPrefilterShader->SetFloat("u_FalloffRange", falloffRange);
+
+    for (uint32_t mip = 0; mip < m_xeGtaoMipCount; ++mip) {
+        const uint32_t mipWidth = std::max(1u, m_xeGtaoWidth >> mip);
+        const uint32_t mipHeight = std::max(1u, m_xeGtaoHeight >> mip);
+
+        glBindImageTexture(0, m_xeGtaoViewDepthTexture, static_cast<GLint>(mip), GL_FALSE, 0, GL_WRITE_ONLY, GL_R16F);
+        m_xeGtaoPrefilterShader->SetInt("u_TargetMip", static_cast<int>(mip));
+        m_xeGtaoPrefilterShader->SetVector2("u_TargetResolution", glm::vec2(static_cast<float>(mipWidth), static_cast<float>(mipHeight)));
+        m_xeGtaoPrefilterShader->Dispatch(
+            (mipWidth + kXeGtaoGroupSize - 1) / kXeGtaoGroupSize,
+            (mipHeight + kXeGtaoGroupSize - 1) / kXeGtaoGroupSize,
+            1
+        );
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+    }
+
+    m_xeGtaoMainShader->Bind();
+    glBindTextureUnit(0, m_xeGtaoViewDepthTexture);
+    m_xeGtaoMainShader->SetInt("u_ViewDepthPyramid", 0);
+    m_xeGtaoMainShader->SetVector2("u_Resolution", resolution);
+    m_xeGtaoMainShader->SetVector2("u_InvResolution", invResolution);
+    m_xeGtaoMainShader->SetVector2("u_ProjectionScale", glm::vec2(projection[0][0], projection[1][1]));
+    m_xeGtaoMainShader->SetFloat("u_EffectRadius", radius);
+    m_xeGtaoMainShader->SetFloat("u_FalloffRange", falloffRange);
+    m_xeGtaoMainShader->SetFloat("u_FinalPower", finalPower);
+    m_xeGtaoMainShader->SetFloat("u_ThinOccluderCompensation", thinOccluderCompensation);
+    m_xeGtaoMainShader->SetFloat("u_DepthMipSamplingOffset", depthMipSamplingOffset);
+    m_xeGtaoMainShader->SetFloat("u_FarPlane", camera->GetFarPlane());
+    m_xeGtaoMainShader->SetInt("u_SliceCount", kernel.x);
+    m_xeGtaoMainShader->SetInt("u_StepsPerSlice", kernel.y);
+    m_xeGtaoMainShader->SetInt("u_MaxMipLevel", static_cast<int>(m_xeGtaoMipCount - 1));
+    glBindImageTexture(0, m_xeGtaoRawAoTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_R16F);
+    m_xeGtaoMainShader->Dispatch(
+        (m_xeGtaoWidth + kXeGtaoGroupSize - 1) / kXeGtaoGroupSize,
+        (m_xeGtaoHeight + kXeGtaoGroupSize - 1) / kXeGtaoGroupSize,
+        1
+    );
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+    if (m_xeGtaoSettings.denoise && m_xeGtaoDenoiseShader && m_xeGtaoFilteredAoTexture != 0) {
+        m_xeGtaoDenoiseShader->Bind();
+        glBindTextureUnit(0, m_xeGtaoViewDepthTexture);
+        glBindTextureUnit(1, m_xeGtaoRawAoTexture);
+        m_xeGtaoDenoiseShader->SetInt("u_ViewDepth", 0);
+        m_xeGtaoDenoiseShader->SetInt("u_RawAO", 1);
+        m_xeGtaoDenoiseShader->SetVector2("u_Resolution", resolution);
+        m_xeGtaoDenoiseShader->SetVector2("u_InvResolution", invResolution);
+        m_xeGtaoDenoiseShader->SetFloat("u_FarPlane", camera->GetFarPlane());
+        glBindImageTexture(0, m_xeGtaoFilteredAoTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_R16F);
+        m_xeGtaoDenoiseShader->Dispatch(
+            (m_xeGtaoWidth + kXeGtaoGroupSize - 1) / kXeGtaoGroupSize,
+            (m_xeGtaoHeight + kXeGtaoGroupSize - 1) / kXeGtaoGroupSize,
+            1
+        );
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+    }
+
+    m_hasValidXeGtao = true;
+}
+
 void RenderApi::EnsurePostProcessResources(const Framebuffer* targetFbo) {
     if (!targetFbo) {
         return;
@@ -831,12 +1043,16 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
         ClearColour({0.16f, 0.16f, 0.16f, 1.0f});
     }
 
+    EnsureXeGtaoResources(targetFbo);
+
     BeginZPrepass();
     m_depthShader->Bind();
     for (const MeshNode3d* mesh : culledOpaque) {
         DrawMeshNodeDepth(mesh, stats);
     }
     EndZPrepass();
+
+    RunXeGtao(camera, targetFbo);
 
     RunLightCulling();
     m_shadowRenderer->BindPointShadowTexture();

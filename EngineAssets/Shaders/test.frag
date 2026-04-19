@@ -26,6 +26,7 @@ uniform sampler2D u_Normal;
 uniform sampler2D u_Metallic;
 uniform sampler2D u_Roughness;
 uniform sampler2D u_AmbientOcclusion;
+uniform sampler2D u_ScreenSpaceAO;
 uniform sampler2D u_Emissive;
 uniform sampler2D u_Displacement;
 
@@ -35,6 +36,7 @@ uniform bool u_HasMetallic;
 uniform bool u_HasRoughness;
 uniform bool u_HasMetallicRoughnessPacked;
 uniform bool u_HasAmbientOcclusion;
+uniform bool u_HasScreenSpaceAO;
 uniform bool u_HasEmissive;
 uniform bool u_HasDisplacement;
 uniform bool u_AlphaScissor;
@@ -46,6 +48,7 @@ uniform vec2 u_ScreenSize;
 uniform vec3 u_CameraPos;
 uniform int u_DebugMode;
 uniform int u_DebugCascade;
+uniform float u_ScreenSpaceAOIntensity;
 
 layout (std140, binding = 0) uniform CameraData {
     mat4 u_View;
@@ -107,7 +110,14 @@ void main() {
         discard;
     }
 
-    float ao = u_HasAmbientOcclusion ? texture(u_AmbientOcclusion, uv).r * u_AOStrength : u_AOStrength;
+    float materialAo = u_HasAmbientOcclusion ? texture(u_AmbientOcclusion, uv).r * u_AOStrength : u_AOStrength;
+    float screenSpaceAo = 1.0;
+    if (u_HasScreenSpaceAO) {
+        vec2 screenUv = gl_FragCoord.xy / u_ScreenSize;
+        float visibility = clamp(texture(u_ScreenSpaceAO, screenUv).r, 0.0, 1.0);
+        screenSpaceAo = mix(1.0, visibility, clamp(u_ScreenSpaceAOIntensity, 0.0, 2.0));
+    }
+    float ao = materialAo * screenSpaceAo;
 
     float metallic  = 0.0;
     float roughness = 0.0;

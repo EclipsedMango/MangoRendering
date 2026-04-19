@@ -2,6 +2,7 @@
 #ifndef MANGORENDERING_SCRIPTMANAGER_H
 #define MANGORENDERING_SCRIPTMANAGER_H
 
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -19,6 +20,8 @@ public:
     void SetScript(Node3d* node, const std::string& path) const;
     void ClearScript(Node3d* node) const;
     void SetRuntimeEnabled(bool enabled) const;
+    void SetQuitHandler(std::function<void()> handler) const;
+    void RequestQuit() const;
     [[nodiscard]] bool IsRuntimeEnabled() const;
 
     void CallReady(const Node3d* node) const;

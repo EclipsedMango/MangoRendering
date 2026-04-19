@@ -4,12 +4,14 @@
 #include "LuaIncludes.hpp"
 #include <sol/sol.hpp>
 #include <iostream>
+#include <utility>
 #include <variant>
 
 #include "Input.h"
 #include "ResourceManager.h"
 #include "Nodes/CameraNode3d.h"
 #include "Nodes/Node3d.h"
+#include "Nodes/RigidBody3d.h"
 
 struct ScriptManager::Impl {
     struct ScriptInstance {
@@ -24,6 +26,7 @@ struct ScriptManager::Impl {
     sol::state lua;
     std::unordered_map<Node3d*, ScriptInstance> scripts;
     bool runtimeEnabled = true;
+    std::function<void()> quitHandler;
 };
 
 ScriptManager::ScriptManager() : m_impl(std::make_unique<Impl>()) {}
@@ -141,6 +144,9 @@ void ScriptManager::Init() {
         "GetNodeType", &Node3d::GetNodeType,
         "AsCamera", [](Node3d* node) -> CameraNode3d* {
             return dynamic_cast<CameraNode3d*>(node);
+        },
+        "AsRigidBody", [](Node3d* node) -> RigidBody3d* {
+            return dynamic_cast<RigidBody3d*>(node);
         }
     );
 
@@ -150,6 +156,14 @@ void ScriptManager::Init() {
         "GetFront", &CameraNode3d::GetFront,
         "GetRight", &CameraNode3d::GetRight,
         "GetUp", &CameraNode3d::GetUp
+    );
+
+    lua.new_usertype<RigidBody3d>("RigidBody3d",
+        sol::base_classes, sol::bases<Node3d, PropertyHolder>(),
+        "GetLinearVelocity", &RigidBody3d::GetLinearVelocity,
+        "SetLinearVelocity", &RigidBody3d::SetLinearVelocity,
+        "GetAngularVelocity", &RigidBody3d::GetAngularVelocity,
+        "SetAngularVelocity", &RigidBody3d::SetAngularVelocity
     );
 
     sol::table inputModule = lua.create_named_table("Input");
@@ -170,8 +184,15 @@ void ScriptManager::Init() {
     keys["E"] = SDL_SCANCODE_E;
     keys["SPACE"] = SDL_SCANCODE_SPACE;
     keys["LCTRL"] = SDL_SCANCODE_LCTRL;
+    keys["ESCAPE"] = SDL_SCANCODE_ESCAPE;
+    keys["TAB"] = SDL_SCANCODE_TAB;
 
     inputModule["Key"] = keys;
+
+    sol::table appModule = lua.create_named_table("App");
+    appModule.set_function("Quit", [this] {
+        RequestQuit();
+    });
 }
 
 void ScriptManager::SetScript(Node3d *node, const std::string &path) const {
@@ -241,6 +262,19 @@ void ScriptManager::SetRuntimeEnabled(const bool enabled) const {
     m_impl->runtimeEnabled = enabled;
 }
 
+void ScriptManager::SetQuitHandler(std::function<void()> handler) const {
+    m_impl->quitHandler = std::move(handler);
+}
+
+void ScriptManager::RequestQuit() const {
+    if (!m_impl->quitHandler) {
+        std::cerr << "[Script Warning] Quit requested, but no quit handler is registered.\n";
+        return;
+    }
+
+    m_impl->quitHandler();
+}
+
 bool ScriptManager::IsRuntimeEnabled() const {
     return m_impl->runtimeEnabled;
 }
@@ -250,7 +284,7 @@ void ScriptManager::CallReady(const Node3d *node) const {
         return;
     }
 
-    const auto it = m_impl->scripts.find(node);
+    const auto it = m_impl->scripts.find(const_cast<Node3d*>(node));
     if (it == m_impl->scripts.end()) {
         return;
     }

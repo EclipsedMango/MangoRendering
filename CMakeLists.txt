@@ -39,6 +39,15 @@ FetchContent_MakeAvailable(lua)
 FetchContent_Declare(sol2 GIT_REPOSITORY https://github.com/ThePhD/sol2.git GIT_TAG develop)
 FetchContent_MakeAvailable(sol2)
 
+set(PHYSICS_REPO_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
+set(TARGET_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(TARGET_HELLO_WORLD OFF CACHE BOOL "" FORCE)
+set(TARGET_PERFORMANCE_TEST OFF CACHE BOOL "" FORCE)
+set(TARGET_SAMPLES OFF CACHE BOOL "" FORCE)
+set(TARGET_VIEWER OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(JoltPhysics GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git GIT_TAG v5.3.0 SOURCE_SUBDIR Build)
+FetchContent_MakeAvailable(JoltPhysics)
+
 add_library(imgui STATIC
         ${imgui_SOURCE_DIR}/imgui.cpp
         ${imgui_SOURCE_DIR}/imgui_draw.cpp
@@ -164,12 +173,18 @@ add_executable(MangoRendering Src/main.cpp
         Src/Core/Editor/UI/MenuBar.h
         Src/Nodes/PortalNode3d.cpp
         Src/Nodes/PortalNode3d.h
+        Src/Nodes/CollisionShape3d.cpp
+        Src/Nodes/CollisionShape3d.h
+        Src/Nodes/RigidBody3d.cpp
+        Src/Nodes/RigidBody3d.h
         Src/Core/ResourceManager.cpp
         Src/Core/ScriptManager.cpp
         Src/Core/ScriptManager.h
+        Src/Core/PhysicsWorld.cpp
+        Src/Core/PhysicsWorld.h
 )
 
-target_link_libraries(MangoRendering PRIVATE SDL3::SDL3 glad_gl imgui ${CMAKE_DL_LIBS} fkYAML::fkYAML lua::lua sol2::sol2)
+target_link_libraries(MangoRendering PRIVATE SDL3::SDL3 glad_gl imgui ${CMAKE_DL_LIBS} fkYAML::fkYAML lua::lua sol2::sol2 Jolt)
 target_compile_definitions(MangoRendering PRIVATE SOL_LUA_VERSION=504)
 
 set_property(TARGET MangoRendering PROPERTY CXX_SCAN_FOR_MODULES OFF)

@@ -15,6 +15,9 @@
 Editor::Editor(std::unique_ptr<Node3d> scene) : m_inspector(this), m_sceneTree(this), m_contentBrowserWindow(this) {
     m_core.Init();
     ScriptManager::Get().SetRuntimeEnabled(false);
+    ScriptManager::Get().SetQuitHandler([this] {
+        m_scriptQuitRequested = true;
+    });
 
     // setup user project assets and engine assets
     const std::filesystem::path engineAssets = ResourceManager::Get().GetEngineDirectory();
@@ -34,18 +37,20 @@ Editor::Editor(std::unique_ptr<Node3d> scene) : m_inspector(this), m_sceneTree(t
 
     m_sceneTabs.push_back({ "main" });
 
-    SDL_SetWindowRelativeMouseMode(m_core.GetActiveWindow()->GetSDLWindow(), false);
+    Input::SetMouseCaptureEnabled(false);
     Input::SetMouseDeltaEnabled(false);
 }
 
 Editor::~Editor() {
+    ScriptManager::Get().SetQuitHandler({});
+
     for (auto& viewport : m_viewports) {
         if (viewport) {
             viewport.reset();
         }
     }
 
-    SDL_SetWindowRelativeMouseMode(m_core.GetActiveWindow()->GetSDLWindow(), false);
+    Input::SetMouseCaptureEnabled(false);
     Input::SetMouseDeltaEnabled(false);
 }
 
@@ -104,6 +109,15 @@ void Editor::Run() {
             }
         } else {
             m_core.StepFrame(deltaTime);
+        }
+
+        if (m_scriptQuitRequested) {
+            m_scriptQuitRequested = false;
+            if (m_state == State::Playing || m_state == State::Paused) {
+                OnStop();
+            } else {
+                m_core.GetActiveWindow()->Close();
+            }
         }
 
         DrawMenuBar();
@@ -421,7 +435,7 @@ void Editor::OnStop() {
     }
 
     SDL_SetWindowMouseRect(m_core.GetActiveWindow()->GetSDLWindow(), nullptr);
-    SDL_SetWindowRelativeMouseMode(m_core.GetActiveWindow()->GetSDLWindow(), false);
+    Input::SetMouseCaptureEnabled(false);
     Input::SetMouseDeltaEnabled(false);
 }
 

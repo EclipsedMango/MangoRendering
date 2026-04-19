@@ -9,6 +9,8 @@ return {
 	zoom_speed = 50.0,
 	min_fov = 30.0,
 	max_fov = 90.0,
+	mouse_capture = true,
+	mouse_delta_capture = true,
 
 	_init = function(self)
 		print("Movement script initialized for node:", self.node:GetName())
@@ -24,7 +26,7 @@ return {
 
 		if self.node:GetNodeType() == "CameraNode3d" then
 			local current_fov = self.node:Get("fov")
-			Input.SetMouseDeltaEnabled(true)
+			Input.SetMouseDeltaEnabled(self.mouse_delta_capture)
 			local md = Input.GetMouseDelta()
 			self.node:AsCamera():Rotate(md.x * 0.08, -md.y * 0.08)
 
@@ -64,6 +66,16 @@ return {
 		if Input.IsKeyHeld(Input.Key.LCTRL) then
 			pos.y = pos.y - self.speed * delta
 			moved = true
+		end
+
+		if Input.IsKeyPressed(Input.Key.ESCAPE) then
+			App.Quit()
+		end
+
+		if Input.IsKeyPressed(Input.Key.TAB) then
+			self.mouse_capture = not self.mouse_capture
+			self.mouse_delta_capture = not self.mouse_delta_capture
+			Input.SetMouseCaptureEnabled(self.mouse_capture)
 		end
 
 		if moved then

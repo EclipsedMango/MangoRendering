@@ -13,8 +13,10 @@
 #include "glm/vec3.hpp"
 #include "Nodes/CameraNode3d.h"
 #include "Nodes/AnimationControllerNode3d.h"
+#include "Nodes/CollisionShape3d.h"
 #include "Nodes/MeshNode3d.h"
 #include "Nodes/PortalNode3d.h"
+#include "Nodes/RigidBody3d.h"
 #include "Nodes/Lights/DirectionalLightNode3d.h"
 #include "Nodes/Lights/PointLightNode3d.h"
 #include "Renderer/Meshes/PrimitiveMesh.h"
@@ -94,6 +96,8 @@ void SceneTreePanel::DrawSceneTree(Node3d *node) {
             { "Node3d", "Base" },
             { "MeshNode3d", "3D" },
             { "CameraNode3d", "3D" },
+            { "RigidBody3d", "Physics" },
+            { "CollisionShape3d", "Physics" },
             { "DirectionalLightNode3d", "Light" },
             { "PointLightNode3d", "Light" },
             { "PortalNode3d", "Portal" },
@@ -139,27 +143,41 @@ void SceneTreePanel::DrawSceneTree(Node3d *node) {
                         break;
                     }
                     case 3: {
+                        auto n = std::make_unique<RigidBody3d>();
+                        n->SetName("RigidBody3d");
+                        created = n.get();
+                        root->AddChild(std::move(n));
+                        break;
+                    }
+                    case 4: {
+                        auto n = std::make_unique<CollisionShape3d>();
+                        n->SetName("CollisionShape3d");
+                        created = n.get();
+                        root->AddChild(std::move(n));
+                        break;
+                    }
+                    case 5: {
                         auto n = std::make_unique<DirectionalLightNode3d>(glm::vec3(-64.0f, 128.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), 0.25f);
                         n->SetName("DirectionalLightNode3d");
                         created = n.get();
                         root->AddChild(std::move(n));
                         break;
                     }
-                    case 4: {
+                    case 6: {
                         auto n = std::make_unique<PointLightNode3d>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), 1.0f);
                         n->SetName("PointLightNode3d");
                         created = n.get();
                         root->AddChild(std::move(n));
                         break;
                     }
-                    case 5: {
+                    case 7: {
                         auto n = std::make_unique<PortalNode3d>();
                         n->SetName("PortalNode3d");
                         created = n.get();
                         root->AddChild(std::move(n));
                         break;
                     }
-                    case 6: {
+                    case 8: {
                         auto n = std::make_unique<AnimationControllerNode3d>();
                         n->SetName("AnimationControllerNode3d");
                         created = n.get();

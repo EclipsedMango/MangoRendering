@@ -74,6 +74,7 @@ private:
     float m_cpuTime = 0.0f;
     bool m_showStatsPopup = false;
     bool m_showAdvancedTimingStats = true;
+    bool m_scriptQuitRequested = false;
 };
 
 #endif //MANGORENDERING_EDITOR_H

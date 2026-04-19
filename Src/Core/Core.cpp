@@ -16,10 +16,13 @@
 #include "ResourceManager.h"
 #include "ScriptManager.h"
 #include "Editor/EditorStyle.h"
+#include "PhysicsWorld.h"
 #include "Nodes/PortalNode3d.h"
 
 Core::~Core() {
     m_currentScene.reset();
+    ScriptManager::Get().SetQuitHandler({});
+    PhysicsWorld::Get().Shutdown();
     m_globalSkybox.reset();
     m_defaultShader.reset();
     m_mainFramebuffer.reset();
@@ -41,6 +44,12 @@ void Core::Init() {
 
     ResourceManager::Get().InitializeDefaultResources();
     ScriptManager::Get().Init();
+    ScriptManager::Get().SetQuitHandler([this] {
+        if (m_activeWindow) {
+            m_activeWindow->Close();
+        }
+    });
+    PhysicsWorld::Get().Initialize();
 
     if (m_currentScene) {
         m_currentScene->PropagateEnterTree(this);
@@ -249,6 +258,7 @@ RenderStats Core::RenderScene(Node3d* sceneRoot, const CameraNode3d* camera, con
 void Core::StepFrame(const float deltaTime) {
     m_accumulator += deltaTime;
     while (m_accumulator >= FIXED_TIMESTEP) {
+        PhysicsWorld::Get().Step(FIXED_TIMESTEP);
         for (auto* node : m_nodeCache) {
             node->PhysicsProcess(FIXED_TIMESTEP);
         }

@@ -36,7 +36,7 @@ static std::vector<uint32_t> GetSelectedIds(ImGuiSelectionBasicStorage& selectio
 
 void SceneTreePanel::ClearSelection() {
     m_selection.Clear();
-    m_lastSelectedNode = nullptr;
+    m_lastSelectedId = 0;
     m_renamingNode = nullptr;
 }
 
@@ -188,7 +188,7 @@ void SceneTreePanel::DrawSceneTree(Node3d *node) {
                 }
 
                 if (created) {
-                    m_lastSelectedNode = created;
+                    m_lastSelectedId = created->GetId();
                     m_scrollToSelected = true;
                     m_selection.Clear();
                     m_selection.SetItemSelected(created->GetId(), true);
@@ -256,7 +256,7 @@ void SceneTreePanel::DrawSceneTree(Node3d *node) {
             open = ImGui::TreeNodeEx("##node", flags, "%s", n->GetName().c_str());
 
             if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
-                m_lastSelectedNode = n;
+                m_lastSelectedId = n->GetId();
             }
 
             if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
@@ -314,7 +314,7 @@ void SceneTreePanel::DrawSceneTree(Node3d *node) {
         ImGui::PopStyleVar();
         ImGui::PopID();
 
-        if (n == m_lastSelectedNode && m_scrollToSelected) {
+        if (n->GetId() == m_lastSelectedId && m_scrollToSelected) {
             ImGui::SetScrollHereY(0.5f);
             m_scrollToSelected = false;
         }
@@ -346,7 +346,7 @@ void SceneTreePanel::DrawSceneTree(Node3d *node) {
 void SceneTreePanel::DeleteSelectedNodes() {
     Node3d* activeScene = m_editor->GetState() == Editor::State::Playing ? m_editor->GetCore().GetScene() : m_editor->GetActiveViewport()->GetScene();
 
-    if (!activeScene || !m_lastSelectedNode || m_lastSelectedNode == activeScene) {
+    if (!activeScene || m_lastSelectedId == 0 || m_lastSelectedId == activeScene->GetId()) {
         return;
     }
 
@@ -358,8 +358,8 @@ void SceneTreePanel::DeleteSelectedNodes() {
             continue;
         }
 
-        if (n == m_lastSelectedNode) {
-            m_lastSelectedNode = nullptr;
+        if (n->GetId() == m_lastSelectedId) {
+            m_lastSelectedId = 0;
         }
 
         if (Node3d* p = n->GetParent()) {
@@ -371,7 +371,7 @@ void SceneTreePanel::DeleteSelectedNodes() {
 }
 
 void SceneTreePanel::DuplicateSelectedNodes() {
-    if (!m_lastSelectedNode || m_selection.Size == 0) {
+    if (m_lastSelectedId == 0 || m_selection.Size == 0) {
         return;
     }
 
@@ -402,7 +402,7 @@ void SceneTreePanel::DuplicateSelectedNodes() {
 
     for (const uint32_t newId : newIds) {
         m_selection.SetItemSelected(newId, true);
-        m_lastSelectedNode = FindNodeById(activeScene, newId);
+        m_lastSelectedId = newId;
         m_scrollToSelected = true;
     }
 }
@@ -416,6 +416,12 @@ Node3d* SceneTreePanel::FindNodeById(Node3d *root, const uint32_t id) {
     }
 
     return nullptr;
+}
+
+Node3d* SceneTreePanel::GetLastSelectedNode() const {
+    if (m_lastSelectedId == 0) return nullptr;
+    Node3d* scene = m_editor->GetState() == Editor::State::Playing ? m_editor->GetCore().GetScene() : m_editor->GetActiveViewport()->GetScene();
+    return FindNodeById(scene, m_lastSelectedId);
 }
 
 int SceneTreePanel::CountNodesRecursive(const Node3d *root) {
@@ -540,7 +546,7 @@ void SceneTreePanel::ProcessReparentRequests() {
         m_selection.Clear();
         for (const uint32_t id : movedIds) {
             m_selection.SetItemSelected(id, true);
-            m_lastSelectedNode = FindNodeById(activeScene, id);
+            m_lastSelectedId = id;
         }
     }
 

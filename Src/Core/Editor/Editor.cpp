@@ -439,7 +439,7 @@ void Editor::OnStop() {
     Input::SetMouseDeltaEnabled(false);
 }
 
-CameraNode3d * Editor::FindGameCamera(Node3d *node) {
+CameraNode3d* Editor::FindGameCamera(Node3d *node) {
     if (auto* cam = dynamic_cast<CameraNode3d*>(node); cam && cam->IsGameCamera()) {
         return cam;
     }

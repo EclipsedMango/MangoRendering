@@ -19,7 +19,7 @@ public:
 
     void ClearSelection();
 
-    [[nodiscard]] Node3d* GetSelectedNode() const { return m_lastSelectedNode; };
+    [[nodiscard]] Node3d* GetSelectedNode() const { return GetLastSelectedNode(); }
     [[nodiscard]] std::vector<Node3d*> GetSelectedNodes();
     [[nodiscard]] bool IsHoveringSceneTree() const { return m_hoveringSceneTree; }
 
@@ -36,6 +36,7 @@ private:
     };
 
     [[nodiscard]] static Node3d* FindNodeById(Node3d* root, uint32_t id);
+    [[nodiscard]] Node3d* GetLastSelectedNode() const;
     [[nodiscard]] static int CountNodesRecursive(const Node3d* root);
     static bool IsDescendantOf(const Node3d* node, const Node3d* potentialAncestor);
     void QueueReparentRequest(const uint32_t targetId, uint32_t draggedId);
@@ -47,7 +48,7 @@ private:
 
     bool m_scrollToSelected = false;
     ImGuiSelectionBasicStorage m_selection;
-    Node3d* m_lastSelectedNode = nullptr;
+    uint32_t m_lastSelectedId = 0;
 
     Node3d* m_renamingNode = nullptr;
     char m_renameBuf[256] = {};

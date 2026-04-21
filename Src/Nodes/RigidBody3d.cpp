@@ -182,10 +182,16 @@ void RigidBody3d::SetGravityScale(const float gravityScale) {
 
 void RigidBody3d::SetLinearVelocity(const glm::vec3& velocity) {
     m_linearVelocity = velocity;
+    if (m_hasBody) {
+        PhysicsWorld::Get().GetBodyInterface().SetLinearVelocity(m_bodyId, ToJoltVec3(velocity));
+    }
 }
 
 void RigidBody3d::SetAngularVelocity(const glm::vec3& velocity) {
     m_angularVelocity = velocity;
+    if (m_hasBody && !m_lockRotation) {
+        PhysicsWorld::Get().GetBodyInterface().SetAngularVelocity(m_bodyId, ToJoltVec3(velocity));
+    }
 }
 
 void RigidBody3d::SetLockRotation(const bool lockRotation) {
@@ -321,9 +327,7 @@ void RigidBody3d::DestroyBody() {
 }
 
 void RigidBody3d::PushTransformToPhysics(const float deltaTime) const {
-    if (!m_hasBody) {
-        return;
-    }
+    if (!m_hasBody) return;
 
     PhysicsWorld& world = PhysicsWorld::Get();
     JPH::BodyInterface& bodyInterface = world.GetBodyInterface();
@@ -346,13 +350,12 @@ void RigidBody3d::PushTransformToPhysics(const float deltaTime) const {
             ToJoltQuat(worldRot),
             JPH::EActivation::DontActivate
         );
-    }
-
-    bodyInterface.SetLinearVelocity(m_bodyId, ToJoltVec3(m_linearVelocity));
-    if (m_lockRotation) {
-        bodyInterface.SetAngularVelocity(m_bodyId, JPH::Vec3::sZero());
-    } else {
-        bodyInterface.SetAngularVelocity(m_bodyId, ToJoltVec3(m_angularVelocity));
+        bodyInterface.SetLinearVelocity(m_bodyId, ToJoltVec3(m_linearVelocity));
+        if (m_lockRotation) {
+            bodyInterface.SetAngularVelocity(m_bodyId, JPH::Vec3::sZero());
+        } else {
+            bodyInterface.SetAngularVelocity(m_bodyId, ToJoltVec3(m_angularVelocity));
+        }
     }
 }
 

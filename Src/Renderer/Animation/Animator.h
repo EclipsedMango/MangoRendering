@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+#include <limits>
 
 #include <glm/mat4x4.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -12,6 +13,9 @@
 
 #include "Renderer/Animation/Skeleton.h"
 #include "Renderer/Meshes/GltfLoader.h"
+
+class Shader;
+class ShaderStorageBuffer;
 
 class Animator {
 public:
@@ -32,6 +36,8 @@ public:
     void Play(bool loop = true);
     void Pause();
     void Stop();
+    static void BeginFrame();
+    void AdvanceTime(float deltaTime);
     void Update(float deltaTime);
     void EvaluateAt(float timeSeconds);
 
@@ -42,6 +48,8 @@ public:
     [[nodiscard]] float GetClipStartTime() const { return m_clip.startTime; }
     [[nodiscard]] float GetClipEndTime() const { return m_clip.endTime; }
     [[nodiscard]] uint64_t GetPoseVersion() const { return m_poseVersion; }
+    [[nodiscard]] int GetSkinMatrixCount() const;
+    [[nodiscard]] ShaderStorageBuffer* GetSkinMatricesSsbo() const;
     [[nodiscard]] static float ConsumeFrameUpdateMs();
 
     [[nodiscard]] const std::vector<JointPose>& GetLocalPoses() const { return m_localPose; }
@@ -62,6 +70,9 @@ private:
     void ResetPoseFromSkeleton();
     void RebuildChannelJointMap();
     void EvaluateGlobalAndSkinMatrices();
+    void EnsureSkinningComputeBuffers();
+    void UploadLocalJointMatricesToGpu();
+    void DispatchSkinningHierarchyCompute() const;
 
     std::shared_ptr<Skeleton> m_skeleton;
     GltfLoader::AnimationClipData m_clip;
@@ -71,6 +82,7 @@ private:
     bool m_loop = true;
     float m_currentTime = 0.0f;
     uint64_t m_poseVersion = 0;
+    uint64_t m_lastUpdatedFrame = std::numeric_limits<uint64_t>::max();
     bool m_poseDirty = true;
 
     std::vector<JointPose> m_restPose;
@@ -81,6 +93,14 @@ private:
     std::vector<int> m_channelJointIndices;
     std::vector<int> m_parentJointIndices;
     std::vector<char> m_jointComputed;
+    std::vector<int> m_animatedJointIndices;
+
+    std::unique_ptr<ShaderStorageBuffer> m_localJointSsbo;
+    std::unique_ptr<ShaderStorageBuffer> m_inverseBindSsbo;
+    std::unique_ptr<ShaderStorageBuffer> m_parentIndexSsbo;
+    std::unique_ptr<ShaderStorageBuffer> m_skinMatricesSsbo;
+    std::shared_ptr<Shader> m_skinningHierarchyComputeShader;
+    bool m_gpuSkeletonStaticUploaded = false;
 };
 
 #endif //MANGORENDERING_ANIMATOR_H

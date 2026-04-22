@@ -1,12 +1,28 @@
 
 #include "Mesh.h"
 
+#include <cstdint>
+
 #include "glm/glm.hpp"
+#include "Renderer/Buffers/ShaderStorageBuffer.h"
+
+namespace {
+    struct GpuSkinningInputVertex {
+        glm::vec4 position;
+        glm::vec4 normal;
+        glm::vec4 tangent;
+        glm::uvec4 joints;
+        glm::vec4 weights;
+    };
+
+    constexpr uint32_t kSkinningInputBinding = 10;
+}
 
 REGISTER_PROPERTY_TYPE(Mesh)
 
 Mesh::Mesh(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices) : m_vertices(vertices), m_indices(indices) {
     ComputeSkinWeightsUsage();
+    m_skinningSourceUploaded = false;
     Upload();
     RegisterProperties();
 }
@@ -39,6 +55,7 @@ void Mesh::Regenerate(const std::vector<Vertex> &vertices, const std::vector<uin
     m_vertices = vertices;
     m_indices = indices;
     ComputeSkinWeightsUsage();
+    m_skinningSourceUploaded = false;
     m_buffer.reset(); // destroy old GPU buffer
     m_buffer = std::make_unique<VertexArray>(m_vertices, m_indices);
     ComputeBounds();
@@ -90,4 +107,44 @@ void Mesh::ComputeSkinWeightsUsage() {
             break;
         }
     }
+}
+
+ShaderStorageBuffer* Mesh::GetSkinningSourceBuffer() const {
+    if (!m_hasSkinWeights || m_vertices.empty()) {
+        return nullptr;
+    }
+
+    EnsureSkinningSourceBuffer();
+    return m_skinningSourceSsbo.get();
+}
+
+void Mesh::EnsureSkinningSourceBuffer() const {
+    if (m_vertices.empty()) {
+        return;
+    }
+
+    const size_t requiredBytes = m_vertices.size() * sizeof(GpuSkinningInputVertex);
+    if (!m_skinningSourceSsbo || m_skinningSourceSsbo->GetSize() < requiredBytes) {
+        m_skinningSourceSsbo = std::make_unique<ShaderStorageBuffer>(requiredBytes, kSkinningInputBinding);
+        m_skinningSourceUploaded = false;
+    }
+
+    if (m_skinningSourceUploaded) {
+        return;
+    }
+
+    std::vector<GpuSkinningInputVertex> gpuVertices;
+    gpuVertices.reserve(m_vertices.size());
+    for (const Vertex& vertex : m_vertices) {
+        gpuVertices.push_back({
+            glm::vec4(vertex.position, 1.0f),
+            glm::vec4(vertex.normal, 0.0f),
+            vertex.tangent,
+            vertex.joints,
+            vertex.weights
+        });
+    }
+
+    m_skinningSourceSsbo->SetData(gpuVertices.data(), requiredBytes, 0);
+    m_skinningSourceUploaded = true;
 }

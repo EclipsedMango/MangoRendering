@@ -3,6 +3,7 @@
 #define MANGORENDERING_MESHNODE3D_H
 
 #include <cstdint>
+#include <cstddef>
 #include <limits>
 
 #include "RenderableNode3d.h"
@@ -10,8 +11,8 @@
 #include "Renderer/Meshes/Mesh.h"
 
 class Animator;
-class UniformBuffer;
 class Shader;
+class ShaderStorageBuffer;
 
 class MeshNode3d : public RenderableNode3d {
 public:
@@ -38,7 +39,10 @@ public:
     [[nodiscard]] std::shared_ptr<Animator> GetAnimator() const { return m_animator; }
     void SetAnimatorAutoUpdate(bool enabled) { m_animatorAutoUpdate = enabled; }
     [[nodiscard]] bool IsAnimatorAutoUpdateEnabled() const { return m_animatorAutoUpdate; }
+    void SetAnimationVisible(bool visible) { m_animationVisible = visible; }
+    [[nodiscard]] bool IsAnimationVisible() const { return m_animationVisible; }
     [[nodiscard]] bool HasSkinning() const;
+    void PrepareSkinningForRender() const;
     void BindSkinning(const Shader& shader) const;
     [[nodiscard]] static float ConsumeFrameSkinUploadMs();
 
@@ -56,13 +60,14 @@ private:
     std::shared_ptr<Material> m_materialOverride;
     std::shared_ptr<Animator> m_animator;
     bool m_animatorAutoUpdate = true;
+    bool m_animationVisible = true;
 
     bool m_meshHasSkinWeights = false;
-    mutable std::unique_ptr<UniformBuffer> m_skinningUbo;
+    mutable std::unique_ptr<ShaderStorageBuffer> m_skinnedVertexSsbo;
+    mutable std::shared_ptr<Shader> m_skinningComputeShader;
     mutable uint64_t m_uploadedPoseVersion = std::numeric_limits<uint64_t>::max();
     mutable int m_uploadedSkinCount = 0;
-
-    static constexpr int MAX_SKIN_JOINTS = 128;
+    mutable size_t m_dispatchedVertexCount = 0;
 };
 
 

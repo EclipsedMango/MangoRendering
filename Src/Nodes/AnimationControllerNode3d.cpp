@@ -87,16 +87,14 @@ void AnimationControllerNode3d::Process(const float deltaTime) {
         m_autoPlayed = true;
     }
 
-    if (!m_playing || m_speed == 0.0f) {
-        return;
-    }
-
-    const float scaledDelta = deltaTime * m_speed;
     for (MeshNode3d* meshNode : m_targets) {
         if (!meshNode) continue;
         const auto animator = meshNode->GetAnimator();
         if (animator) {
-            animator->Update(scaledDelta);
+            if (m_playing && m_speed != 0.0f) {
+                const float scaledDelta = deltaTime * m_speed;
+                animator->AdvanceTime(scaledDelta);
+            }
         }
     }
 }

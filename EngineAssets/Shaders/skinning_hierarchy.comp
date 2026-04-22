@@ -1,0 +1,40 @@
+#version 460 core
+
+layout (local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout (std430, binding = 12) readonly buffer LocalJointBuffer {
+    mat4 localJointMatrices[];
+};
+
+layout (std430, binding = 13) readonly buffer InverseBindBuffer {
+    mat4 inverseBindMatrices[];
+};
+
+layout (std430, binding = 14) readonly buffer ParentJointBuffer {
+    int parentJointIndices[];
+};
+
+layout (std430, binding = 15) writeonly buffer SkinMatrixBuffer {
+    mat4 skinMatrices[];
+};
+
+uniform uint u_JointCount;
+
+void main() {
+    uint jointIndex = gl_GlobalInvocationID.x;
+    if (jointIndex >= u_JointCount) {
+        return;
+    }
+
+    mat4 global = localJointMatrices[jointIndex];
+    int parent = parentJointIndices[jointIndex];
+
+    int guard = 0;
+    while (parent >= 0 && guard < 1024) {
+        global = localJointMatrices[parent] * global;
+        parent = parentJointIndices[parent];
+        guard++;
+    }
+
+    skinMatrices[jointIndex] = global * inverseBindMatrices[jointIndex];
+}

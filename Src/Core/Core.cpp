@@ -18,6 +18,7 @@
 #include "Editor/EditorStyle.h"
 #include "PhysicsWorld.h"
 #include "Nodes/PortalNode3d.h"
+#include "Renderer/Animation/Animator.h"
 
 Core::~Core() {
     m_currentScene.reset();
@@ -256,6 +257,8 @@ RenderStats Core::RenderScene(Node3d* sceneRoot, const CameraNode3d* camera, con
 }
 
 void Core::StepFrame(const float deltaTime) {
+    Animator::BeginFrame();
+
     m_accumulator += deltaTime;
     while (m_accumulator >= FIXED_TIMESTEP) {
         PhysicsWorld::Get().Step(FIXED_TIMESTEP);

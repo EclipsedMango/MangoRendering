@@ -3,17 +3,29 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include "glad/gl.h"
+#include "Core/ResourceManager.h"
+#include "Renderer/Buffers/ShaderStorageBuffer.h"
+
 namespace {
     float s_frameAnimatorUpdateMs = 0.0f;
+    uint64_t s_animatorFrameIndex = 0;
 #if !defined(NDEBUG)
     constexpr bool kEnableAnimatorTimers = true;
 #else
     constexpr bool kEnableAnimatorTimers = false;
 #endif
+
+    constexpr uint32_t kLocalJointBinding = 12;
+    constexpr uint32_t kInverseBindBinding = 13;
+    constexpr uint32_t kParentIndexBinding = 14;
+    constexpr uint32_t kSkinMatrixBinding = 15;
+    constexpr uint32_t kSkinningHierarchyWorkGroupSize = 64;
 }
 
 Animator::Animator(std::shared_ptr<Skeleton> skeleton) {
@@ -23,6 +35,12 @@ Animator::Animator(std::shared_ptr<Skeleton> skeleton) {
 void Animator::SetSkeleton(std::shared_ptr<Skeleton> skeleton) {
     m_skeleton = std::move(skeleton);
     m_poseDirty = true;
+    m_gpuSkeletonStaticUploaded = false;
+    m_localJointSsbo.reset();
+    m_inverseBindSsbo.reset();
+    m_parentIndexSsbo.reset();
+    m_skinMatricesSsbo.reset();
+    m_skinningHierarchyComputeShader.reset();
     RebuildSkeletonCaches();
     ResetPoseFromSkeleton();
     RebuildChannelJointMap();
@@ -81,17 +99,27 @@ void Animator::Stop() {
     EvaluateAt(m_currentTime);
 }
 
-void Animator::Update(const float deltaTime) {
+void Animator::BeginFrame() {
+    ++s_animatorFrameIndex;
+}
+
+void Animator::AdvanceTime(const float deltaTime) {
     if (!m_isPlaying || !m_hasClip || !m_skeleton) {
         return;
     }
+
+    if (m_lastUpdatedFrame == s_animatorFrameIndex) {
+        return;
+    }
+    m_lastUpdatedFrame = s_animatorFrameIndex;
 
     const float clipStart = m_clip.startTime;
     const float clipEnd = m_clip.endTime;
     const float duration = std::max(clipEnd - clipStart, 0.0f);
 
     if (duration <= 0.0f) {
-        EvaluateAt(clipStart);
+        m_currentTime = clipStart;
+        m_poseDirty = true;
         return;
     }
 
@@ -104,12 +132,27 @@ void Animator::Update(const float deltaTime) {
         m_isPlaying = false;
     }
 
+    constexpr float timeEps = 1e-6f;
+    if (std::abs(nextTime - m_currentTime) > timeEps) {
+        m_currentTime = nextTime;
+        m_poseDirty = true;
+    }
+}
+
+void Animator::Update(const float deltaTime) {
+    if (!m_isPlaying || !m_hasClip || !m_skeleton) {
+        return;
+    }
+
+    const uint64_t prevVersion = m_poseVersion;
     std::chrono::high_resolution_clock::time_point t0;
     if constexpr (kEnableAnimatorTimers) {
         t0 = std::chrono::high_resolution_clock::now();
     }
-    const uint64_t prevVersion = m_poseVersion;
-    EvaluateAt(nextTime);
+
+    AdvanceTime(deltaTime);
+    EvaluateAt(m_currentTime);
+
     if constexpr (kEnableAnimatorTimers) {
         const auto t1 = std::chrono::high_resolution_clock::now();
         if (m_poseVersion != prevVersion) {
@@ -177,17 +220,22 @@ Animator::JointPose Animator::PoseFromMatrix(const glm::mat4& matrix) {
     JointPose pose;
     pose.translation = glm::vec3(matrix[3]);
 
+    // cache column vectors to compute scale once
+    const glm::vec3 col0 = glm::vec3(matrix[0]);
+    const glm::vec3 col1 = glm::vec3(matrix[1]);
+    const glm::vec3 col2 = glm::vec3(matrix[2]);
+    
     pose.scale = {
-        glm::length(glm::vec3(matrix[0])),
-        glm::length(glm::vec3(matrix[1])),
-        glm::length(glm::vec3(matrix[2]))
+        glm::length(col0),
+        glm::length(col1),
+        glm::length(col2)
     };
 
     constexpr float eps = 1e-4f;
     const glm::mat3 rotationMatrix(
-        pose.scale.x > eps ? glm::vec3(matrix[0]) / pose.scale.x : glm::vec3(1, 0, 0),
-        pose.scale.y > eps ? glm::vec3(matrix[1]) / pose.scale.y : glm::vec3(0, 1, 0),
-        pose.scale.z > eps ? glm::vec3(matrix[2]) / pose.scale.z : glm::vec3(0, 0, 1)
+        pose.scale.x > eps ? col0 / pose.scale.x : glm::vec3(1, 0, 0),
+        pose.scale.y > eps ? col1 / pose.scale.y : glm::vec3(0, 1, 0),
+        pose.scale.z > eps ? col2 / pose.scale.z : glm::vec3(0, 0, 1)
     );
     pose.rotation = glm::normalize(glm::quat_cast(rotationMatrix));
     return pose;
@@ -278,6 +326,13 @@ void Animator::RebuildSkeletonCaches() {
         m_skinMatrices.clear();
         m_parentJointIndices.clear();
         m_jointComputed.clear();
+        m_animatedJointIndices.clear();
+        m_localJointSsbo.reset();
+        m_inverseBindSsbo.reset();
+        m_parentIndexSsbo.reset();
+        m_skinMatricesSsbo.reset();
+        m_skinningHierarchyComputeShader.reset();
+        m_gpuSkeletonStaticUploaded = false;
         return;
     }
 
@@ -290,6 +345,7 @@ void Animator::RebuildSkeletonCaches() {
     m_skinMatrices.resize(jointCount, glm::mat4(1.0f));
     m_parentJointIndices.resize(jointCount, -1);
     m_jointComputed.resize(jointCount, 0);
+    m_animatedJointIndices.clear();
 
     for (size_t i = 0; i < jointCount; ++i) {
         m_restPose[i] = PoseFromMatrix(joints[i].restLocalTransform);
@@ -301,18 +357,49 @@ void Animator::ResetPoseFromSkeleton() {
     if (!m_skeleton || m_localPose.size() != m_restPose.size()) {
         return;
     }
-    std::copy(m_restPose.begin(), m_restPose.end(), m_localPose.begin());
+    
+    // only reset joints that will be animated
+    if (m_hasClip && !m_animatedJointIndices.empty()) {
+        for (const int idx : m_animatedJointIndices) {
+            if (idx >= 0 && idx < static_cast<int>(m_localPose.size())) {
+                m_localPose[static_cast<size_t>(idx)] = m_restPose[static_cast<size_t>(idx)];
+            }
+        }
+    } else {
+        std::ranges::copy(m_restPose, m_localPose.begin());
+    }
 }
 
 void Animator::RebuildChannelJointMap() {
     m_channelJointIndices.clear();
+    m_animatedJointIndices.clear();
+    
     if (!m_skeleton || !m_hasClip) {
         return;
     }
 
     m_channelJointIndices.resize(m_clip.channels.size(), -1);
+    std::vector isAnimated(m_skeleton->GetJoints().size(), false);
+
     for (size_t i = 0; i < m_clip.channels.size(); ++i) {
-        m_channelJointIndices[i] = m_skeleton->FindJointByNodeIndex(m_clip.channels[i].targetNode);
+        int jointIdx = m_skeleton->FindJointByNodeIndex(m_clip.channels[i].targetNode);
+        m_channelJointIndices[i] = jointIdx;
+        if (jointIdx >= 0) {
+            isAnimated[static_cast<size_t>(jointIdx)] = true;
+        }
+    }
+    
+    // mark ancestors of animated joints as needing evaluation
+    for (size_t i = 0; i < isAnimated.size(); ++i) {
+        if (isAnimated[i]) {
+            m_animatedJointIndices.push_back(static_cast<int>(i));
+            int parent = m_parentJointIndices[i];
+            while (parent >= 0 && !isAnimated[static_cast<size_t>(parent)]) {
+                isAnimated[static_cast<size_t>(parent)] = true;
+                m_animatedJointIndices.push_back(parent);
+                parent = m_parentJointIndices[static_cast<size_t>(parent)];
+            }
+        }
     }
 }
 
@@ -329,50 +416,105 @@ void Animator::EvaluateGlobalAndSkinMatrices() {
     for (size_t i = 0; i < joints.size(); ++i) {
         m_localJointMatrices[i] = PoseToMatrix(m_localPose[i]);
     }
+    UploadLocalJointMatricesToGpu();
+    DispatchSkinningHierarchyCompute();
+}
 
-    std::ranges::fill(m_jointComputed, 0);
-    size_t remaining = joints.size();
-
-    while (remaining > 0) {
-        bool progressed = false;
-        for (size_t i = 0; i < joints.size(); ++i) {
-            if (m_jointComputed[i]) {
-                continue;
-            }
-
-            const int parentIndex = m_parentJointIndices[i];
-            if (parentIndex >= 0 && (parentIndex >= static_cast<int>(joints.size()) || !m_jointComputed[static_cast<size_t>(parentIndex)])) {
-                continue;
-            }
-
-            if (parentIndex >= 0) {
-                m_globalJointMatrices[i] = m_globalJointMatrices[static_cast<size_t>(parentIndex)] * m_localJointMatrices[i];
-            } else {
-                m_globalJointMatrices[i] = m_localJointMatrices[i];
-            }
-
-            m_jointComputed[i] = 1;
-            --remaining;
-            progressed = true;
-        }
-
-        if (progressed) {
-            continue;
-        }
-
-        for (size_t i = 0; i < joints.size(); ++i) {
-            if (m_jointComputed[i]) {
-                continue;
-            }
-            m_globalJointMatrices[i] = m_localJointMatrices[i];
-            m_jointComputed[i] = 1;
-            --remaining;
-        }
+void Animator::EnsureSkinningComputeBuffers() {
+    if (!m_skeleton) {
+        return;
     }
 
-    for (size_t i = 0; i < joints.size(); ++i) {
-        m_skinMatrices[i] = m_globalJointMatrices[i] * joints[i].inverseBindMatrix;
+    const auto& joints = m_skeleton->GetJoints();
+    if (joints.empty()) {
+        return;
     }
+
+    const size_t jointCount = joints.size();
+    const size_t matrixBytes = sizeof(glm::mat4) * jointCount;
+    const size_t parentBytes = sizeof(int32_t) * jointCount;
+
+    if (!m_localJointSsbo || m_localJointSsbo->GetSize() < matrixBytes) {
+        m_localJointSsbo = std::make_unique<ShaderStorageBuffer>(matrixBytes, kLocalJointBinding);
+    }
+    if (!m_inverseBindSsbo || m_inverseBindSsbo->GetSize() < matrixBytes) {
+        m_inverseBindSsbo = std::make_unique<ShaderStorageBuffer>(matrixBytes, kInverseBindBinding);
+        m_gpuSkeletonStaticUploaded = false;
+    }
+    if (!m_skinMatricesSsbo || m_skinMatricesSsbo->GetSize() < matrixBytes) {
+        m_skinMatricesSsbo = std::make_unique<ShaderStorageBuffer>(matrixBytes, kSkinMatrixBinding);
+    }
+    if (!m_parentIndexSsbo || m_parentIndexSsbo->GetSize() < parentBytes) {
+        m_parentIndexSsbo = std::make_unique<ShaderStorageBuffer>(parentBytes, kParentIndexBinding);
+        m_gpuSkeletonStaticUploaded = false;
+    }
+
+    if (!m_skinningHierarchyComputeShader) {
+        m_skinningHierarchyComputeShader = ResourceManager::Get().LoadComputeShader("SkinningHierarchyCompute", "skinning_hierarchy.comp");
+    }
+
+    if (m_gpuSkeletonStaticUploaded) {
+        return;
+    }
+
+    std::vector<glm::mat4> inverseBindMatrices;
+    inverseBindMatrices.reserve(jointCount);
+    for (const auto& joint : joints) {
+        inverseBindMatrices.push_back(joint.inverseBindMatrix);
+    }
+
+    std::vector<int32_t> parentIndices;
+    parentIndices.reserve(jointCount);
+    for (const int parent : m_parentJointIndices) {
+        parentIndices.push_back(static_cast<int32_t>(parent));
+    }
+
+    m_inverseBindSsbo->SetData(inverseBindMatrices.data(), matrixBytes, 0);
+    m_parentIndexSsbo->SetData(parentIndices.data(), parentBytes, 0);
+    m_gpuSkeletonStaticUploaded = true;
+}
+
+void Animator::UploadLocalJointMatricesToGpu() {
+    EnsureSkinningComputeBuffers();
+    if (!m_localJointSsbo || m_localJointMatrices.empty()) {
+        return;
+    }
+
+    const size_t matrixBytes = sizeof(glm::mat4) * m_localJointMatrices.size();
+    m_localJointSsbo->SetData(m_localJointMatrices.data(), matrixBytes, 0);
+}
+
+void Animator::DispatchSkinningHierarchyCompute() const {
+    if (!m_skinningHierarchyComputeShader || !m_skinMatricesSsbo || !m_localJointSsbo || !m_inverseBindSsbo || !m_parentIndexSsbo) {
+        return;
+    }
+
+    const int jointCount = static_cast<int>(m_localJointMatrices.size());
+    if (jointCount <= 0) {
+        return;
+    }
+
+    m_localJointSsbo->Bind();
+    m_inverseBindSsbo->Bind();
+    m_parentIndexSsbo->Bind();
+    m_skinMatricesSsbo->Bind();
+
+    GLint previousProgram = 0;
+    glGetIntegerv(GL_CURRENT_PROGRAM, &previousProgram);
+    m_skinningHierarchyComputeShader->Bind();
+    m_skinningHierarchyComputeShader->SetUint("u_JointCount", static_cast<unsigned int>(jointCount));
+    const unsigned int groups = static_cast<unsigned int>((jointCount + static_cast<int>(kSkinningHierarchyWorkGroupSize) - 1) / static_cast<int>(kSkinningHierarchyWorkGroupSize));
+    m_skinningHierarchyComputeShader->Dispatch(groups, 1, 1);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    glUseProgram(static_cast<GLuint>(previousProgram));
+}
+
+int Animator::GetSkinMatrixCount() const {
+    return static_cast<int>(m_localJointMatrices.size());
+}
+
+ShaderStorageBuffer* Animator::GetSkinMatricesSsbo() const {
+    return m_skinMatricesSsbo.get();
 }
 
 float Animator::ConsumeFrameUpdateMs() {

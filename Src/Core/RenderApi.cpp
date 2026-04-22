@@ -733,8 +733,28 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
 
     std::vector<MeshNode3d*> culledOpaque;
     for (MeshNode3d* node : opaqueQueue) {
+        node->SetAnimationVisible(false);
         if (!IsCulled(node, cameraFrustum, stats)) {
+            node->SetAnimationVisible(true);
             culledOpaque.push_back(node);
+        }
+    }
+    for (MeshNode3d* node : transparentQueue) {
+        node->SetAnimationVisible(false);
+        if (!IsCulled(node, cameraFrustum, stats)) {
+            node->SetAnimationVisible(true);
+        }
+    }
+
+    // prepare skinning buffers only for this frame's visible nodes
+    for (const MeshNode3d* node : culledOpaque) {
+        if (node->IsAnimationVisible()) {
+            node->PrepareSkinningForRender();
+        }
+    }
+    for (const MeshNode3d* node : transparentQueue) {
+        if (node->IsAnimationVisible()) {
+            node->PrepareSkinningForRender();
         }
     }
 

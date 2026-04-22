@@ -574,6 +574,7 @@ GltfLoader::LoadResult GltfLoader::LoadWithSkeletonData(const std::string& path,
     auto root = std::make_unique<Node3d>();
 
     std::unordered_map<int, std::vector<std::shared_ptr<Mesh>>> meshCache;
+    std::unordered_map<int, std::shared_ptr<Animator>> skinAnimatorCache;
 
     // process node builds the subtree and adds it to parent, parent is a raw observer
     std::function<void(int, Node3d*)> ProcessNode = [&](int nodeIndex, Node3d* parent) {
@@ -582,6 +583,21 @@ GltfLoader::LoadResult GltfLoader::LoadWithSkeletonData(const std::string& path,
         sceneNode->SetName(gltfNode.name);
 
         sceneNode->SetLocalTransform(BuildNodeLocalTransform(gltfNode));
+
+        std::shared_ptr<Animator> sharedNodeAnimator;
+        if (gltfNode.skin >= 0 && gltfNode.skin < static_cast<int>(result.skeletons.size())) {
+            if (const auto it = skinAnimatorCache.find(gltfNode.skin); it != skinAnimatorCache.end()) {
+                sharedNodeAnimator = it->second;
+            } else {
+                sharedNodeAnimator = std::make_shared<Animator>(result.skeletons[static_cast<size_t>(gltfNode.skin)]);
+                sharedNodeAnimator->SetAvailableClips(result.animations);
+                if (const auto* clip = FindFirstClipForSkeleton(result.animations, result.skeletons[static_cast<size_t>(gltfNode.skin)])) {
+                    sharedNodeAnimator->SetClip(*clip);
+                    sharedNodeAnimator->Play(true);
+                }
+                skinAnimatorCache[gltfNode.skin] = sharedNodeAnimator;
+            }
+        }
 
         if (gltfNode.mesh >= 0) {
             const auto& gltfMesh = model.meshes[gltfNode.mesh];
@@ -615,14 +631,8 @@ GltfLoader::LoadResult GltfLoader::LoadWithSkeletonData(const std::string& path,
                 meshNode->SetMeshByName(meshID);
                 meshNode->SetMaterial(BuildMaterial(model, primitive.material, path));
 
-                if (gltfNode.skin >= 0 && gltfNode.skin < static_cast<int>(result.skeletons.size())) {
-                    auto animator = std::make_shared<Animator>(result.skeletons[static_cast<size_t>(gltfNode.skin)]);
-                    animator->SetAvailableClips(result.animations);
-                    if (const auto* clip = FindFirstClipForSkeleton(result.animations, result.skeletons[static_cast<size_t>(gltfNode.skin)])) {
-                        animator->SetClip(*clip);
-                        animator->Play(true);
-                    }
-                    meshNode->SetAnimator(std::move(animator));
+                if (sharedNodeAnimator) {
+                    meshNode->SetAnimator(sharedNodeAnimator);
                 }
                 sceneNode->AddChild(std::move(meshNode));
             }

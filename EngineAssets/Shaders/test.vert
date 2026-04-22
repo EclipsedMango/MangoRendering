@@ -6,8 +6,6 @@ layout (location = 0) in vec3 a_Position;
 layout (location = 1) in vec3 a_Normal;
 layout (location = 2) in vec2 a_TexCoord;
 layout (location = 3) in vec4 a_Tangent;
-layout (location = 4) in uvec4 a_Joints;
-layout (location = 5) in vec4 a_Weights;
 
 layout (std140, binding = 0) uniform CameraData {
     mat4 u_View;
@@ -16,10 +14,16 @@ layout (std140, binding = 0) uniform CameraData {
 
 uniform mat4 u_NormalMatrix;
 uniform mat4 u_Model;
-uniform bool u_Skinned;
-uniform int u_SkinMatrixCount;
-layout (std140, binding = 9) uniform SkinMatrices {
-    mat4 u_SkinMatrices[128];
+uniform bool u_UseSkinnedVertexBuffer;
+
+struct SkinnedVertex {
+    vec4 position;
+    vec4 normal;
+    vec4 tangent;
+};
+
+layout (std430, binding = 11) readonly buffer SkinnedVertexBuffer {
+    SkinnedVertex u_SkinnedVertices[];
 };
 
 out vec3 v_Normal;
@@ -28,19 +32,18 @@ out vec3 v_FragPos;
 out mat3 v_TBN;
 
 void main() {
-    mat4 skinMatrix = mat4(1.0);
-    if (u_Skinned) {
-        int skinCount = max(u_SkinMatrixCount, 1);
-        skinMatrix =
-            a_Weights.x * u_SkinMatrices[min(int(a_Joints.x), skinCount - 1)] +
-            a_Weights.y * u_SkinMatrices[min(int(a_Joints.y), skinCount - 1)] +
-            a_Weights.z * u_SkinMatrices[min(int(a_Joints.z), skinCount - 1)] +
-            a_Weights.w * u_SkinMatrices[min(int(a_Joints.w), skinCount - 1)];
-    }
+    vec4 localPosition = vec4(a_Position, 1.0);
+    vec3 localNormal = a_Normal;
+    vec3 localTangent = a_Tangent.xyz;
+    float tangentSign = a_Tangent.w;
 
-    vec4 localPosition = skinMatrix * vec4(a_Position, 1.0);
-    vec3 localNormal = normalize(mat3(skinMatrix) * a_Normal);
-    vec3 localTangent = normalize(mat3(skinMatrix) * a_Tangent.xyz);
+    if (u_UseSkinnedVertexBuffer) {
+        SkinnedVertex skinned = u_SkinnedVertices[gl_VertexID];
+        localPosition = vec4(skinned.position.xyz, 1.0);
+        localNormal = normalize(skinned.normal.xyz);
+        localTangent = normalize(skinned.tangent.xyz);
+        tangentSign = skinned.tangent.w;
+    }
 
     vec4 worldPosition = u_Model * localPosition;
     v_FragPos = worldPosition.xyz;
@@ -50,7 +53,7 @@ void main() {
     vec3 N = normalize(mat3(u_NormalMatrix) * localNormal);
     vec3 T = normalize(mat3(u_NormalMatrix) * localTangent);
     T = normalize(T - dot(T, N) * N); // re-orthogonalize against N
-    vec3 B = cross(N, T) * a_Tangent.w; // w handles mirrored UVs
+    vec3 B = cross(N, T) * tangentSign; // w handles mirrored UVs
 
     v_TBN = mat3(T, B, N);
     v_Normal = N;

@@ -3,8 +3,10 @@
 
 #include <memory>
 #include <vector>
+#include <cstddef>
 
 #include "Renderer/VertexArray.h"
+#include "Renderer/Buffers/ShaderStorageBuffer.h"
 #include "Core/PropertyHolder.h"
 
 class Mesh : public PropertyHolder {
@@ -26,8 +28,10 @@ public:
 
     [[nodiscard]] const std::vector<Vertex>& GetVertices() const { return m_vertices; }
     [[nodiscard]] const std::vector<uint32_t>& GetIndices() const { return m_indices; }
+    [[nodiscard]] size_t GetVertexCount() const { return m_vertices.size(); }
     [[nodiscard]] VertexArray* GetBuffer() const { return m_buffer.get(); }
     [[nodiscard]] bool HasSkinWeights() const { return m_hasSkinWeights; }
+    [[nodiscard]] ShaderStorageBuffer* GetSkinningSourceBuffer() const;
 
     [[nodiscard]] glm::vec3 GetBoundsCenter() const { return m_boundsCenter; }
     [[nodiscard]] float GetBoundsRadius() const { return m_boundsRadius; }
@@ -36,6 +40,7 @@ private:
     void RegisterProperties();
     void ComputeBounds();
     void ComputeSkinWeightsUsage();
+    void EnsureSkinningSourceBuffer() const;
 
     std::vector<Vertex> m_vertices;
     std::vector<uint32_t> m_indices;
@@ -44,6 +49,8 @@ private:
     glm::vec3 m_boundsCenter = glm::vec3(0.0f);
     float m_boundsRadius = 0.0f;
     bool m_hasSkinWeights = false;
+    mutable std::unique_ptr<ShaderStorageBuffer> m_skinningSourceSsbo;
+    mutable bool m_skinningSourceUploaded = false;
 };
 
 

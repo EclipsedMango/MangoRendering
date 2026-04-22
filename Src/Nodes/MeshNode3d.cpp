@@ -2,15 +2,26 @@
 #include "MeshNode3d.h"
 
 #include <chrono>
+#include <cstdint>
 #include <iostream>
 
+#include "glad/gl.h"
 #include "Core/RenderApi.h"
 #include "Core/ResourceManager.h"
 #include "Renderer/Animation/Animator.h"
-#include "Renderer/Buffers/UniformBuffer.h"
+#include "Renderer/Buffers/ShaderStorageBuffer.h"
 
 namespace {
     float s_frameSkinUploadMs = 0.0f;
+
+    struct GpuSkinnedVertex {
+        glm::vec4 position;
+        glm::vec4 normal;
+        glm::vec4 tangent;
+    };
+
+    constexpr uint32_t kSkinnedOutputBinding = 11;
+    constexpr uint32_t kSkinningComputeWorkGroupSize = 64;
 }
 
 REGISTER_NODE_TYPE(MeshNode3d)
@@ -57,8 +68,7 @@ std::unique_ptr<Node3d> MeshNode3d::Clone() {
 void MeshNode3d::Process(const float deltaTime) {
     Node3d::Process(deltaTime);
     if (m_animator && m_animatorAutoUpdate) {
-        m_animator->Update(deltaTime);
-        SyncSkinningBuffer();
+        m_animator->AdvanceTime(deltaTime);
     }
 }
 
@@ -67,6 +77,8 @@ void MeshNode3d::SetMesh(std::shared_ptr<Mesh> mesh) {
     RefreshSkinningFlags();
     m_uploadedPoseVersion = std::numeric_limits<uint64_t>::max();
     m_uploadedSkinCount = 0;
+    m_dispatchedVertexCount = 0;
+    m_skinnedVertexSsbo.reset();
 }
 
 void MeshNode3d::SetMeshByName(const std::string &name) {
@@ -80,6 +92,7 @@ void MeshNode3d::SetAnimator(std::shared_ptr<Animator> animator) {
     m_animator = std::move(animator);
     m_uploadedPoseVersion = std::numeric_limits<uint64_t>::max();
     m_uploadedSkinCount = 0;
+    m_dispatchedVertexCount = 0;
 }
 
 void MeshNode3d::Init() {
@@ -145,26 +158,29 @@ void MeshNode3d::Init() {
 }
 
 bool MeshNode3d::HasSkinning() const {
-    return m_meshHasSkinWeights && m_animator && m_animator->HasSkeleton() && !m_animator->GetSkinMatrices().empty();
+    return m_meshHasSkinWeights && m_animator && m_animator->HasSkeleton() && m_animator->GetSkinMatrixCount() > 0;
+}
+
+void MeshNode3d::PrepareSkinningForRender() const {
+    if (m_animator) {
+        m_animator->EvaluateAt(m_animator->GetCurrentTime());
+    }
+    SyncSkinningBuffer();
 }
 
 void MeshNode3d::BindSkinning(const Shader& shader) const {
     if (!HasSkinning()) {
-        shader.SetBool("u_Skinned", false);
+        shader.SetBool("u_UseSkinnedVertexBuffer", false);
         return;
     }
 
-    SyncSkinningBuffer();
-    const auto& skinMatrices = m_animator->GetSkinMatrices();
-    const int skinCount = std::min(static_cast<int>(skinMatrices.size()), MAX_SKIN_JOINTS);
-    if (skinCount <= 0 || !m_skinningUbo) {
-        shader.SetBool("u_Skinned", false);
+    if (!m_skinnedVertexSsbo) {
+        shader.SetBool("u_UseSkinnedVertexBuffer", false);
         return;
     }
 
-    shader.SetBool("u_Skinned", true);
-    shader.SetInt("u_SkinMatrixCount", skinCount);
-    m_skinningUbo->Bind();
+    shader.SetBool("u_UseSkinnedVertexBuffer", true);
+    m_skinnedVertexSsbo->Bind();
 }
 
 float MeshNode3d::ConsumeFrameSkinUploadMs() {
@@ -178,28 +194,65 @@ void MeshNode3d::SyncSkinningBuffer() const {
         return;
     }
 
-    const auto& skinMatrices = m_animator->GetSkinMatrices();
-    const int skinCount = std::min(static_cast<int>(skinMatrices.size()), MAX_SKIN_JOINTS);
+    const int skinCount = m_animator->GetSkinMatrixCount();
     if (skinCount <= 0) {
         return;
     }
 
-    if (!m_skinningUbo) {
-        m_skinningUbo = std::make_unique<UniformBuffer>(sizeof(glm::mat4) * static_cast<size_t>(MAX_SKIN_JOINTS), 9);
+    const uint64_t poseVersion = m_animator->GetPoseVersion();
+    const bool poseChanged = (m_uploadedPoseVersion != poseVersion) || (m_uploadedSkinCount != skinCount);
+    if (poseChanged) {
+        m_uploadedPoseVersion = poseVersion;
+        m_uploadedSkinCount = skinCount;
     }
 
-    const uint64_t poseVersion = m_animator->GetPoseVersion();
-    if (m_uploadedPoseVersion == poseVersion && m_uploadedSkinCount == skinCount) {
+    if (!m_mesh) {
         return;
     }
 
+    const size_t vertexCount = m_mesh->GetVertexCount();
+    if (vertexCount == 0) {
+        return;
+    }
+
+    const size_t skinnedBytes = vertexCount * sizeof(GpuSkinnedVertex);
+    if (!m_skinnedVertexSsbo || m_skinnedVertexSsbo->GetSize() < skinnedBytes) {
+        m_skinnedVertexSsbo = std::make_unique<ShaderStorageBuffer>(skinnedBytes, kSkinnedOutputBinding);
+        m_dispatchedVertexCount = 0;
+    }
+
+    if (!m_skinningComputeShader) {
+        m_skinningComputeShader = ResourceManager::Get().LoadComputeShader("SkinningCompute", "skinning.comp");
+    }
+
+    const ShaderStorageBuffer* sourceBuffer = m_mesh->GetSkinningSourceBuffer();
+    const ShaderStorageBuffer* skinMatricesBuffer = m_animator->GetSkinMatricesSsbo();
+    if (!m_skinningComputeShader || !sourceBuffer || !skinMatricesBuffer || !m_skinnedVertexSsbo) {
+        return;
+    }
+
+    if (!poseChanged && m_dispatchedVertexCount == vertexCount) {
+        return;
+    }
+
+    sourceBuffer->Bind();
+    skinMatricesBuffer->Bind();
+    m_skinnedVertexSsbo->Bind();
+
     const auto uploadStart = std::chrono::high_resolution_clock::now();
-    m_skinningUbo->SetData(skinMatrices.data(), sizeof(glm::mat4) * static_cast<size_t>(skinCount), 0);
+    GLint previousProgram = 0;
+    glGetIntegerv(GL_CURRENT_PROGRAM, &previousProgram);
+
+    m_skinningComputeShader->Bind();
+    m_skinningComputeShader->SetUint("u_VertexCount", static_cast<unsigned int>(vertexCount));
+    m_skinningComputeShader->SetInt("u_SkinMatrixCount", skinCount);
+    const unsigned int groupCount = static_cast<unsigned int>((vertexCount + kSkinningComputeWorkGroupSize - 1) / kSkinningComputeWorkGroupSize);
+    m_skinningComputeShader->Dispatch(groupCount, 1, 1);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT);
+    glUseProgram(static_cast<GLuint>(previousProgram));
     const auto uploadEnd = std::chrono::high_resolution_clock::now();
     s_frameSkinUploadMs += std::chrono::duration<float, std::milli>(uploadEnd - uploadStart).count();
-
-    m_uploadedPoseVersion = poseVersion;
-    m_uploadedSkinCount = skinCount;
+    m_dispatchedVertexCount = vertexCount;
 }
 
 void MeshNode3d::RefreshSkinningFlags() {

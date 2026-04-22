@@ -1,0 +1,63 @@
+#version 460 core
+
+layout (local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+struct SkinningInputVertex {
+    vec4 position;
+    vec4 normal;
+    vec4 tangent;
+    uvec4 joints;
+    vec4 weights;
+};
+
+struct SkinnedVertex {
+    vec4 position;
+    vec4 normal;
+    vec4 tangent;
+};
+
+layout (std430, binding = 10) readonly buffer SkinningInputBuffer {
+    SkinningInputVertex inputVertices[];
+};
+
+layout (std430, binding = 11) writeonly buffer SkinnedVertexBuffer {
+    SkinnedVertex skinnedVertices[];
+};
+
+layout (std430, binding = 15) readonly buffer SkinMatrixBuffer {
+    mat4 u_SkinMatrices[];
+};
+
+uniform uint u_VertexCount;
+uniform int u_SkinMatrixCount;
+
+void main() {
+    uint idx = gl_GlobalInvocationID.x;
+    if (idx >= u_VertexCount) {
+        return;
+    }
+
+    SkinningInputVertex src = inputVertices[idx];
+    float weightSum = src.weights.x + src.weights.y + src.weights.z + src.weights.w;
+
+    vec3 outPosition = src.position.xyz;
+    vec3 outNormal = src.normal.xyz;
+    vec3 outTangent = src.tangent.xyz;
+
+    if (weightSum > 0.0) {
+        int skinCount = max(u_SkinMatrixCount, 1);
+        mat4 skinMatrix =
+            src.weights.x * u_SkinMatrices[min(int(src.joints.x), skinCount - 1)] +
+            src.weights.y * u_SkinMatrices[min(int(src.joints.y), skinCount - 1)] +
+            src.weights.z * u_SkinMatrices[min(int(src.joints.z), skinCount - 1)] +
+            src.weights.w * u_SkinMatrices[min(int(src.joints.w), skinCount - 1)];
+
+        outPosition = (skinMatrix * vec4(src.position.xyz, 1.0)).xyz;
+        outNormal = normalize(mat3(skinMatrix) * src.normal.xyz);
+        outTangent = normalize(mat3(skinMatrix) * src.tangent.xyz);
+    }
+
+    skinnedVertices[idx].position = vec4(outPosition, 1.0);
+    skinnedVertices[idx].normal = vec4(outNormal, 0.0);
+    skinnedVertices[idx].tangent = vec4(outTangent, src.tangent.w);
+}

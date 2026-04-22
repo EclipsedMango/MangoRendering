@@ -192,7 +192,7 @@ set_property(TARGET imgui PROPERTY CXX_SCAN_FOR_MODULES OFF)
 
 target_include_directories(MangoRendering PRIVATE
         ${CMAKE_SOURCE_DIR}/Src
-        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/Include
         ${glm_SOURCE_DIR}
         ${stb_SOURCE_DIR}
         ${tinygltf_SOURCE_DIR}

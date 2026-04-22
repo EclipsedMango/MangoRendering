@@ -12,6 +12,7 @@
 #include "Nodes/Lights/PointLightNode3d.h"
 #include "Nodes/Lights/SpotLightNode3d.h"
 #include <algorithm>
+#include <tracy/Tracy.hpp>
 
 #include "ResourceManager.h"
 #include "ScriptManager.h"
@@ -186,10 +187,12 @@ void Core::EndImGuiFrame() {
 }
 
 void Core::SwapBuffers() const {
+    ZoneScoped;
     m_activeWindow->SwapBuffers();
 }
 
 bool Core::PollEvents() const {
+    ZoneScoped;
     Input::BeginFrame();
 
     SDL_Event event;
@@ -230,6 +233,7 @@ bool Core::IsInScene(const Node3d* node, const Node3d* sceneRoot) {
 }
 
 RenderStats Core::RenderScene(const Node3d* sceneRoot, const CameraNode3d* camera, const Framebuffer* targetFbo) const {
+    ZoneScoped;
     if (!camera || !targetFbo || !sceneRoot) {
         return {};
     }
@@ -304,6 +308,7 @@ RenderStats Core::RenderScene(const Node3d* sceneRoot, const CameraNode3d* camer
 }
 
 void Core::StepFrame(const float deltaTime) {
+    ZoneScoped;
     Animator::BeginFrame();
 
     m_accumulator += deltaTime;
@@ -334,6 +339,8 @@ void Core::Process() {
     uint64_t lastTime = SDL_GetTicksNS();
 
     while (m_activeWindow->IsOpen()) {
+        ZoneScoped;
+
         const uint64_t now = SDL_GetTicksNS();
         const float deltaTime = (now - lastTime) / 1e9f;
         lastTime = now;
@@ -349,6 +356,7 @@ void Core::Process() {
         EndImGuiFrame();
 
         SwapBuffers();
+        FrameMark;
     }
 }
 

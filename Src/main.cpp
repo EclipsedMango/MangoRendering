@@ -69,7 +69,16 @@ int main() {
     sphere->SetMeshByName("Sphere");
     sphere->GetActiveMaterial()->SetMetallicValue(0.75);
     sphere->GetActiveMaterial()->SetRoughnessValue(0.25);
-    sphere->SetPosition({0, 4, -2});
+    sphere->SetPosition({0, 4, 0});
+
+    for (int i = 0; i < 30; i++) {
+        for (int j = 0; j < 30; j++) {
+            auto newSphere = sphere->Clone();
+            newSphere->SetPosition({i+0.5, 4, j+0.5});
+            liveScene->AddChild(std::move(newSphere));
+        }
+    }
+
     liveScene->AddChild(std::move(sphere));
 
     auto portalA = std::make_unique<PortalNode3d>();

@@ -3,6 +3,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <thread>
+#include <tracy/Tracy.hpp>
 
 #include <Jolt/Core/Factory.h>
 #include <Jolt/Core/JobSystemThreadPool.h>
@@ -92,6 +93,7 @@ PhysicsWorld& PhysicsWorld::Get() {
 }
 
 void PhysicsWorld::Initialize() {
+    ZoneScoped;
     if (m_initialized) {
         return;
     }
@@ -161,6 +163,7 @@ void PhysicsWorld::Shutdown() {
 }
 
 void PhysicsWorld::Step(const float deltaTime) {
+    ZoneScoped;
     if (!m_initialized || deltaTime <= 0.0f) {
         return;
     }

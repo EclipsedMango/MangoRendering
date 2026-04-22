@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <stdexcept>
+#include <tracy/Tracy.hpp>
 
 #include "../Lights/GpuLights.h"
 
@@ -33,6 +34,7 @@ void LightManager::RemoveSpotLight(SpotLight* light) {
 }
 
 void LightManager::Upload() {
+    ZoneScoped;
     // --- directional lights + counts UBO (binding 1) ---
     constexpr size_t uboSize = sizeof(glm::ivec4) + MAX_DIR_LIGHTS * 2 * sizeof(glm::vec4);
     if (!m_globalLightUbo) {

@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <SDL3/SDL_video.h>
 #include <stdexcept>
+#include <tracy/Tracy.hpp>
 
 #include "ResourceManager.h"
 #include "Renderer/Lights/GpuLights.h"
@@ -290,6 +291,7 @@ void RenderApi::SetSkybox(SkyboxNode3d* skybox) {
 }
 
 RenderStats RenderApi::RenderScene(const CameraNode3d* camera, const Framebuffer* targetFbo, bool clearFbo) {
+    ZoneScoped;
     if (!camera || !targetFbo) {
         return {};
     }
@@ -301,6 +303,7 @@ RenderStats RenderApi::RenderScene(const CameraNode3d* camera, const Framebuffer
 }
 
 RenderStats RenderApi::RenderSceneWithPortals(const CameraNode3d *camera, const Framebuffer *targetFbo, const int maxPortalDepth) {
+    ZoneScoped;
     if (!camera || !targetFbo) {
         return {};
     }
@@ -332,6 +335,7 @@ RenderStats RenderApi::RenderSceneWithPortals(const CameraNode3d *camera, const 
 }
 
 void RenderApi::FinalizePostProcess(const Framebuffer* targetFbo) const {
+    ZoneScoped;
     RunPostProcess(targetFbo);
 }
 
@@ -344,6 +348,7 @@ void RenderApi::SetToneMapOperator(const ToneMapOperator op) {
 }
 
 void RenderApi::DrawGrid(const CameraNode3d *camera, const Framebuffer *targetFbo) const {
+    ZoneScoped;
     if (!camera || !targetFbo || !m_gridShader) return;
 
     const Framebuffer* drawTarget = targetFbo;
@@ -385,6 +390,7 @@ void RenderApi::DrawGrid(const CameraNode3d *camera, const Framebuffer *targetFb
 }
 
 void RenderApi::RenderMainPass(const CameraNode3d* camera, const Framebuffer* targetFbo, const std::vector<MeshNode3d*>& opaqueQueue, RenderStats& stats) {
+    ZoneScoped;
     struct BatchKey {
         uint64_t meshId = 0;
         uint64_t shaderId = 0;
@@ -545,6 +551,7 @@ void RenderApi::RenderMainPass(const CameraNode3d* camera, const Framebuffer* ta
 }
 
 void RenderApi::RenderTransparentPass(const Frustum& frustum, const std::vector<MeshNode3d*>& transparentQueue, RenderStats& stats) {
+    ZoneScoped;
     if (transparentQueue.empty()) {
         glDepthMask(GL_TRUE);
         glDepthFunc(GL_LEQUAL);
@@ -596,6 +603,7 @@ void RenderApi::RenderTransparentPass(const Frustum& frustum, const std::vector<
 }
 
 void RenderApi::RenderPortalPasses(const CameraNode3d *camera, const Framebuffer *targetFbo, const int remainingDepth, const int currentStencil) {
+    ZoneScoped;
     if (remainingDepth <= 0 || m_portalQueue.empty() || !camera || !targetFbo) {
         return;
     }
@@ -769,10 +777,12 @@ void RenderApi::EndZPrepass() {
 }
 
 void RenderApi::RebuildClusters(const CameraNode3d* camera, const Framebuffer *targetFbo) const {
+    ZoneScoped;
     m_clusterSystem->Rebuild(*camera, {targetFbo->GetWidth(), targetFbo->GetHeight()});
 }
 
 void RenderApi::RunLightCulling() const {
+    ZoneScoped;
     if (!m_clusterSystem) {
         std::cerr << "RunLightCulling: no cluster system\n";
         return;
@@ -803,6 +813,7 @@ void RenderApi::EnsurePostProcessResources(const Framebuffer* targetFbo) {
 }
 
 void RenderApi::RunPostProcess(const Framebuffer* targetFbo) const {
+    ZoneScoped;
     if (!targetFbo || !m_postProcessFramebuffer || !m_postProcessShader) {
         return;
     }
@@ -838,6 +849,7 @@ void RenderApi::RunPostProcess(const Framebuffer* targetFbo) const {
 }
 
 RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer *targetFbo, bool clearFbo, const PortalNode3d *excludedPortal, bool isMainPass) {
+    ZoneScoped;
     RenderStats stats = {};
     if (!camera || !targetFbo) {
         return stats;
@@ -853,44 +865,53 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
     std::vector<MeshNode3d*> transparentQueue;
     std::vector<MeshNode3d*> opaqueQueue;
 
-    for (MeshNode3d* node : m_meshQueue) {
-        if (excludedPortal && node == static_cast<const MeshNode3d*>(excludedPortal)) {
-            continue;
-        }
+    {
+        ZoneScopedN("BuildRenderQueues");
+        for (MeshNode3d* node : m_meshQueue) {
+            if (excludedPortal && node == static_cast<const MeshNode3d*>(excludedPortal)) {
+                continue;
+            }
 
-        const BlendMode mode = node->GetActiveMaterial()->GetBlendMode();
-        if (mode == BlendMode::AlphaBlend || mode == BlendMode::Additive) {
-            transparentQueue.push_back(node);
-            continue;
-        }
+            const BlendMode mode = node->GetActiveMaterial()->GetBlendMode();
+            if (mode == BlendMode::AlphaBlend || mode == BlendMode::Additive) {
+                transparentQueue.push_back(node);
+                continue;
+            }
 
-        opaqueQueue.push_back(node);
+            opaqueQueue.push_back(node);
+        }
     }
 
     std::vector<MeshNode3d*> culledOpaque;
-    for (MeshNode3d* node : opaqueQueue) {
-        node->SetAnimationVisible(false);
-        if (!IsCulled(node, cameraFrustum, stats)) {
-            node->SetAnimationVisible(true);
-            culledOpaque.push_back(node);
+    {
+        ZoneScopedN("FrustumCull");
+        for (MeshNode3d* node : opaqueQueue) {
+            node->SetAnimationVisible(false);
+            if (!IsCulled(node, cameraFrustum, stats)) {
+                node->SetAnimationVisible(true);
+                culledOpaque.push_back(node);
+            }
         }
-    }
-    for (MeshNode3d* node : transparentQueue) {
-        node->SetAnimationVisible(false);
-        if (!IsCulled(node, cameraFrustum, stats)) {
-            node->SetAnimationVisible(true);
+        for (MeshNode3d* node : transparentQueue) {
+            node->SetAnimationVisible(false);
+            if (!IsCulled(node, cameraFrustum, stats)) {
+                node->SetAnimationVisible(true);
+            }
         }
     }
 
     // prepare skinning buffers only for this frame's visible nodes
-    for (const MeshNode3d* node : culledOpaque) {
-        if (node->IsAnimationVisible()) {
-            node->PrepareSkinningForRender();
+    {
+        ZoneScopedN("PrepareSkinning");
+        for (const MeshNode3d* node : culledOpaque) {
+            if (node->IsAnimationVisible()) {
+                node->PrepareSkinningForRender();
+            }
         }
-    }
-    for (const MeshNode3d* node : transparentQueue) {
-        if (node->IsAnimationVisible()) {
-            node->PrepareSkinningForRender();
+        for (const MeshNode3d* node : transparentQueue) {
+            if (node->IsAnimationVisible()) {
+                node->PrepareSkinningForRender();
+            }
         }
     }
 
@@ -909,18 +930,21 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
         opaqueSortEntries.push_back({node, depth});
     }
 
-    std::ranges::sort(opaqueSortEntries, [](const OpaqueSortEntry& a, const OpaqueSortEntry& b) {
-        if (a.depth != b.depth) {
-            return a.depth < b.depth;
-        }
+    {
+        ZoneScopedN("SortQueues");
+        std::ranges::sort(opaqueSortEntries, [](const OpaqueSortEntry& a, const OpaqueSortEntry& b) {
+            if (a.depth != b.depth) {
+                return a.depth < b.depth;
+            }
 
-        const auto shaderA = a.node->GetActiveMaterial()->GetShader();
-        const auto shaderB = b.node->GetActiveMaterial()->GetShader();
-        if (shaderA->GetResourceId() != shaderB->GetResourceId()) {
-            return shaderA->GetResourceId() < shaderB->GetResourceId();
-        }
-        return a.node->GetActiveMaterial()->GetResourceId() < b.node->GetActiveMaterial()->GetResourceId();
-    });
+            const auto shaderA = a.node->GetActiveMaterial()->GetShader();
+            const auto shaderB = b.node->GetActiveMaterial()->GetShader();
+            if (shaderA->GetResourceId() != shaderB->GetResourceId()) {
+                return shaderA->GetResourceId() < shaderB->GetResourceId();
+            }
+            return a.node->GetActiveMaterial()->GetResourceId() < b.node->GetActiveMaterial()->GetResourceId();
+        });
+    }
 
     culledOpaque.clear();
     culledOpaque.reserve(opaqueSortEntries.size());
@@ -928,11 +952,14 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
         culledOpaque.push_back(entry.node);
     }
 
-    std::ranges::sort(transparentQueue, [&](const MeshNode3d* a, const MeshNode3d* b) {
-        const float depthA = glm::dot(glm::vec3(a->GetWorldMatrix()[3]) - camPos, forward);
-        const float depthB = glm::dot(glm::vec3(b->GetWorldMatrix()[3]) - camPos, forward);
-        return depthA > depthB;
-    });
+    {
+        ZoneScopedN("SortTransparentQueue");
+        std::ranges::sort(transparentQueue, [&](const MeshNode3d* a, const MeshNode3d* b) {
+            const float depthA = glm::dot(glm::vec3(a->GetWorldMatrix()[3]) - camPos, forward);
+            const float depthB = glm::dot(glm::vec3(b->GetWorldMatrix()[3]) - camPos, forward);
+            return depthA > depthB;
+        });
+    }
 
     stats.submitted = static_cast<uint32_t>(culledOpaque.size() + transparentQueue.size());
 
@@ -965,10 +992,12 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
     const glm::vec2 targetSize(targetFbo->GetWidth(), targetFbo->GetHeight());
 
     if (isMainPass) {
+        ZoneScopedN("RenderShadows");
         glEnable(GL_POLYGON_OFFSET_FILL);
         glPolygonOffset(1.5f, 4.0f);
-        m_shadowRenderer->RenderDirectionalShadows(*camera, opaqueQueue, targetSize);
-        m_shadowRenderer->RenderPointLightShadows(*camera, m_lightManager->GetPointLights(), opaqueQueue, targetSize);
+        m_shadowRenderer->BuildShadowDrawItems(opaqueQueue);
+        m_shadowRenderer->RenderDirectionalShadows(*camera, targetSize);
+        m_shadowRenderer->RenderPointLightShadows(*camera, m_lightManager->GetPointLights(), targetSize);
         glDisable(GL_POLYGON_OFFSET_FILL);
         stats.shadowDrawCalls = m_shadowRenderer->GetShadowDrawCallCount();
     }
@@ -1024,58 +1053,69 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
         }].push_back(node);
     }
 
-    for (const auto& [key, nodes] : depthInstancedBatches) {
-        if (nodes.empty()) {
-            continue;
+    // bro why can ZoneScopedN only be declared once man, now i gotta use this dumb block, maybe i could use a lambda?
+    {
+        ZoneScopedN("DepthPrepass");
+        for (const auto& [key, nodes] : depthInstancedBatches) {
+            if (nodes.empty()) {
+                continue;
+            }
+
+            const MeshNode3d* representative = nodes.front();
+            const Material* mat = representative->GetActiveMaterial();
+            ApplyMaterialCull(mat);
+            m_depthShader->SetBool("u_UseSkinnedVertexBuffer", false);
+            m_depthShader->SetBool("u_UseInstancing", true);
+
+            bool alpha = mat->GetBlendMode() == BlendMode::AlphaScissor;
+            m_depthShader->SetBool("u_AlphaScissor", alpha);
+
+            if (alpha) {
+                m_depthShader->SetFloat("u_AlphaScissorThreshold", mat->GetAlphaScissorThreshold());
+                m_depthShader->SetBool("u_HasDiffuse", mat->GetDiffuse() != nullptr);
+
+                if (mat->GetDiffuse()) {
+                    mat->GetDiffuse()->Bind(0);
+                    m_depthShader->SetInt("u_Diffuse", 0);
+                }
+
+                m_depthShader->SetVector4("u_AlbedoColor", mat->GetAlbedoColor());
+                m_depthShader->SetVector2("u_UVScale", mat->GetUVScale());
+                m_depthShader->SetVector2("u_UVOffset", mat->GetUVOffset());
+            }
+
+            if (mat->GetDiffuse()) {
+                mat->GetDiffuse()->Bind(0);
+                m_depthShader->SetInt("u_Diffuse", 0);
+            }
+
+            std::vector<InstanceDrawData> instanceData;
+            instanceData.reserve(nodes.size());
+            for (const MeshNode3d* instancedNode : nodes) {
+                const glm::mat4 model = instancedNode->GetWorldMatrix();
+                instanceData.push_back({ model });
+            }
+
+            EnsureInstanceBuffer(instanceData.size());
+            m_instanceSsbo->SetData(instanceData.data(), instanceData.size() * sizeof(InstanceDrawData), 0);
+            m_instanceSsbo->Bind();
+
+            const auto drawStart = std::chrono::high_resolution_clock::now();
+            representative->GetMesh()->GetBuffer()->Bind();
+            glDrawElementsInstanced(
+                GL_TRIANGLES,
+                representative->GetMesh()->GetBuffer()->GetIndexCount(),
+                GL_UNSIGNED_INT,
+                nullptr,
+                static_cast<GLsizei>(instanceData.size())
+            );
+            const auto drawEnd = std::chrono::high_resolution_clock::now();
+            stats.drawSubmitMs += std::chrono::duration<float, std::milli>(drawEnd - drawStart).count();
         }
 
-        const MeshNode3d* representative = nodes.front();
-        const Material* mat = representative->GetActiveMaterial();
-        ApplyMaterialCull(mat);
-        m_depthShader->SetBool("u_UseSkinnedVertexBuffer", false);
-        m_depthShader->SetBool("u_UseInstancing", true);
-
-        m_depthShader->SetBool("u_AlphaScissor", mat->GetBlendMode() == BlendMode::AlphaScissor);
-        m_depthShader->SetFloat("u_AlphaScissorThreshold", mat->GetAlphaScissorThreshold());
-        m_depthShader->SetBool("u_HasDiffuse", mat->GetDiffuse() != nullptr);
-        m_depthShader->SetVector4("u_AlbedoColor", mat->GetAlbedoColor());
-        m_depthShader->SetVector2("u_UVScale", mat->GetUVScale());
-        m_depthShader->SetVector2("u_UVOffset", mat->GetUVOffset());
-
-        if (mat->GetDiffuse()) {
-            mat->GetDiffuse()->Bind(0);
-            m_depthShader->SetInt("u_Diffuse", 0);
+        for (const MeshNode3d* mesh : depthSingleDraws) {
+            DrawMeshNodeDepth(mesh, stats);
         }
-
-        std::vector<InstanceDrawData> instanceData;
-        instanceData.reserve(nodes.size());
-        for (const MeshNode3d* instancedNode : nodes) {
-            const glm::mat4 model = instancedNode->GetWorldMatrix();
-            instanceData.push_back({
-                model,
-                glm::transpose(glm::inverse(model))
-            });
-        }
-
-        EnsureInstanceBuffer(instanceData.size());
-        m_instanceSsbo->SetData(instanceData.data(), instanceData.size() * sizeof(InstanceDrawData), 0);
-        m_instanceSsbo->Bind();
-
-        const auto drawStart = std::chrono::high_resolution_clock::now();
-        representative->GetMesh()->GetBuffer()->Bind();
-        glDrawElementsInstanced(
-            GL_TRIANGLES,
-            representative->GetMesh()->GetBuffer()->GetIndexCount(),
-            GL_UNSIGNED_INT,
-            nullptr,
-            static_cast<GLsizei>(instanceData.size())
-        );
-        const auto drawEnd = std::chrono::high_resolution_clock::now();
-        stats.drawSubmitMs += std::chrono::duration<float, std::milli>(drawEnd - drawStart).count();
-    }
-
-    for (const MeshNode3d* mesh : depthSingleDraws) {
-        DrawMeshNodeDepth(mesh, stats);
     }
     EndZPrepass();
 
@@ -1095,6 +1135,7 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
 }
 
 void RenderApi::DrawMeshNodeDepth(const MeshNode3d *node, RenderStats& stats) const {
+    ZoneScoped;
     if (!node || !node->GetMesh()->IsUploaded()) {
         std::cerr << "DrawObjectDepth called with null Object/Mesh" << std::endl;
         return;

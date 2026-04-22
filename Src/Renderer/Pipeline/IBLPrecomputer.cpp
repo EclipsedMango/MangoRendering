@@ -2,6 +2,7 @@
 #include "IBLPrecomputer.h"
 
 #include <iostream>
+#include <tracy/Tracy.hpp>
 
 #include "Core/ResourceManager.h"
 #include "glad/gl.h"
@@ -46,6 +47,7 @@ static std::unique_ptr<Mesh> CreateCaptureCube() {
 
 // this creates its own fbo and rbo using raw gl calls, because it felt overkill adding it to fbo class.
 IBLPrecomputer::Result IBLPrecomputer::Compute(const Texture &envCubemap) {
+    ZoneScoped;
     // create a single capture FBO and RBO reused across all passes
     GLuint captureFbo, captureRbo;
     glGenFramebuffers(1, &captureFbo);
@@ -87,6 +89,7 @@ void IBLPrecomputer::Shutdown() {
 }
 
 std::unique_ptr<Texture> IBLPrecomputer::ComputeIrradiance(const Texture &env, const GLuint captureFbo, const GLuint captureRbo, const Mesh &cube) {
+    ZoneScoped;
     auto irradiance = std::make_unique<Texture>(IRRADIANCE_SIZE, IRRADIANCE_SIZE, GL_RGB16F, 1);
 
     glBindFramebuffer(GL_FRAMEBUFFER, captureFbo);
@@ -119,6 +122,7 @@ std::unique_ptr<Texture> IBLPrecomputer::ComputeIrradiance(const Texture &env, c
 }
 
 std::unique_ptr<Texture> IBLPrecomputer::ComputePrefiltered(const Texture &env, const GLuint captureFbo, const GLuint captureRbo, const Mesh &cube) {
+    ZoneScoped;
     auto prefiltered = std::make_unique<Texture>(PREFILTER_SIZE, PREFILTER_SIZE, GL_RGB16F, PREFILTER_MIP_LEVELS);
 
     m_prefilterShader->Bind();

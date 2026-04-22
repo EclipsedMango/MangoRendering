@@ -48,6 +48,10 @@ set(TARGET_VIEWER OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(JoltPhysics GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git GIT_TAG v5.3.0 SOURCE_SUBDIR Build)
 FetchContent_MakeAvailable(JoltPhysics)
 
+set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
+FetchContent_Declare (tracy GIT_REPOSITORY https://github.com/wolfpld/tracy.git GIT_TAG master GIT_SHALLOW TRUE GIT_PROGRESS TRUE)
+FetchContent_MakeAvailable(tracy)
+
 add_library(imgui STATIC
         ${imgui_SOURCE_DIR}/imgui.cpp
         ${imgui_SOURCE_DIR}/imgui_draw.cpp
@@ -184,7 +188,7 @@ add_executable(MangoRendering Src/main.cpp
         Src/Core/PhysicsWorld.h
 )
 
-target_link_libraries(MangoRendering PRIVATE SDL3::SDL3 glad_gl imgui ${CMAKE_DL_LIBS} fkYAML::fkYAML lua::lua sol2::sol2 Jolt)
+target_link_libraries(MangoRendering PRIVATE SDL3::SDL3 glad_gl imgui ${CMAKE_DL_LIBS} fkYAML::fkYAML lua::lua sol2::sol2 Jolt TracyClient)
 target_compile_definitions(MangoRendering PRIVATE SOL_LUA_VERSION=504)
 
 set_property(TARGET MangoRendering PROPERTY CXX_SCAN_FOR_MODULES OFF)
@@ -196,6 +200,7 @@ target_include_directories(MangoRendering PRIVATE
         ${glm_SOURCE_DIR}
         ${stb_SOURCE_DIR}
         ${tinygltf_SOURCE_DIR}
+        ${tracy_SOURCE_DIR}/public
 )
 
 add_custom_target(copy_assets ALL

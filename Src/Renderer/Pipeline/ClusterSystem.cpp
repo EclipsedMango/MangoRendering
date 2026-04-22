@@ -2,6 +2,7 @@
 #include "ClusterSystem.h"
 
 #include <iostream>
+#include <tracy/Tracy.hpp>
 
 #include "Core/ResourceManager.h"
 #include "glad/gl.h"
@@ -27,6 +28,7 @@ ClusterSystem::~ClusterSystem() {
 }
 
 void ClusterSystem::Rebuild(const CameraNode3d& camera, const glm::vec2& viewportSize) const {
+    ZoneScoped;
     if (!m_clusterShader) {
         std::cerr << "ClusterSystem::Rebuild: no cluster shader\n";
         return;
@@ -44,6 +46,7 @@ void ClusterSystem::Rebuild(const CameraNode3d& camera, const glm::vec2& viewpor
 }
 
 void ClusterSystem::Cull(const ShaderStorageBuffer* pointLightSsbo, const ShaderStorageBuffer* spotLightSsbo) {
+    ZoneScoped;
     if (!m_cullShader) {
         std::cerr << "ClusterSystem::Cull: no cull shader\n";
         return;

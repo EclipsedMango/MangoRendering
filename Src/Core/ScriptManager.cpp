@@ -6,6 +6,7 @@
 #include <iostream>
 #include <utility>
 #include <variant>
+#include <tracy/Tracy.hpp>
 
 #include "Input.h"
 #include "ResourceManager.h"
@@ -196,6 +197,7 @@ void ScriptManager::Init() {
 }
 
 void ScriptManager::SetScript(Node3d *node, const std::string &path) const {
+    ZoneScoped;
     ClearScript(node);
 
     if (!node || path.empty()) {
@@ -280,6 +282,7 @@ bool ScriptManager::IsRuntimeEnabled() const {
 }
 
 void ScriptManager::CallReady(const Node3d *node) const {
+    ZoneScoped;
     if (!m_impl->runtimeEnabled) {
         return;
     }
@@ -308,6 +311,7 @@ void ScriptManager::CallReady(const Node3d *node) const {
 }
 
 void ScriptManager::CallProcess(Node3d *node, float deltaTime) const {
+    ZoneScoped;
     if (!m_impl->runtimeEnabled) {
         return;
     }
@@ -322,6 +326,7 @@ void ScriptManager::CallProcess(Node3d *node, float deltaTime) const {
 }
 
 void ScriptManager::CallPhysicsProcess(Node3d *node, float deltaTime) const {
+    ZoneScoped;
     if (!m_impl->runtimeEnabled) {
         return;
     }

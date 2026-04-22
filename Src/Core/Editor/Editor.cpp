@@ -58,11 +58,10 @@ void Editor::Run() {
     uint64_t lastTime = SDL_GetTicksNS();
 
     while (m_core.GetActiveWindow()->IsOpen()) {
+        const uint64_t cpuStart = SDL_GetTicksNS();
         const uint64_t now = SDL_GetTicksNS();
         const float deltaTime = (now - lastTime) / 1e9f;
         lastTime = now;
-
-        const uint64_t cpuStart = SDL_GetTicksNS();
 
         m_core.PollEvents();
 

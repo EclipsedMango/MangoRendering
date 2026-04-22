@@ -61,12 +61,15 @@ void Core::Notification(Node3d *node, const NodeNotification notification) {
     switch (notification) {
         case NodeNotification::EnterTree: {
             m_nodeCache.push_back(node);
+            const Node3d* root = CacheByRoot(node);
             if (auto* r = dynamic_cast<RenderableNode3d*>(node)) {
                 m_renderableCache.push_back(r);
+                m_renderablesByRoot[root].push_back(r);
             }
 
             if (auto* l = dynamic_cast<LightNode3d*>(node)) {
                 m_lightNodeCache.push_back(l);
+                m_lightsByRoot[root].push_back(l);
                 RegisterLight(l);
             }
 
@@ -74,13 +77,31 @@ void Core::Notification(Node3d *node, const NodeNotification notification) {
         }
 
         case NodeNotification::ExitTree: {
+            const Node3d* root = GetCachedRoot(node);
+            UncacheByRoot(node);
             std::erase(m_nodeCache, node);
             if (auto* r = dynamic_cast<RenderableNode3d*>(node)) {
                 std::erase(m_renderableCache, r);
+                if (root) {
+                    if (auto it = m_renderablesByRoot.find(root); it != m_renderablesByRoot.end()) {
+                        std::erase(it->second, r);
+                        if (it->second.empty()) {
+                            m_renderablesByRoot.erase(it);
+                        }
+                    }
+                }
             }
 
             if (auto* l = dynamic_cast<LightNode3d*>(node)) {
                 std::erase(m_lightNodeCache, l);
+                if (root) {
+                    if (auto it = m_lightsByRoot.find(root); it != m_lightsByRoot.end()) {
+                        std::erase(it->second, l);
+                        if (it->second.empty()) {
+                            m_lightsByRoot.erase(it);
+                        }
+                    }
+                }
                 UnregisterLight(l);
             }
 
@@ -208,39 +229,65 @@ bool Core::IsInScene(const Node3d* node, const Node3d* sceneRoot) {
     return false;
 }
 
-RenderStats Core::RenderScene(Node3d* sceneRoot, const CameraNode3d* camera, const Framebuffer* targetFbo) const {
+RenderStats Core::RenderScene(const Node3d* sceneRoot, const CameraNode3d* camera, const Framebuffer* targetFbo) const {
     if (!camera || !targetFbo || !sceneRoot) {
         return {};
     }
 
-    sceneRoot->UpdateWorldTransform();
     m_renderer->ClearQueues();
 
     if (m_globalSkybox) {
         m_renderer->SetSkybox(m_globalSkybox.get());
     }
 
-    for (auto* l : m_lightNodeCache) {
-        if (IsInScene(l, sceneRoot)) {
+    if (const auto lightIt = m_lightsByRoot.find(sceneRoot); lightIt != m_lightsByRoot.end()) {
+        for (auto* l : lightIt->second) {
             l->SyncLight();
+        }
+    } else {
+        for (auto* l : m_lightNodeCache) {
+            if (IsInScene(l, sceneRoot)) {
+                l->SyncLight();
+            }
         }
     }
 
-    for (auto* renderable : m_renderableCache) {
-        if (!IsInScene(renderable, sceneRoot) || !renderable->IsVisible()) {
-            continue;
-        }
-
-        if (auto* portal = dynamic_cast<PortalNode3d*>(renderable)) {
-            if (portal->GetMesh() && portal->GetActiveMaterial() && portal->GetActiveMaterial()->GetShader()) {
-                m_renderer->SubmitPortal(portal);
+    if (const auto renderIt = m_renderablesByRoot.find(sceneRoot); renderIt != m_renderablesByRoot.end()) {
+        for (auto* renderable : renderIt->second) {
+            if (!renderable->IsVisible()) {
+                continue;
             }
-            continue;
-        }
 
-        if (auto* meshNode = dynamic_cast<MeshNode3d*>(renderable)) {
-            if (meshNode->GetMesh() && meshNode->GetActiveMaterial() && meshNode->GetActiveMaterial()->GetShader()) {
-                m_renderer->SubmitMesh(meshNode);
+            if (auto* portal = dynamic_cast<PortalNode3d*>(renderable)) {
+                if (portal->GetMesh() && portal->GetActiveMaterial() && portal->GetActiveMaterial()->GetShader()) {
+                    m_renderer->SubmitPortal(portal);
+                }
+                continue;
+            }
+
+            if (auto* meshNode = dynamic_cast<MeshNode3d*>(renderable)) {
+                if (meshNode->GetMesh() && meshNode->GetActiveMaterial() && meshNode->GetActiveMaterial()->GetShader()) {
+                    m_renderer->SubmitMesh(meshNode);
+                }
+            }
+        }
+    } else {
+        for (auto* renderable : m_renderableCache) {
+            if (!IsInScene(renderable, sceneRoot) || !renderable->IsVisible()) {
+                continue;
+            }
+
+            if (auto* portal = dynamic_cast<PortalNode3d*>(renderable)) {
+                if (portal->GetMesh() && portal->GetActiveMaterial() && portal->GetActiveMaterial()->GetShader()) {
+                    m_renderer->SubmitPortal(portal);
+                }
+                continue;
+            }
+
+            if (auto* meshNode = dynamic_cast<MeshNode3d*>(renderable)) {
+                if (meshNode->GetMesh() && meshNode->GetActiveMaterial() && meshNode->GetActiveMaterial()->GetShader()) {
+                    m_renderer->SubmitMesh(meshNode);
+                }
             }
         }
     }
@@ -279,9 +326,7 @@ void Core::StepFrame(const float deltaTime) {
     }
 
     for (auto* node : m_nodeCache) {
-        if (!node->GetParent()) {
-            node->UpdateWorldTransform();
-        }
+        node->UpdateWorldTransformFromParent();
     }
 }
 
@@ -317,6 +362,42 @@ void Core::UnregisterScene(Node3d *scene) {
 
 bool Core::IsNodeCached(const Node3d* node) const {
     return std::ranges::find(m_nodeCache, node) != m_nodeCache.end();
+}
+
+Node3d* Core::CacheByRoot(Node3d *node) {
+    Node3d* root = node;
+    while (root->GetParent()) {
+        root = root->GetParent();
+    }
+
+    m_nodeRootCache[node] = root;
+    m_nodesByRoot[root].push_back(node);
+    return root;
+}
+
+void Core::UncacheByRoot(Node3d *node) {
+    const auto rootIt = m_nodeRootCache.find(node);
+    if (rootIt == m_nodeRootCache.end()) {
+        return;
+    }
+
+    const Node3d* root = rootIt->second;
+    m_nodeRootCache.erase(rootIt);
+
+    if (const auto it = m_nodesByRoot.find(root); it != m_nodesByRoot.end()) {
+        std::erase(it->second, node);
+        if (it->second.empty()) {
+            m_nodesByRoot.erase(it);
+        }
+    }
+}
+
+Node3d* Core::GetCachedRoot(const Node3d *node) const {
+    if (const auto it = m_nodeRootCache.find(node); it != m_nodeRootCache.end()) {
+        return it->second;
+    }
+
+    return nullptr;
 }
 
 void Core::ApplyCameraMode() {
@@ -366,6 +447,10 @@ void Core::RebuildNodeCache() {
     m_nodeCache.clear();
     m_renderableCache.clear();
     m_lightNodeCache.clear();
+    m_nodeRootCache.clear();
+    m_nodesByRoot.clear();
+    m_renderablesByRoot.clear();
+    m_lightsByRoot.clear();
 
     for (auto* root : roots) {
         root->PropagateEnterTree(this);

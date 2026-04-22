@@ -100,6 +100,11 @@ void Node3d::UpdateWorldTransform(const glm::mat4 &parentWorld) {
     }
 }
 
+void Node3d::UpdateWorldTransformFromParent() {
+    const glm::mat4 parentWorld = m_parent ? m_parent->m_worldMatrix : glm::mat4(1.0f);
+    m_worldMatrix = parentWorld * GetLocalMatrix();
+}
+
 void Node3d::SetScript(const std::string &path) {
     m_scriptPath = path;
     ScriptManager::Get().SetScript(this, path);

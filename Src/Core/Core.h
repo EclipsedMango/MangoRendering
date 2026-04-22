@@ -2,6 +2,8 @@
 #ifndef MANGORENDERING_CORE_H
 #define MANGORENDERING_CORE_H
 
+#include <unordered_map>
+
 #include "imgui.h"
 #include "RenderApi.h"
 #include "TreeListener.h"
@@ -26,7 +28,7 @@ public:
     void Notification(Node3d* node, NodeNotification notification) override;
 
     [[nodiscard]] bool PollEvents() const; // returns false when window should close
-    RenderStats RenderScene(Node3d* sceneRoot, const CameraNode3d* camera, const Framebuffer* targetFbo) const;
+    RenderStats RenderScene(const Node3d* sceneRoot, const CameraNode3d* camera, const Framebuffer* targetFbo) const;
     void SwapBuffers() const;
     void StepFrame(float deltaTime);
     void Process();
@@ -65,7 +67,11 @@ private:
     void InitRenderer();
     void InitImGui() const;
 
+    void UncacheByRoot(Node3d* node);
+
     [[nodiscard]] bool IsNodeCached(const Node3d* node) const;
+    [[nodiscard]] Node3d* CacheByRoot(Node3d* node);
+    [[nodiscard]] Node3d* GetCachedRoot(const Node3d* node) const;
 
     void ApplyCameraMode();
 
@@ -88,6 +94,10 @@ private:
     std::vector<Node3d*> m_nodeCache;
     std::vector<RenderableNode3d*> m_renderableCache;
     std::vector<LightNode3d*> m_lightNodeCache;
+    std::unordered_map<const Node3d*, Node3d*> m_nodeRootCache;
+    std::unordered_map<const Node3d*, std::vector<Node3d*>> m_nodesByRoot;
+    std::unordered_map<const Node3d*, std::vector<RenderableNode3d*>> m_renderablesByRoot;
+    std::unordered_map<const Node3d*, std::vector<LightNode3d*>> m_lightsByRoot;
 
     std::unique_ptr<Framebuffer> m_mainFramebuffer;
 

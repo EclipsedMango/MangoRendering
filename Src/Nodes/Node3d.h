@@ -33,6 +33,7 @@ public:
     virtual void Process(float deltaTime);
 
     void UpdateWorldTransform(const glm::mat4& parentWorld = glm::mat4(1.0f));
+    void UpdateWorldTransformFromParent();
 
     void SetScript(const std::string& path);
     [[nodiscard]] std::string GetScriptPath() const { return m_scriptPath; }

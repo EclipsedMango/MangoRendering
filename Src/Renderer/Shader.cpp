@@ -180,6 +180,8 @@ void Shader::Recompile() {
         glLinkProgram(m_id);
         CheckCompileErrors(m_id, "PROGRAM");
 
+        m_supportsInstancing = glGetUniformLocation(m_id, "u_UseInstancing") != -1;
+
         glDeleteShader(vertex);
         glDeleteShader(fragment);
         if (geometry != 0) {

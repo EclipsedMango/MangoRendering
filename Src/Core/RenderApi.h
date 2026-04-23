@@ -162,6 +162,51 @@ private:
 
     int m_debugMode = 0;
     int m_debugCascade = 0;
+
+    struct GlobalUniformLocations {
+        int screenSize = -1;
+        int cameraPos = -1;
+        int zNear = -1;
+        int zFar = -1;
+        int debugMode = -1;
+        int debugCascade = -1;
+        int hasIbl = -1;
+        int irradianceMap = -1;
+        int prefilteredEnvMap = -1;
+        int maxPrefilteredMip = -1;
+        int iblDiffuseIntensity = -1;
+        int iblSpecularIntensity = -1;
+        int useInstancing = -1;
+        int useSkinnedVertexBuffer = -1;
+        uint64_t cachedShaderId = 0; // which shader these belong to
+    };
+    GlobalUniformLocations m_cachedGlobalLocs;
+
+    struct InstanceDrawData {
+        glm::mat4 model;
+        glm::mat4 normalMatrix;
+    };
+    std::vector<InstanceDrawData> m_instanceDataScratch;
+
+    struct BatchKey {
+        uint64_t meshId = 0;
+        uint64_t shaderId = 0;
+        uint64_t materialId = 0;
+
+        bool operator==(const BatchKey& other) const {
+            return meshId == other.meshId && shaderId == other.shaderId && materialId == other.materialId;
+        }
+    };
+
+    struct BatchKeyHash {
+        size_t operator()(const BatchKey& key) const {
+            const size_t h1 = std::hash<uint64_t>{}(key.meshId);
+            const size_t h2 = std::hash<uint64_t>{}(key.shaderId);
+            const size_t h3 = std::hash<uint64_t>{}(key.materialId);
+            return h1 ^ (h2 << 1) ^ (h3 << 2);
+        }
+    };
+    std::unordered_map<BatchKey, std::vector<const MeshNode3d*>, BatchKeyHash> m_instancedBatches;
 };
 
 #endif //MANGORENDERING_RENDERAPI_H

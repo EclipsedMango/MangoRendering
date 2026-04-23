@@ -39,6 +39,7 @@ public:
     [[nodiscard]] std::string GetGeometryPath() const { return m_geometryPath; }
     [[nodiscard]] std::string GetComputePath() const { return m_computePath; }
     [[nodiscard]] bool IsCompute() const { return !m_computePath.empty(); }
+    [[nodiscard]] bool SupportsInstancing() const { return m_supportsInstancing; }
     [[nodiscard]] uint64_t GetResourceId() const { return m_resourceId; }
 
     void SetName(const std::string& name) { m_name = name; }
@@ -57,6 +58,7 @@ private:
     std::string m_geometryPath;
     std::string m_computePath;
     bool m_isCompute = false;
+    bool m_supportsInstancing = false;
     uint64_t m_resourceId = 0;
 
     bool IsBound() const;

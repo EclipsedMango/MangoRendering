@@ -49,13 +49,20 @@ public:
     [[nodiscard]] bool IsUnique() const { return m_isUnique; }
     [[nodiscard]] bool HasSkinning() const;
     [[nodiscard]] static float ConsumeFrameSkinUploadMs();
+    [[nodiscard]] const glm::mat4& GetNormalMatrix() const;
 
     [[nodiscard]] std::string GetNodeType() const override { return "MeshNode3d"; }
+
+protected:
+    void OnWorldMatrixChanged() override { m_normalMatrixDirty = true; }
 
 private:
     virtual void Init();
     void SyncSkinningBuffer() const;
     void RefreshSkinningFlags();
+
+    mutable glm::mat4 m_cachedNormalMatrix = glm::mat4(1.0f);
+    mutable bool m_normalMatrixDirty = true;
 
     std::shared_ptr<PropertyHolder> m_meshSlot;
 

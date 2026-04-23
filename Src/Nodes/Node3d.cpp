@@ -93,16 +93,24 @@ void Node3d::Process(const float deltaTime) {
     // override in subclasses
 }
 
-void Node3d::UpdateWorldTransform(const glm::mat4 &parentWorld) {
-    m_worldMatrix = parentWorld * GetLocalMatrix();
+void Node3d::UpdateWorldTransform(const glm::mat4& parentWorld, const bool parentDirty) {
+    const bool needsUpdate = parentDirty || m_localDirty || m_worldMatrixDirty;
+
+    if (needsUpdate) {
+        m_worldMatrix = parentWorld * GetLocalMatrix();
+        m_worldMatrixDirty = false;
+        OnWorldMatrixChanged();
+    }
+
     for (auto* child : m_children) {
-        child->UpdateWorldTransform(m_worldMatrix);
+        child->UpdateWorldTransform(m_worldMatrix, needsUpdate);
     }
 }
 
 void Node3d::UpdateWorldTransformFromParent() {
     const glm::mat4 parentWorld = m_parent ? m_parent->m_worldMatrix : glm::mat4(1.0f);
-    m_worldMatrix = parentWorld * GetLocalMatrix();
+    constexpr bool parentDirty = true;
+    UpdateWorldTransform(parentWorld, parentDirty);
 }
 
 void Node3d::SetScript(const std::string &path) {
@@ -132,11 +140,13 @@ void Node3d::SetLocalTransform(const glm::mat4 &mat) {
 
     m_rotation = glm::normalize(glm::quat_cast(rotMat));
     m_localDirty = true;
+    m_worldMatrixDirty = true;
 }
 
 void Node3d::SetPosition(const glm::vec3 &position) {
     m_position = position;
     m_localDirty = true;
+    m_worldMatrixDirty = true;
 }
 
 void Node3d::SetScale(const glm::vec3 &scale) {
@@ -147,11 +157,13 @@ void Node3d::SetScale(const glm::vec3 &scale) {
         std::abs(scale.z) < eps ? eps : scale.z
     };
     m_localDirty = true;
+    m_worldMatrixDirty = true;
 }
 
 void Node3d::SetRotation(const glm::quat &rotation) {
     m_rotation = glm::normalize(rotation);
     m_localDirty = true;
+    m_worldMatrixDirty = true;
 }
 
 void Node3d::SetRotationEuler(const glm::vec3 &degrees) {

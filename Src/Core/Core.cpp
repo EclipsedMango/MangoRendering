@@ -331,7 +331,9 @@ void Core::StepFrame(const float deltaTime) {
     }
 
     for (auto* node : m_nodeCache) {
-        node->UpdateWorldTransformFromParent();
+        if (!node->GetParent()) {
+            node->UpdateWorldTransform(glm::mat4(1.0f));
+        }
     }
 }
 

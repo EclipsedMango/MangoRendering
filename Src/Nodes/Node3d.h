@@ -32,7 +32,7 @@ public:
     virtual void PhysicsProcess(float deltaTime);
     virtual void Process(float deltaTime);
 
-    void UpdateWorldTransform(const glm::mat4& parentWorld = glm::mat4(1.0f));
+    void UpdateWorldTransform(const glm::mat4& parentWorld = glm::mat4(1.0f), bool parentDirty = false);
     void UpdateWorldTransformFromParent();
 
     void SetScript(const std::string& path);
@@ -66,6 +66,7 @@ public:
     [[nodiscard]] glm::mat4 GetWorldMatrix() const { return m_worldMatrix; }
 
 protected:
+    virtual void OnWorldMatrixChanged() {}
     void CopyBaseStateTo(Node3d& clone) const;
 
 private:
@@ -86,6 +87,7 @@ private:
     glm::mat4 m_localMatrix = glm::mat4(1.0f);
     glm::mat4 m_worldMatrix = glm::mat4(1.0f);
     bool m_localDirty = false;
+    bool m_worldMatrixDirty = false;
 
     bool m_visible = true;
     bool m_processEnabled = true;

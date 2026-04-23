@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <chrono>
-#include <cstdint>
 #include <iostream>
 #include <ostream>
 #include <unordered_map>
@@ -11,7 +10,6 @@
 #include <tracy/Tracy.hpp>
 
 #include "ResourceManager.h"
-#include "Renderer/Lights/GpuLights.h"
 #include "Renderer/Buffers/UniformBuffer.h"
 #include "glad/gl.h"
 #include "glm/gtc/matrix_access.hpp"
@@ -24,11 +22,6 @@
 
 namespace {
     constexpr uint32_t kInstanceDataBinding = 16;
-
-    struct InstanceDrawData {
-        glm::mat4 model;
-        glm::mat4 normalMatrix;
-    };
 
     float ComputeMaxWorldScale(const glm::mat4& worldMatrix) {
         const float sx = glm::length(glm::vec3(worldMatrix[0]));
@@ -201,7 +194,7 @@ bool RenderApi::IsCulled(const MeshNode3d *node, const Frustum &frustum, RenderS
 // expects shaders and materials to be bound already
 void RenderApi::SubmitToGpu(const MeshNode3d *node, const Shader *shader, RenderStats& stats) {
     shader->SetMatrix4("u_Model", node->GetWorldMatrix());
-    shader->SetMatrix4("u_NormalMatrix", glm::transpose(glm::inverse(node->GetWorldMatrix())));
+    shader->SetMatrix4("u_NormalMatrix", node->GetNormalMatrix());
     shader->SetBool("u_UseInstancing", false);
     node->BindSkinning(*shader);
 
@@ -391,51 +384,29 @@ void RenderApi::DrawGrid(const CameraNode3d *camera, const Framebuffer *targetFb
 
 void RenderApi::RenderMainPass(const CameraNode3d* camera, const Framebuffer* targetFbo, const std::vector<MeshNode3d*>& opaqueQueue, RenderStats& stats) {
     ZoneScoped;
-    struct BatchKey {
-        uint64_t meshId = 0;
-        uint64_t shaderId = 0;
-        uint64_t materialId = 0;
 
-        bool operator==(const BatchKey& other) const {
-            return meshId == other.meshId && shaderId == other.shaderId && materialId == other.materialId;
-        }
-    };
-
-    struct BatchKeyHash {
-        size_t operator()(const BatchKey& key) const {
-            const size_t h1 = std::hash<uint64_t>{}(key.meshId);
-            const size_t h2 = std::hash<uint64_t>{}(key.shaderId);
-            const size_t h3 = std::hash<uint64_t>{}(key.materialId);
-            return h1 ^ (h2 << 1) ^ (h3 << 2);
-        }
-    };
-
-    std::unordered_map<BatchKey, std::vector<const MeshNode3d*>, BatchKeyHash> instancedBatches;
+    m_instancedBatches.clear();
     std::vector<const MeshNode3d*> singleDrawNodes;
     singleDrawNodes.reserve(opaqueQueue.size());
-    std::unordered_map<const Shader*, bool> shaderInstancingSupport;
 
-    for (const MeshNode3d* node : opaqueQueue) {
-        const Material* currentMat = node->GetActiveMaterial();
-        const Shader* currentShader = currentMat->GetShader().get();
-        bool supportsInstancing = false;
-        if (const auto it = shaderInstancingSupport.find(currentShader); it != shaderInstancingSupport.end()) {
-            supportsInstancing = it->second;
-        } else {
-            supportsInstancing = glGetUniformLocation(currentShader->m_id, "u_UseInstancing") != -1;
-            shaderInstancingSupport[currentShader] = supportsInstancing;
+    {
+        ZoneScopedN("InstanceBatchLooping");
+        for (const MeshNode3d* node : opaqueQueue) {
+            const Material* currentMat = node->GetActiveMaterial();
+            const Shader* currentShader = currentMat->GetShader().get();
+            const bool supportsInstancing = currentShader->SupportsInstancing();
+
+            if (node->IsUnique() || node->HasSkinning() || !supportsInstancing) {
+                singleDrawNodes.push_back(node);
+                continue;
+            }
+
+            m_instancedBatches[BatchKey{
+                node->GetMesh()->GetResourceId(),
+                currentShader->GetResourceId(),
+                currentMat->GetResourceId()
+            }].push_back(node);
         }
-
-        if (node->IsUnique() || node->HasSkinning() || !supportsInstancing) {
-            singleDrawNodes.push_back(node);
-            continue;
-        }
-
-        instancedBatches[BatchKey{
-            node->GetMesh()->GetResourceId(),
-            currentShader->GetResourceId(),
-            currentMat->GetResourceId()
-        }].push_back(node);
     }
 
     const Shader* lastShader = nullptr;
@@ -444,109 +415,138 @@ void RenderApi::RenderMainPass(const CameraNode3d* camera, const Framebuffer* ta
     uint64_t lastMaterialId = 0;
 
     auto bindShaderGlobals = [&](const Shader* currentShader) {
+        ZoneScopedN("BindShaderGlobals");
         currentShader->Bind();
 
-        glm::vec2 actualScreenSize(targetFbo->GetWidth(), targetFbo->GetHeight());
-        currentShader->SetVector2("u_ScreenSize", actualScreenSize);
+        if (m_cachedGlobalLocs.cachedShaderId != currentShader->GetResourceId()) {
+            const GLuint id = currentShader->m_id;
+            m_cachedGlobalLocs.screenSize = glGetUniformLocation(id, "u_ScreenSize");
+            m_cachedGlobalLocs.cameraPos = glGetUniformLocation(id, "u_CameraPos");
+            m_cachedGlobalLocs.zNear = glGetUniformLocation(id, "u_ZNear");
+            m_cachedGlobalLocs.zFar = glGetUniformLocation(id, "u_ZFar");
+            m_cachedGlobalLocs.debugMode = glGetUniformLocation(id, "u_DebugMode");
+            m_cachedGlobalLocs.debugCascade = glGetUniformLocation(id, "u_DebugCascade");
+            m_cachedGlobalLocs.hasIbl = glGetUniformLocation(id, "u_HasIbl");
+            m_cachedGlobalLocs.irradianceMap = glGetUniformLocation(id, "u_IrradianceMap");
+            m_cachedGlobalLocs.prefilteredEnvMap = glGetUniformLocation(id, "u_PrefilteredEnvMap");
+            m_cachedGlobalLocs.maxPrefilteredMip = glGetUniformLocation(id, "u_MaxPrefilteredMipLevel");
+            m_cachedGlobalLocs.iblDiffuseIntensity = glGetUniformLocation(id, "u_IblDiffuseIntensity");
+            m_cachedGlobalLocs.iblSpecularIntensity = glGetUniformLocation(id, "u_IblSpecularIntensity");
+            m_cachedGlobalLocs.useInstancing = glGetUniformLocation(id, "u_UseInstancing");
+            m_cachedGlobalLocs.useSkinnedVertexBuffer = glGetUniformLocation(id, "u_UseSkinnedVertexBuffer");
+            m_cachedGlobalLocs.cachedShaderId = currentShader->GetResourceId();
+        }
 
-        currentShader->SetVector3("u_CameraPos", camera->GetPosition());
-        currentShader->SetFloat("u_ZNear", camera->GetNearPlane());
-        currentShader->SetFloat("u_ZFar", camera->GetFarPlane());
-        currentShader->SetInt("u_DebugMode", m_debugMode);
-        currentShader->SetInt("u_DebugCascade", m_debugCascade);
+        const auto& L = m_cachedGlobalLocs;
+        const glm::vec2 screenSize(targetFbo->GetWidth(), targetFbo->GetHeight());
+
+        if (L.screenSize != -1) glUniform2fv(L.screenSize, 1, glm::value_ptr(screenSize));
+        if (L.cameraPos != -1) glUniform3fv(L.cameraPos, 1, glm::value_ptr(camera->GetPosition()));
+        if (L.zNear != -1) glUniform1f(L.zNear, camera->GetNearPlane());
+        if (L.zFar != -1) glUniform1f(L.zFar, camera->GetFarPlane());
+        if (L.debugMode != -1) glUniform1i(L.debugMode, m_debugMode);
+        if (L.debugCascade != -1) glUniform1i(L.debugCascade, m_debugCascade);
 
         m_shadowRenderer->BindShadowUniforms(*currentShader);
 
         if (m_hasIbl) {
             m_ibl.irradiance->Bind(20);
             m_ibl.prefiltered->Bind(21);
-            currentShader->SetInt("u_IrradianceMap", 20);
-            currentShader->SetInt("u_PrefilteredEnvMap", 21);
-            currentShader->SetInt("u_MaxPrefilteredMipLevel", IBLPrecomputer::PREFILTER_MIP_LEVELS - 1);
-            currentShader->SetBool("u_HasIbl", true);
-            currentShader->SetFloat("u_IblDiffuseIntensity", m_skybox->GetIntensity());
-            currentShader->SetFloat("u_IblSpecularIntensity", m_skybox->GetSpecularIntensity());
+            if (L.irradianceMap != -1) glUniform1i(L.irradianceMap, 20);
+            if (L.prefilteredEnvMap != -1) glUniform1i(L.prefilteredEnvMap, 21);
+            if (L.maxPrefilteredMip != -1) glUniform1i(L.maxPrefilteredMip, IBLPrecomputer::PREFILTER_MIP_LEVELS - 1);
+            if (L.hasIbl != -1) glUniform1i(L.hasIbl, 1);
+            if (L.iblDiffuseIntensity != -1) glUniform1f(L.iblDiffuseIntensity, m_skybox->GetIntensity());
+            if (L.iblSpecularIntensity != -1) glUniform1f(L.iblSpecularIntensity, m_skybox->GetSpecularIntensity());
         } else {
-            currentShader->SetBool("u_HasIbl", false);
+            if (L.hasIbl != -1) glUniform1i(L.hasIbl, 0);
         }
     };
 
-    for (const auto& [key, nodes] : instancedBatches) {
-        if (nodes.empty()) {
-            continue;
+    {
+        ZoneScopedN("DrawInstancedBatches");
+        for (const auto& [key, nodes] : m_instancedBatches) {
+            if (nodes.empty()) {
+                continue;
+            }
+
+            const Shader* currentShader = nodes.front()->GetActiveMaterial()->GetShader().get();
+            const Material* currentMat = nodes.front()->GetActiveMaterial();
+
+            if (!lastShader || currentShader->GetResourceId() != lastShaderId) {
+                bindShaderGlobals(currentShader);
+                lastShader = currentShader;
+                lastShaderId = currentShader->GetResourceId();
+                lastMaterial = nullptr;
+                lastMaterialId = 0;
+            }
+
+            if (!lastMaterial || currentMat->GetResourceId() != lastMaterialId) {
+                ApplyMaterialCull(currentMat);
+                currentMat->Bind(*currentShader);
+                lastMaterial = currentMat;
+                lastMaterialId = currentMat->GetResourceId();
+            }
+
+            {
+                ZoneScopedN("MeshLoop");
+                m_instanceDataScratch.clear();
+                m_instanceDataScratch.reserve(nodes.size());
+                for (const MeshNode3d* node : nodes) {
+                    m_instanceDataScratch.push_back({
+                        node->GetWorldMatrix(),
+                        node->GetNormalMatrix()
+                    });
+                }
+            }
+
+            {
+                ZoneScopedN("InstanceBuffer");
+                EnsureInstanceBuffer(m_instanceDataScratch.size());
+                m_instanceSsbo->SetData(m_instanceDataScratch.data(), m_instanceDataScratch.size() * sizeof(InstanceDrawData), 0);
+                m_instanceSsbo->Bind();
+            }
+
+            if (m_cachedGlobalLocs.useInstancing != -1) glUniform1i(m_cachedGlobalLocs.useInstancing, 1);
+            if (m_cachedGlobalLocs.useSkinnedVertexBuffer != -1) glUniform1i(m_cachedGlobalLocs.useSkinnedVertexBuffer, 0);
+
+            nodes.front()->GetMesh()->GetBuffer()->Bind();
+            glDrawElementsInstanced(
+                GL_TRIANGLES,
+                nodes.front()->GetMesh()->GetBuffer()->GetIndexCount(),
+                GL_UNSIGNED_INT,
+                nullptr,
+                static_cast<GLsizei>(m_instanceDataScratch.size())
+            );
+
+            stats.drawCalls++;
+            stats.triangles += (nodes.front()->GetMesh()->GetBuffer()->GetIndexCount() / 3) * static_cast<uint32_t>(m_instanceDataScratch.size());
         }
-
-        const Shader* currentShader = nodes.front()->GetActiveMaterial()->GetShader().get();
-        const Material* currentMat = nodes.front()->GetActiveMaterial();
-
-        if (!lastShader || currentShader->GetResourceId() != lastShaderId) {
-            bindShaderGlobals(currentShader);
-            lastShader = currentShader;
-            lastShaderId = currentShader->GetResourceId();
-            lastMaterial = nullptr;
-            lastMaterialId = 0;
-        }
-
-        if (!lastMaterial || currentMat->GetResourceId() != lastMaterialId) {
-            ApplyMaterialCull(currentMat);
-            currentMat->Bind(*currentShader);
-            lastMaterial = currentMat;
-            lastMaterialId = currentMat->GetResourceId();
-        }
-
-        std::vector<InstanceDrawData> instanceData;
-        instanceData.reserve(nodes.size());
-        for (const MeshNode3d* node : nodes) {
-            const glm::mat4 model = node->GetWorldMatrix();
-            instanceData.push_back({
-                model,
-                glm::transpose(glm::inverse(model))
-            });
-        }
-
-        EnsureInstanceBuffer(instanceData.size());
-        m_instanceSsbo->SetData(instanceData.data(), instanceData.size() * sizeof(InstanceDrawData), 0);
-        m_instanceSsbo->Bind();
-
-        currentShader->SetBool("u_UseSkinnedVertexBuffer", false);
-        currentShader->SetBool("u_UseInstancing", true);
-
-        const auto drawStart = std::chrono::high_resolution_clock::now();
-        nodes.front()->GetMesh()->GetBuffer()->Bind();
-        glDrawElementsInstanced(
-            GL_TRIANGLES,
-            nodes.front()->GetMesh()->GetBuffer()->GetIndexCount(),
-            GL_UNSIGNED_INT,
-            nullptr,
-            static_cast<GLsizei>(instanceData.size())
-        );
-        const auto drawEnd = std::chrono::high_resolution_clock::now();
-        stats.drawSubmitMs += std::chrono::duration<float, std::milli>(drawEnd - drawStart).count();
-
-        stats.drawCalls++;
-        stats.triangles += (nodes.front()->GetMesh()->GetBuffer()->GetIndexCount() / 3) * static_cast<uint32_t>(instanceData.size());
     }
 
-    for (const MeshNode3d* node : singleDrawNodes) {
-        const Shader* currentShader = node->GetActiveMaterial()->GetShader().get();
-        const Material* currentMat = node->GetActiveMaterial();
+    {
+        ZoneScopedN("DrawSingleNodes");
+        for (const MeshNode3d* node : singleDrawNodes) {
+            const Shader* currentShader = node->GetActiveMaterial()->GetShader().get();
+            const Material* currentMat = node->GetActiveMaterial();
 
-        if (!lastShader || currentShader->GetResourceId() != lastShaderId) {
-            bindShaderGlobals(currentShader);
-            lastShader = currentShader;
-            lastShaderId = currentShader->GetResourceId();
-            lastMaterial = nullptr;
-            lastMaterialId = 0;
+            if (!lastShader || currentShader->GetResourceId() != lastShaderId) {
+                bindShaderGlobals(currentShader);
+                lastShader = currentShader;
+                lastShaderId = currentShader->GetResourceId();
+                lastMaterial = nullptr;
+                lastMaterialId = 0;
+            }
+
+            if (!lastMaterial || currentMat->GetResourceId() != lastMaterialId) {
+                ApplyMaterialCull(currentMat);
+                currentMat->Bind(*currentShader);
+                lastMaterial = currentMat;
+                lastMaterialId = currentMat->GetResourceId();
+            }
+
+            SubmitToGpu(node, currentShader, stats);
         }
-
-        if (!lastMaterial || currentMat->GetResourceId() != lastMaterialId) {
-            ApplyMaterialCull(currentMat);
-            currentMat->Bind(*currentShader);
-            lastMaterial = currentMat;
-            lastMaterialId = currentMat->GetResourceId();
-        }
-
-        SubmitToGpu(node, currentShader, stats);
     }
 }
 
@@ -1089,28 +1089,24 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
                 m_depthShader->SetInt("u_Diffuse", 0);
             }
 
-            std::vector<InstanceDrawData> instanceData;
-            instanceData.reserve(nodes.size());
+            m_instanceDataScratch.clear();
             for (const MeshNode3d* instancedNode : nodes) {
                 const glm::mat4 model = instancedNode->GetWorldMatrix();
-                instanceData.push_back({ model });
+                m_instanceDataScratch.push_back({ model });
             }
 
-            EnsureInstanceBuffer(instanceData.size());
-            m_instanceSsbo->SetData(instanceData.data(), instanceData.size() * sizeof(InstanceDrawData), 0);
+            EnsureInstanceBuffer(m_instanceDataScratch.size());
+            m_instanceSsbo->SetData(m_instanceDataScratch.data(), m_instanceDataScratch.size() * sizeof(InstanceDrawData), 0);
             m_instanceSsbo->Bind();
 
-            const auto drawStart = std::chrono::high_resolution_clock::now();
             representative->GetMesh()->GetBuffer()->Bind();
             glDrawElementsInstanced(
                 GL_TRIANGLES,
                 representative->GetMesh()->GetBuffer()->GetIndexCount(),
                 GL_UNSIGNED_INT,
                 nullptr,
-                static_cast<GLsizei>(instanceData.size())
+                static_cast<GLsizei>(m_instanceDataScratch.size())
             );
-            const auto drawEnd = std::chrono::high_resolution_clock::now();
-            stats.drawSubmitMs += std::chrono::duration<float, std::milli>(drawEnd - drawStart).count();
         }
 
         for (const MeshNode3d* mesh : depthSingleDraws) {

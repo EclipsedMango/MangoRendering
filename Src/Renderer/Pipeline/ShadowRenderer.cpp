@@ -419,7 +419,7 @@ void ShadowRenderer::BuildShadowDrawItems(const std::vector<MeshNode3d*>& render
         item.mesh = mesh;
         item.material = mat;
         item.model = node->GetWorldMatrix();
-        item.normalMatrix = glm::transpose(glm::inverse(item.model));
+        item.normalMatrix = node->GetNormalMatrix();
         item.worldCenter = glm::vec3(item.model * glm::vec4(mesh->GetBoundsCenter(), 1.0f));
         item.worldRadius = mesh->GetBoundsRadius() * ComputeMaxWorldScale(item.model);
         item.singleDraw = node->IsUnique() || node->HasSkinning();

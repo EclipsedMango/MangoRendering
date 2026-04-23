@@ -197,6 +197,17 @@ float MeshNode3d::ConsumeFrameSkinUploadMs() {
     return value;
 }
 
+const glm::mat4 & MeshNode3d::GetNormalMatrix() const {
+    if (m_normalMatrixDirty) {
+        m_cachedNormalMatrix = glm::transpose(glm::inverse(GetWorldMatrix()));
+        m_normalMatrixDirty = false;
+    }
+
+    
+
+    return m_cachedNormalMatrix;
+}
+
 void MeshNode3d::SyncSkinningBuffer() const {
     if (!HasSkinning()) {
         return;

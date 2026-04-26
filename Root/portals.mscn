@@ -7,7 +7,7 @@ children:
         x: 0.9
         y: 0.65
         z: 0.32
-      intensity: 2.5
+      intensity: 0.0
       name: DirectionalLightNode3d
       position:
         x: 0.0
@@ -359,9 +359,9 @@ children:
             z: 0.0
           process_enabled: true
           rotation:
-            x: 180.0
+            x: -180.0
             y: -89.702
-            z: 180.0
+            z: -180.0
           scale:
             x: 1.0
             y: 0.0333333
@@ -480,9 +480,9 @@ children:
             z: 0.342267
           process_enabled: true
           rotation:
-            x: 180.0
+            x: -180.0
             y: -89.9515
-            z: 180.0
+            z: -180.0
           scale:
             x: 1.0
             y: 0.2
@@ -602,9 +602,9 @@ children:
             z: 0.344336
           process_enabled: true
           rotation:
-            x: 180.0
+            x: -180.0
             y: -89.9515
-            z: 180.0
+            z: -180.0
           scale:
             x: 1.0
             y: 0.2
@@ -667,9 +667,9 @@ children:
         z: 0.0
       process_enabled: true
       rotation:
-        x: 180.0
+        x: -180.0
         y: 89.9802
-        z: 180.0
+        z: -180.0
       scale:
         x: 5.0
         y: 5.0
@@ -1023,9 +1023,9 @@ children:
         z: 0.0862951
       process_enabled: true
       rotation:
-        x: 180.0
+        x: -180.0
         y: -89.9802
-        z: 180.0
+        z: -180.0
       scale:
         x: 5.0
         y: 5.0
@@ -2108,9 +2108,9 @@ children:
         z: 7.86585
       process_enabled: true
       rotation:
-        x: 180.0
+        x: -180.0
         y: 89.9802
-        z: 180.0
+        z: -180.0
       scale:
         x: 0.999671
         y: 1.0
@@ -2230,9 +2230,9 @@ children:
         z: 6.06281
       process_enabled: true
       rotation:
-        x: 180.0
+        x: -180.0
         y: 89.9802
-        z: 180.0
+        z: -180.0
       scale:
         x: 0.999466
         y: 1.0
@@ -2343,9 +2343,9 @@ children:
         z: 10.0591
       process_enabled: true
       rotation:
-        x: 180.0
+        x: -180.0
         y: 1.34713e-05
-        z: 180.0
+        z: -180.0
       scale:
         x: 3.59986
         y: 4.7
@@ -2391,9 +2391,9 @@ children:
             z: 0.0
           process_enabled: true
           rotation:
-            x: 180.0
+            x: -180.0
             y: -89.9802
-            z: 180.0
+            z: -180.0
           scale:
             x: 1.00015
             y: 0.212766
@@ -2455,13 +2455,65 @@ children:
         z: 0.0
       process_enabled: true
       rotation:
-        x: 180.0
+        x: -180.0
         y: 89.9802
-        z: 180.0
+        z: -180.0
       scale:
         x: 3.59938
         y: 4.7
         z: 0.999845
+      script: 
+      visible: true
+  -
+    children: []
+    node_type: PointLightNode3d
+    properties:
+      color:
+        x: 1.0
+        y: 1.0
+        z: 1.0
+      intensity: 24.0
+      name: PointLightNode3d
+      position:
+        x: -7.32227
+        y: 3.24105
+        z: 0.0
+      process_enabled: true
+      radius: 8.0
+      rotation:
+        x: 0.0
+        y: -0.0
+        z: 0.0
+      scale:
+        x: 1.0
+        y: 1.0
+        z: 1.0
+      script: 
+      visible: true
+  -
+    children: []
+    node_type: PointLightNode3d
+    properties:
+      color:
+        x: 1.0
+        y: 1.0
+        z: 1.0
+      intensity: 9.8
+      name: PointLightNode3d
+      position:
+        x: -0.858209
+        y: 2.9771
+        z: 6.67892
+      process_enabled: true
+      radius: 5.0
+      rotation:
+        x: 0.0
+        y: -0.0
+        z: 0.0
+      scale:
+        x: 1.0
+        y: 1.0
+        z: 1.0
       script: 
       visible: true
 node_type: Node3d

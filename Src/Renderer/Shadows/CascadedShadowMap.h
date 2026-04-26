@@ -36,6 +36,9 @@ private:
     glm::vec3 m_lightDirection {};
     float m_lambda = 0.85f;
 
+    float m_offscreenCasterPadding = 80.0f;
+    float m_depthCasterPadding = 64.0f;
+
     std::array<glm::mat4, NUM_CASCADES> m_lightSpaceMatrices{};
     std::array<float, NUM_CASCADES> m_splitDistances{};
     std::array<float, NUM_CASCADES> m_splitNearDistances{};

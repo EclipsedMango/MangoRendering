@@ -111,7 +111,6 @@ void InspectorPanel::DrawProperties(PropertyHolder* holder, Node3d* ownerNode) {
                 DrawPropertyValue(name, holder, ownerNode);
             }
             EndPropertyTable();
-            EndPropertyTable();
         }
     }
 
@@ -157,53 +156,57 @@ void InspectorPanel::DrawPortalProperties(PortalNode3d* portal) const {
         return;
     }
 
-    BeginPropertyTable();
-    PropertyLabel("Target");
+    if (BeginPropertyTable()) {
+        PropertyLabel("Target");
 
-    const char* preview = linked ? linked->GetName().c_str() : "None";
-    if (ImGui::BeginCombo("##portal_target", preview)) {
-        if (ImGui::Selectable("None", linked == nullptr)) {
-            const PortalNode3d* oldLinked = portal->GetLinkedPortal();
-            portal->Unlink();
-
-            m_editor->MarkSceneDirtyForNode(portal);
-            if (oldLinked) {
-                m_editor->MarkSceneDirtyForNode(oldLinked);
-            }
-        }
-
-        for (PortalNode3d* c : candidates) {
-            const bool selected = (linked == c);
-            if (ImGui::Selectable(c->GetName().c_str(), selected)) {
-                portal->LinkTo(c);
+        const char* preview = linked ? linked->GetName().c_str() : "None";
+        if (ImGui::BeginCombo("##portal_target", preview)) {
+            if (ImGui::Selectable("None", linked == nullptr)) {
+                const PortalNode3d* oldLinked = portal->GetLinkedPortal();
+                portal->Unlink();
 
                 m_editor->MarkSceneDirtyForNode(portal);
-                m_editor->MarkSceneDirtyForNode(c);
+                if (oldLinked) {
+                    m_editor->MarkSceneDirtyForNode(oldLinked);
+                }
             }
 
-            if (selected) ImGui::SetItemDefaultFocus();
+            for (PortalNode3d* c : candidates) {
+                const bool selected = (linked == c);
+                if (ImGui::Selectable(c->GetName().c_str(), selected)) {
+                    portal->LinkTo(c);
+
+                    m_editor->MarkSceneDirtyForNode(portal);
+                    m_editor->MarkSceneDirtyForNode(c);
+                }
+
+                if (selected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+
+            ImGui::EndCombo();
         }
 
-        ImGui::EndCombo();
-    }
+        if (linked) {
+            ImGui::SameLine(0, 6);
+            if (ImGui::SmallButton("×")) {
+                const PortalNode3d* oldLinked = portal->GetLinkedPortal();
+                portal->Unlink();
 
-    if (linked) {
-        ImGui::SameLine(0, 6);
-        if (ImGui::SmallButton("×")) {
-            const PortalNode3d* oldLinked = portal->GetLinkedPortal();
-            portal->Unlink();
+                m_editor->MarkSceneDirtyForNode(portal);
+                if (oldLinked) {
+                    m_editor->MarkSceneDirtyForNode(oldLinked);
+                }
+            }
 
-            m_editor->MarkSceneDirtyForNode(portal);
-            if (oldLinked) {
-                m_editor->MarkSceneDirtyForNode(oldLinked);
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Unlink");
             }
         }
-        if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("Unlink");
-        }
-    }
 
-    EndPropertyTable();
+        EndPropertyTable();
+    }
 }
 
 void InspectorPanel::DrawPropertyValue(const std::string& name, PropertyHolder* holder, Node3d* ownerNode) {

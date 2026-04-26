@@ -74,8 +74,14 @@ void CascadedShadowMap::Update(const CameraNode3d& camera) {
             maxZ = std::max(maxZ, trf.z);
         }
 
+        minX -= m_offscreenCasterPadding;
+        maxX += m_offscreenCasterPadding;
+        minY -= m_offscreenCasterPadding;
+        maxY += m_offscreenCasterPadding;
+
         float worldWidth = maxX - minX;
         float worldHeight = maxY - minY;
+
         m_worldUnitsPerTexel[i] = std::max(worldWidth, worldHeight) / static_cast<float>(CASCADE_RESOLUTION);
 
         float texelSize = m_worldUnitsPerTexel[i];
@@ -87,8 +93,8 @@ void CascadedShadowMap::Update(const CameraNode3d& camera) {
         const float cascadeDepth = splits[i + 1] - splits[i];
         const float cascadeFootprint = glm::length(glm::vec2(worldWidth, worldHeight));
 
-        // Keep enough depth slack for off-camera casters that can still project into the visible cascade
-        const float zPadding = glm::max(glm::max(64.0f, cascadeDepth), cascadeFootprint);
+        // keep enough depth slack for off-camera casters that can still project into the visible cascade
+        const float zPadding = glm::max(glm::max(m_depthCasterPadding, cascadeDepth), cascadeFootprint);
 
         float zNear = -maxZ - zPadding;
         float zFar = -minZ + zPadding;

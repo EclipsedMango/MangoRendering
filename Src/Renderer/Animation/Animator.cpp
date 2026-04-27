@@ -450,7 +450,7 @@ void Animator::EnsureSkinningComputeBuffers() {
     }
 
     if (!m_skinningHierarchyComputeShader) {
-        m_skinningHierarchyComputeShader = ResourceManager::Get().LoadComputeShader("SkinningHierarchyCompute", "skinning_hierarchy.comp");
+        m_skinningHierarchyComputeShader = ResourceManager::Get().LoadComputeShader("SkinningHierarchyCompute", "Engine://Shaders/skinning_hierarchy.comp");
     }
 
     if (m_gpuSkeletonStaticUploaded) {

@@ -2,12 +2,20 @@
 #include "Core/ResourceManager.h"
 #include "Core/Editor/Editor.h"
 #include "Nodes/Lights/DirectionalLightNode3d.h"
+#include "Renderer/Meshes/GltfLoader.h"
 
 int main() {
     auto scene = std::make_unique<Node3d>();
     Editor editor(std::move(scene));
 
     Node3d* liveScene = editor.GetActiveViewport()->GetScene();
+
+    // auto shader = ResourceManager::Get().LoadShader("Default", "Engine://Shaders/default.vert", "Engine://Shaders/default.frag");
+    //
+    // const std::string dancingPath = ResourceManager::Get().ResolveAssetPath("Engine://Models/SillyDancing/Silly Dancing.glb");
+    // auto dancing = std::unique_ptr(GltfLoader::Load(dancingPath, shader));
+    // dancing->SetScale({0.10f, 0.10f, 0.10f});
+    // liveScene->AddChild(std::move(dancing));
 
     auto sun = std::make_unique<DirectionalLightNode3d>(glm::vec3(0.5f, -0.6f, -0.5f), glm::vec3(0.9f, 0.65f, 0.32f), 2.5f);
     liveScene->AddChild(std::move(sun));

@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.31)
 project(MangoRendering)
 
+if(MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
@@ -230,8 +234,8 @@ target_precompile_headers(MangoRendering PRIVATE
         <sol/sol.hpp>
 )
 
-target_link_options(MangoRendering PRIVATE -static-libgcc -static-libstdc++ -static)
-        target_link_libraries(MangoRendering PRIVATE SDL3::SDL3 glad_gl imgui ${CMAKE_DL_LIBS} fkYAML::fkYAML lua::lua sol2::sol2 Jolt TracyClient)
+target_link_options(MangoRendering PRIVATE -static-libgcc -static-libstdc++)
+target_link_libraries(MangoRendering PRIVATE SDL3::SDL3 glad_gl imgui ${CMAKE_DL_LIBS} fkYAML::fkYAML lua::lua sol2::sol2 Jolt TracyClient)
 target_compile_definitions(MangoRendering PRIVATE SOL_LUA_VERSION=504)
 
 option(MANGO_DEV_ASSET_PATHS "Load Root/ and EngineAssets/ from source tree during development" ON)

@@ -9,7 +9,7 @@
 #include <sstream>
 #include <vector>
 
-#include "glad/gl.h"
+#include "Glad/glad.h"
 
 REGISTER_PROPERTY_TYPE(Shader)
 

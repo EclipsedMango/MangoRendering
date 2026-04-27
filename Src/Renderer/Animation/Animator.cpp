@@ -8,7 +8,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
-#include "glad/gl.h"
+#include "Glad/glad.h"
 #include "Core/ResourceManager.h"
 #include "Renderer/Buffers/ShaderStorageBuffer.h"
 

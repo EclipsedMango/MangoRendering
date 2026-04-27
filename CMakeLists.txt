@@ -14,9 +14,8 @@ FetchContent_MakeAvailable(sdl)
 FetchContent_Declare(glm GIT_REPOSITORY https://github.com/g-truc/glm.git GIT_TAG 1.0.1)
 FetchContent_MakeAvailable(glm)
 
-FetchContent_Declare(glad GIT_REPOSITORY https://github.com/Dav1dde/glad.git GIT_TAG glad2 SOURCE_SUBDIR cmake)
-FetchContent_MakeAvailable(glad)
-glad_add_library(glad_gl REPRODUCIBLE LOADER API gl:core=4.6)
+add_library(glad_gl STATIC ${CMAKE_SOURCE_DIR}/Include/Glad/glad.c)
+target_include_directories(glad_gl PUBLIC ${CMAKE_SOURCE_DIR}/Include)
 
 FetchContent_Declare(imgui GIT_REPOSITORY https://github.com/ocornut/imgui.git GIT_TAG docking)
 FetchContent_MakeAvailable(imgui)

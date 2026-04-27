@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "Core/PropertyHolder.h"
-#include "glad/gl.h"
+#include "Glad/glad.h"
 
 class Texture : public PropertyHolder {
 public:

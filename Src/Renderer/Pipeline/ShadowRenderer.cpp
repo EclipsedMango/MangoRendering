@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <tracy/Tracy.hpp>
 
-#include "glad/gl.h"
+#include "Glad/glad.h"
 #include "glm/gtc/matrix_transform.hpp"
 #include "../Lights/GpuLights.h"
 #include "Core/RenderApi.h"

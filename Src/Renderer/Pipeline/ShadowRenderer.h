@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "glad/gl.h"
+#include "Glad/glad.h"
 #include "glm/glm.hpp"
 #include "Nodes/CameraNode3d.h"
 #include "Nodes/MeshNode3d.h"

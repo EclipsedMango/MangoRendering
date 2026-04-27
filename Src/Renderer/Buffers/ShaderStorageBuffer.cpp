@@ -1,6 +1,6 @@
 
 #include "ShaderStorageBuffer.h"
-#include "glad/gl.h"
+#include "Glad/glad.h"
 
 ShaderStorageBuffer::ShaderStorageBuffer(const size_t size, const uint32_t binding) : GpuBuffer(size, binding) {
     ShaderStorageBuffer::Bind();

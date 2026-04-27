@@ -11,7 +11,7 @@
 
 #include "ResourceManager.h"
 #include "Renderer/Buffers/UniformBuffer.h"
-#include "glad/gl.h"
+#include "Glad/glad.h"
 #include "glm/gtc/matrix_access.hpp"
 #include "glm/gtc/type_ptr.hpp"
 #include "Nodes/MeshNode3d.h"
@@ -161,7 +161,7 @@ std::unique_ptr<Window> RenderApi::CreateWindow(const char* title, const glm::ve
     window->MakeCurrent();
 
     if (m_windows.empty()) {
-        if (!gladLoadGL(SDL_GL_GetProcAddress)) {
+        if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(SDL_GL_GetProcAddress))) {
             throw std::runtime_error("Failed to initialize Glad");
         }
 

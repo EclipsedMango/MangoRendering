@@ -1,7 +1,7 @@
 #include "CascadedShadowMap.h"
 
 #include <vector>
-#include <glad/gl.h>
+#include <Glad/glad.h>
 #include <glm/gtc/matrix_transform.hpp>
 
 CascadedShadowMap::CascadedShadowMap(const glm::vec3& lightDirection) : m_lightDirection(glm::normalize(lightDirection)) {

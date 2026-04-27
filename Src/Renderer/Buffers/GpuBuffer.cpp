@@ -1,7 +1,7 @@
 
 #include "GpuBuffer.h"
 
-#include "glad/gl.h"
+#include "Glad/glad.h"
 
 GpuBuffer::GpuBuffer(const size_t size, const uint32_t binding) : m_Size(size), m_Binding(binding) {
     glCreateBuffers(1, &m_ID);

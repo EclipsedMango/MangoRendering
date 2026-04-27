@@ -5,7 +5,7 @@
 #include <tracy/Tracy.hpp>
 
 #include "Core/ResourceManager.h"
-#include "glad/gl.h"
+#include "Glad/glad.h"
 #include "glm/gtc/matrix_transform.hpp"
 
 ClusterSystem::ClusterSystem() {

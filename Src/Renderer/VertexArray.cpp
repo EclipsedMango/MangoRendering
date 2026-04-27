@@ -2,7 +2,7 @@
 #include "VertexArray.h"
 
 #include <stdexcept>
-#include "glad/gl.h"
+#include "Glad/glad.h"
 
 VertexArray::VertexArray(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices) {
     if (vertices.empty() || indices.empty()) {

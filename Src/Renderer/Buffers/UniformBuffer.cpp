@@ -1,6 +1,6 @@
 
 #include "UniformBuffer.h"
-#include "glad/gl.h"
+#include "Glad/glad.h"
 
 UniformBuffer::UniformBuffer(const size_t size, const uint32_t binding) : GpuBuffer(size, binding) {
     UniformBuffer::Bind();

@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <iostream>
 
-#include "glad/gl.h"
+#include "Glad/glad.h"
 #include "Core/RenderApi.h"
 #include "Core/ResourceManager.h"
 #include "Renderer/Animation/Animator.h"

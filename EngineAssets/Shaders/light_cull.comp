@@ -4,7 +4,6 @@ layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 struct PointLight {
     vec4 position;    // w = radius
     vec4 color;       // w = intensity
-    vec4 attenuation; // x = constant, y = linear, z = quadratic
 };
 
 struct SpotLight {

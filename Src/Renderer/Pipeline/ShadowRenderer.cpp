@@ -77,6 +77,8 @@ void ShadowRenderer::RenderDirectionalShadows(const CameraNode3d& camera, const 
     glEnable(GL_DEPTH_TEST);
     glDepthMask(GL_TRUE);
     glDepthFunc(GL_LESS);
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(1.5f, 4.0f);
 
     m_shadowDepthShader->Bind();
 
@@ -160,6 +162,7 @@ void ShadowRenderer::RenderDirectionalShadows(const CameraNode3d& camera, const 
         }
     }
 
+    glDisable(GL_POLYGON_OFFSET_FILL);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     glViewport(0, 0, static_cast<int>(viewportSize.x), static_cast<int>(viewportSize.y));
@@ -182,7 +185,7 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
     for (auto& [slot, farPlane, bias, pad] : m_pointShadowMetaScratch) {
         slot = 0xFFFFFFFFu;
         farPlane = 1.0f;
-        bias = 0.01f;
+        bias = 0.015f;
         pad = 0.0f;
     }
 
@@ -201,6 +204,8 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
     glEnable(GL_DEPTH_TEST);
     glDepthMask(GL_TRUE);
     glDepthFunc(GL_LESS);
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(3.0f, 12.0f);
 
     m_pointShadowDepthShader->Bind();
 
@@ -227,7 +232,7 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
 
         m_pointShadowMetaScratch[lightIndex].slot = slot;
         m_pointShadowMetaScratch[lightIndex].farPlane = farPlane;
-        m_pointShadowMetaScratch[lightIndex].bias = glm::clamp(farPlane * 0.0015f, 0.003f, 0.03f);
+        m_pointShadowMetaScratch[lightIndex].bias = glm::clamp(farPlane * 0.005f, 0.015f, 0.1f);
 
         BuildPointShadowFaceMatrices(L->GetPosition(), 0.1f, farPlane, m_pointLightVpScratch.data());
 
@@ -310,6 +315,7 @@ void ShadowRenderer::RenderPointLightShadows(const CameraNode3d& camera, const s
 
     PointLightShadowMap::End();
     m_pointShadowMetaSsbo->SetData(m_pointShadowMetaScratch.data(), m_pointShadowMetaScratch.size() * sizeof(GPUPointShadowMeta), 0);
+    glDisable(GL_POLYGON_OFFSET_FILL);
 
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);

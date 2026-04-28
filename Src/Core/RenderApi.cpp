@@ -387,7 +387,7 @@ void RenderApi::DrawGrid(const CameraNode3d *camera, const Framebuffer *targetFb
     UploadCameraData(camera);
 
     m_gridShader->Bind();
-    m_gridShader->SetVector3("u_CameraPos", camera->GetPosition());
+    m_gridShader->SetVector3("u_CameraPos", camera->GetWorldPosition());
     m_gridShader->SetVector2("u_ScreenSize", glm::vec2(drawTarget->GetWidth(), drawTarget->GetHeight()));
     m_gridShader->SetFloat("u_GridSpacing", 1.0f);
     m_gridShader->SetFloat("u_FadeDistance", 80.0f);
@@ -464,7 +464,7 @@ void RenderApi::RenderMainPass(const CameraNode3d* camera, const Framebuffer* ta
         const glm::vec2 screenSize(targetFbo->GetWidth(), targetFbo->GetHeight());
 
         if (L.screenSize != -1) glUniform2fv(L.screenSize, 1, glm::value_ptr(screenSize));
-        if (L.cameraPos != -1) glUniform3fv(L.cameraPos, 1, glm::value_ptr(camera->GetPosition()));
+        if (L.cameraPos != -1) glUniform3fv(L.cameraPos, 1, glm::value_ptr(camera->GetWorldPosition()));
         if (L.zNear != -1) glUniform1f(L.zNear, camera->GetNearPlane());
         if (L.zFar != -1) glUniform1f(L.zFar, camera->GetFarPlane());
         if (L.debugMode != -1) glUniform1i(L.debugMode, m_debugMode);
@@ -721,7 +721,7 @@ void RenderApi::RenderPortalPasses(const CameraNode3d *camera, const Framebuffer
             glm::vec3(portal->GetWorldMatrix() * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f))
         );
 
-        const glm::vec3 camPos = camera->GetPosition();
+        const glm::vec3 camPos = camera->GetWorldPosition();
         const float planeDist = glm::dot(camPos - portalPos, portalNormal);
         if (planeDist <= -0.01f) {
             continue;
@@ -1071,7 +1071,7 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
         }
     }
 
-    const glm::vec3 camPos = camera->GetPosition();
+    const glm::vec3 camPos = camera->GetWorldPosition();
     const glm::vec3 forward = camera->GetFront();
 
     struct OpaqueSortEntry {
@@ -1151,12 +1151,9 @@ RenderStats RenderApi::RenderView(const CameraNode3d *camera, const Framebuffer 
 
     if (isMainPass) {
         ZoneScopedN("RenderShadows");
-        glEnable(GL_POLYGON_OFFSET_FILL);
-        glPolygonOffset(1.5f, 4.0f);
         m_shadowRenderer->BuildShadowDrawItems(opaqueQueue);
         m_shadowRenderer->RenderDirectionalShadows(*camera, targetSize);
         m_shadowRenderer->RenderPointLightShadows(*camera, m_lightManager->GetPointLights(), targetSize);
-        glDisable(GL_POLYGON_OFFSET_FILL);
         stats.shadowDrawCalls = m_shadowRenderer->GetShadowDrawCallCount();
     }
 
